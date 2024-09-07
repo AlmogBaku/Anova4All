@@ -1,0 +1,10 @@
+# IDE and OS
+.idea
+DS_Store
+
+# python cache
+__pycache__/
+
+# dumps
+research/*.txt
+*.pcap
