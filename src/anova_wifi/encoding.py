@@ -50,7 +50,7 @@ class Encoder:
         :param data: The data to decode
         :return: The decoded message as a string
         """
-        if data[-1:] == b'\x16': # Remove SYN character if present
+        if data[-1:] == b'\x16':  # Remove SYN character if present
             data = data[:-1]
 
         header = data[0]

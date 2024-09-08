@@ -1,4 +1,5 @@
 import csv
+import sys
 
 
 def roll_shift(byte, n):
@@ -42,11 +43,11 @@ def process_line(line):
     if len(parts) != 3:  # Ensure there are 3 parts (src, dst, payload) in the line
         return None, None, None, None, None  # Return default values if the line is invalid
 
-    src_port, dst_port, payload = parts
+    tm, src_port, dst_port, payload = parts
     if not payload.strip():  # Skip lines with no payload
         return None, None, None, None, None  # Return default values if the line is invalid
 
-    source = "client" if src_port == "6566" else "server"
+    source = "server" if src_port == "8080" else "client"
 
     length, decoded_message, chksum_ok = decode_message_with_checksum_fix(payload)
 
@@ -54,26 +55,31 @@ def process_line(line):
     print(f"Decoded message: {decoded_message}")
     print()  # Empty line for readability
 
-    return payload[:-2], source, length, chksum_ok, decoded_message # last two characters of the payload are the SYN
+    return tm, payload, source, length, chksum_ok, decoded_message
 
 
-# Read the raw input file and process it
-def process_file(input_file, output_file):
-    with open(input_file, 'r') as infile, open(output_file, 'w', newline='') as outfile:
+def process_stdin(output_file):
+    if sys.stdin.isatty():
+        raise RuntimeError("No input data provided. Please pipe data to this script.")
+
+    with open(output_file, 'w', newline='') as outfile:
         writer = csv.writer(outfile)
         # Write the CSV header
-        writer.writerow(['original_bytes', 'length', 'checksum_ok', 'source', 'decoded'])
+        writer.writerow(['time_relative', 'original_bytes', 'length', 'checksum_ok', 'source', 'decoded'])
 
-        for line in infile:
-            payload, source, length, checksum_ok, decoded_data = process_line(line)
-            if payload is None:
-                print('Skipping invalid line')
-                continue
-            writer.writerow([payload, length, checksum_ok, source, decoded_data])
+        try:
+            for line in sys.stdin:
+                tm, payload, source, length, checksum_ok, decoded_data = process_line(line)
+                if payload is None:
+                    continue
+                writer.writerow([tm, payload, length, checksum_ok, source, decoded_data])
+                outfile.flush()  # Ensure data is written immediately
+        except KeyboardInterrupt:
+            print("\nKeyboard interrupt received. Stopping input processing.")
+        finally:
+            print(f'Processing complete. Output saved to {output_file}')
 
 
 if __name__ == '__main__':
-    input_file = 'rawdump_with_direction.txt'  # The file you provided
-    output_file = '../src/anova_wifi/test_data.csv'  # Output CSV file path
-    process_file(input_file, output_file)
-    print(f'Processing complete. Output saved to {output_file}')
+    output_file = sys.argv[1] if len(sys.argv) > 1 else 'output.csv'
+    process_stdin(output_file)

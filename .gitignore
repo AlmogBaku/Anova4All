@@ -1,9 +1,12 @@
 # IDE and OS
 .idea
 DS_Store
+.vscode
 
-# python cache
+# python
 __pycache__/
+.venv/
+venv/
 
 # dumps
 research/*.txt

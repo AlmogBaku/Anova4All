@@ -61,6 +61,8 @@ class AsyncAnovaDevice:
             await self.get_unit()
             await self.get_timer()
             await self.get_speaker_status()
+        except ConnectionResetError as e:
+            logger.error(f"Connection reset during heartbeat: {e}")
         except Exception as e:
             logger.error(f"Error during heartbeat: {e}")
             raise
