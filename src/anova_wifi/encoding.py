@@ -1,4 +1,5 @@
 class Encoder:
+    @staticmethod
     def encode(message: str) -> bytes:
         """
         Encodes a message to bytes.

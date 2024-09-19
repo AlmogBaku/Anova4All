@@ -1,18 +1,19 @@
 import asyncio
 from contextlib import asynccontextmanager
+from typing import Never, AsyncGenerator
 
 import uvicorn
-from fastapi import FastAPI, Depends
+from anova_wifi.manager import AnovaManager
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.anova_wifi.manager import AsyncAnovaManager
-from src.api import router as anova_router
+from .api import router as anova_router
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, Never]:
     # Startup
-    app.state.anova_manager = AsyncAnovaManager(host="0.0.0.0", port=8080)
+    app.state.anova_manager = AnovaManager(host="0.0.0.0", port=8080)
     startup_task = asyncio.create_task(app.state.anova_manager.start())
     print("Starting up... Manager initialization started in background.")
 
@@ -35,7 +36,6 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
-
 
 # Include the Anova API router
 app.include_router(anova_router, prefix="/api/v1")

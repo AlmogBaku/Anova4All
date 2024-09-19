@@ -1,16 +1,20 @@
-from typing import Any
+from enum import Enum
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
 
 class AnovaCommand(BaseModel):
     @classmethod
-    async def execute(cls, *args, **kwargs) -> str:
+    async def execute(cls, *args: Any, **kwargs: Any) -> str:
         raise NotImplementedError("Subclasses must implement execute method")
 
     @classmethod
     def parse_response(cls, response: str) -> Any:
         raise NotImplementedError("Subclasses must implement parse_response method")
+
+
+UnitType = Literal['c', 'f']
 
 
 class GetIdCardCommand(AnovaCommand):
@@ -55,9 +59,7 @@ class GetNumberCommand(AnovaCommand):
 class StatusCommand(AnovaCommand):
     running: bool
     temperature: float
-    target_temperature: float
-    timer_running: bool
-    timer_value: int
+    unit: Optional[UnitType]
 
     @classmethod
     async def execute(cls) -> str:
@@ -66,15 +68,13 @@ class StatusCommand(AnovaCommand):
     @classmethod
     def parse_response(cls, response: str) -> 'StatusCommand':
         if response.lower() == "stopped":
-            return cls(running=False, temperature=0.0, target_temperature=0.0, timer_running=False, timer_value=0)
+            return cls(running=False, temperature=0.0, unit=None)
 
         parts = response.split(',')
         return cls(
             running=parts[0] == "running",
             temperature=float(parts[1]),
-            target_temperature=float(parts[2]),
-            timer_running=parts[3] == "timer_on",
-            timer_value=int(parts[4])
+            unit=parts[2].strip().lower(), # type: ignore[arg-type]
         )
 
 
@@ -115,7 +115,7 @@ class ReadTempCommand(AnovaCommand):
 
 
 class ReadUnitCommand(AnovaCommand):
-    unit: str
+    unit: UnitType
 
     @classmethod
     async def execute(cls) -> str:
@@ -123,7 +123,7 @@ class ReadUnitCommand(AnovaCommand):
 
     @classmethod
     def parse_response(cls, response: str) -> 'ReadUnitCommand':
-        return cls(unit=response.strip())
+        return cls(unit=response.strip().lower())  # type: ignore[arg-type]
 
 
 class StartCommand(AnovaCommand):
@@ -210,3 +210,65 @@ class SpeakerStatusCommand(AnovaCommand):
     @classmethod
     def parse_response(cls, response: str) -> 'SpeakerStatusCommand':
         return cls(is_on=response.strip().lower().endswith(" on"))
+
+
+class EventType(str, Enum):
+    TEMP_REACHED = "temp_reached"
+    LOW_WATER = "low_water"
+    START = "start"
+    STOP = "stop"
+    CHANGE_TEMP = "change_temp"
+    TIME_START = "time_start"
+    TIME_STOP = "time_stop"
+
+
+class EventOriginator(str, Enum):
+    WIFI = "wifi"
+    BLE = "ble"
+    Device = "device"
+
+
+class AnovaEvent(BaseModel):
+    type: EventType
+    originator: EventOriginator = EventOriginator.Device
+
+    @classmethod
+    def parse_event(cls, event_string: str) -> 'AnovaEvent':
+        orig = EventOriginator.Device
+
+        if event_string.startswith("event wifi"):
+            orig = EventOriginator.WIFI
+        elif event_string.startswith("event ble"):
+            orig = EventOriginator.BLE
+
+        event_string = event_string.replace("event ", "").replace("wifi ", "").replace("ble ", "")
+
+        es = event_string.lower().strip()
+        if es == "stop":
+            return cls(type=EventType.STOP, originator=orig)
+        elif es == "start":
+            return cls(type=EventType.START, originator=orig)
+        elif es == "low water":
+            return cls(type=EventType.LOW_WATER, originator=orig)
+        elif es == "time start":
+            return cls(type=EventType.TIME_START, originator=orig)
+        elif es == "time stop":
+            return cls(type=EventType.TIME_STOP, originator=orig)
+        elif es.startswith("temp has reached"):
+            return cls(type=EventType.TEMP_REACHED, originator=orig)
+        else:
+            raise ValueError(f"Unknown event: {event_string}")
+
+
+class SetUnitCommand(AnovaCommand):
+    unit: UnitType
+
+    @classmethod
+    async def execute(cls, unit: str) -> str:
+        if unit.lower() not in ['c', 'f']:
+            raise ValueError("Unit must be 'c' or 'f'")
+        return f"set unit {unit.lower()}"
+
+    @classmethod
+    def parse_response(cls, response: str) -> 'SetUnitCommand':
+        return cls(unit=response.strip().lower())  # type: ignore[arg-type]
