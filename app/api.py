@@ -1,5 +1,7 @@
+import socket
 from typing import List, Optional, Literal
 
+from anova_ble.client import AnovaBluetoothClient
 from anova_wifi.commands import UnitType
 from anova_wifi.device import DeviceState
 from anova_wifi.manager import AnovaManager
@@ -196,3 +198,47 @@ async def get_speaker_status(device_id: str, manager: AnovaManager = Depends(get
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
     return SpeakerStatusResponse(speaker_status=device.state.speaker_status)
+
+
+class BLEDevice(BaseModel):
+    address: str
+    name: str
+
+
+@router.get("/ble_devices")
+async def get_ble_device() -> BLEDevice:
+    dev = await AnovaBluetoothClient.scan()
+    if not dev:
+        raise HTTPException(status_code=404, detail="No BLE device found")
+    return BLEDevice(address=dev[0].address, name=dev[1].local_name)
+
+
+def get_local_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(('10.255.255.255', 1))
+    ip = s.getsockname()[0]
+    s.close()
+    return ip
+
+
+@router.patch("/patch_ble_device")
+async def patch_ble_device() -> Literal['ok']:
+    dev = await AnovaBluetoothClient.scan()
+    if not dev:
+        raise HTTPException(status_code=404, detail="No BLE device found")
+
+    async with AnovaBluetoothClient(dev[0]) as client:
+        myname = get_local_ip()
+        ret = await client.set_server_info(myname, 8080)
+        return 'ok'
+
+
+@router.patch("/revert_patch_ble_device")
+async def patch_ble_device() -> Literal['ok']:
+    dev = await AnovaBluetoothClient.scan()
+    if not dev:
+        raise HTTPException(status_code=404, detail="No BLE device found")
+
+    async with AnovaBluetoothClient(dev[0]) as client:
+        ret = await client.set_server_info()
+        return 'ok'
