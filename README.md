@@ -1,8 +1,8 @@
 # Anova for All
 
 > Recently, Anova decided to shut down their cloud services for the Anova Precision Cooker Wi-Fi 1 - although the device
-is still fully functional, and still serves its purpose.
-> 
+> is still fully functional, and still serves its purpose.
+>
 > That means that while the device is still functional, the app is no longer able to connect to the device.
 
 This project aims to provide a way to control the Anova Precision Cooker Wi-Fi without the need for the Anova app.
@@ -21,10 +21,19 @@ It uses the Anova Wi-Fi protocol to communicate with the device directly over th
 ## Installation
 
 1. git clone
-2. install poetry (https://python-poetry.org/docs/)
-3. `poetry install`
-4. configure your router to resolve `pc.anovaculinary.com` to the server running this app
-5. run the app with `poetry run python -m main`
+2. install [uv](https://docs.astral.sh/uv/) package manager
+3. Sync the dependencies with `uv sync`
+4. Run the server with `uv run fastapi run`
+5. Open the OpenAPI documentation at `http://localhost:8000/docs`
+
+## Configuration
+
+To use the Anova for All, you need to patch the `anova` package to use the server's IP address instead of the Anova
+cloud services.
+
+To do this, assist the `PATCH /api/patch_ble_device` endpoint.
+
+To revert the changes, use the `PATCH /api/restore_ble_device` endpoint.
 
 ## Usage
 

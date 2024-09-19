@@ -42,6 +42,8 @@ class AnovaConnection:
         try:
             while True:
                 await self.receive()
+        except ConnectionResetError:
+            logger.info("Connection closed by remote host")
         except asyncio.CancelledError:
             logger.info("Listening task cancelled")
         except Exception as e:

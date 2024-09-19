@@ -29,9 +29,10 @@ class AnovaManager:
         logger.info(f"AsyncAnovaManager started on {self.server.host}:{self.server.port}")
 
     async def stop(self) -> None:
-        await self.server.stop()
         await self._stop_all_monitoring_tasks()
         await self._close_all_devices()
+        await self.server.stop()
+
         logger.info("AsyncAnovaManager stopped")
 
     async def _stop_all_monitoring_tasks(self) -> None:

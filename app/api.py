@@ -222,19 +222,29 @@ def get_local_ip():
 
 
 @router.patch("/patch_ble_device")
-async def patch_ble_device() -> Literal['ok']:
+async def patch_ble_device(host: Optional[str]) -> Literal['ok']:
+    """
+    Patch the Anova Precision Cooker to communicate with our server
+    :param host: The IP address of the server. If not provided, the local IP address will be determined automatically
+    :return:
+    """
     dev = await AnovaBluetoothClient.scan()
     if not dev:
         raise HTTPException(status_code=404, detail="No BLE device found")
 
     async with AnovaBluetoothClient(dev[0]) as client:
-        myname = get_local_ip()
-        ret = await client.set_server_info(myname, 8080)
+        if not host:
+            host = get_local_ip()
+        ret = await client.set_server_info(host, 8080)
         return 'ok'
 
 
-@router.patch("/revert_patch_ble_device")
+@router.patch("/restore_ble_device")
 async def patch_ble_device() -> Literal['ok']:
+    """
+    Restore the Anova Precision Cooker to communicate with the Anova Cloud server
+    :return:
+    """
     dev = await AnovaBluetoothClient.scan()
     if not dev:
         raise HTTPException(status_code=404, detail="No BLE device found")
