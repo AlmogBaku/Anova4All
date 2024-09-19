@@ -1,16 +1,16 @@
 import asyncio
-from typing import Optional, List, Any
+from types import TracebackType
+from typing import Optional, Any, Union, Type
 
-from bleak import BleakScanner, BleakClient # type: ignore
-from bleak.backends.characteristic import BleakGATTCharacteristic # type: ignore
-from bleak.backends.device import BLEDevice # type: ignore
-from bleak.exc import BleakError # type: ignore
+from bleak import BleakScanner, BleakClient, BLEDevice, AdvertisementData, normalize_uuid_str  # type: ignore
+from bleak.backends.device import BLEDevice
 
 from .cmds import StartDevice, StopDevice, GetDeviceStatus, StartTimer, StopTimer, GetTimerStatus, GetTemperatureUnit, \
     GetDeviceInformation, SetCalibrationFactor, SetServerInfo, SetLED, SetSecretKey, SetTargetTemperature, SetTimer, \
     SetTemperatureUnit, GetCurrentTemperature, GetTargetTemperature, ReadCalibrationFactor, ClearAlarm, GetDate, \
     GetTemperatureHistory, SetWifiCredentials, StartSmartlink, SetDeviceName, TurnOffSpeaker, GetVersion, Command
 from .types import (
+    ANOVA_SERVICE_UUID,
     ANOVA_CHARACTERISTIC_UUID,
     ANOVA_DEVICE_NAME,
     TemperatureValue,
@@ -24,45 +24,46 @@ from .types import (
 
 
 class AnovaBluetoothClient:
-    client: Optional[BleakClient]
-    characteristic: Optional[BleakGATTCharacteristic]
+    client: BleakClient
     command_lock: asyncio.Lock
+    device: Union[BLEDevice, str]
+
+    def __init__(self, device: Union[BLEDevice, str] = None):
+        self.command_lock = asyncio.Lock()
+        self.device = device
 
     @staticmethod
-    async def scan(timeout: float = 5.0) -> List[BLEDevice]:
+    async def scan(timeout: float = 5.0) -> Optional[Union[BLEDevice, AdvertisementData]]:
         """
         Scan for Anova devices.
 
         :param timeout: Scan duration in seconds
-        :return: List of discovered Anova devices
+        :return: BLEDevice and AdvertisementData of the device if found
         """
-        devices = await BleakScanner.discover(timeout=timeout)
-        return [d for d in devices if d.name == ANOVA_DEVICE_NAME]
+        devs = await BleakScanner.discover(timeout=timeout, return_adv=True)
+        for dev, adv in devs.values():
+            if adv.local_name == ANOVA_DEVICE_NAME:
+                for uuid in adv.service_uuids:
+                    if normalize_uuid_str(ANOVA_SERVICE_UUID) == uuid:
+                        return dev, adv
 
-    async def connect(self, device: BLEDevice) -> None:
-        """
-        Connect to a specific Anova device.
+    async def __aenter__(self) -> 'AnovaBluetoothClient':
+        self.client = BleakClient(self.device)
+        await self.client.connect()
+        return self
 
-        :param device: BLEDevice to connect to
-        :raises AnovaConnectionError: If connection fails
-        """
-        try:
-            self.client = BleakClient(device)
-            await self.client.connect()
-            self.characteristic = await self.client.get_characteristic(ANOVA_CHARACTERISTIC_UUID)
-        except BleakError as e:
-            raise AnovaConnectionError(f"Failed to connect to device {device.address}: {str(e)}")
-        except ValueError:
-            raise AnovaConnectionError(f"Characteristic {ANOVA_CHARACTERISTIC_UUID} not found")
-
-    async def disconnect(self) -> None:
-        if self.client and self.client.is_connected:
+    async def __aexit__(
+            self,
+            exc_type: Type[BaseException],
+            exc_val: BaseException,
+            exc_tb: TracebackType,
+    ) -> None:
+        if self.client:
             await self.client.disconnect()
-        self.client = None
-        self.characteristic = None
+            self.client = None
 
     async def send_command(self, command: Command, timeout: float = 5.0) -> Any:
-        if not self.client or not self.characteristic:
+        if not self.client:
             raise AnovaConnectionError("Not connected to Anova device")
 
         async with self.command_lock:
@@ -75,14 +76,15 @@ class AnovaBluetoothClient:
                     response_future.set_result(response.strip())
 
             try:
-                await self.client.start_notify(self.characteristic, response_callback)
-                await self.client.write_gatt_char(self.characteristic, f"{command.encode()}\r".encode('utf-8'))
+                await self.client.start_notify(normalize_uuid_str(ANOVA_CHARACTERISTIC_UUID), response_callback)
+                await self.client.write_gatt_char(normalize_uuid_str(ANOVA_CHARACTERISTIC_UUID),
+                                                  f"{command.encode()}\r".encode('utf-8'))
                 response = await asyncio.wait_for(response_future, timeout)
                 return command.decode(response)
             except asyncio.TimeoutError:
                 raise AnovaCommandError(f"Command '{command.encode()}' timed out")
             finally:
-                await self.client.stop_notify(self.characteristic)
+                await self.client.stop_notify(normalize_uuid_str(ANOVA_CHARACTERISTIC_UUID))
 
     async def set_calibration_factor(self, factor: float = 0.0) -> str:
         return await self.send_command(SetCalibrationFactor(factor))
