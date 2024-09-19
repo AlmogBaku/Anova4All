@@ -213,15 +213,18 @@ async def get_ble_device() -> BLEDevice:
     return BLEDevice(address=dev[0].address, name=dev[1].local_name)
 
 
-def get_local_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.connect(('10.255.255.255', 1))
-    ip = s.getsockname()[0]
-    s.close()
-    return ip
+@router.post("/ble/connect_wifi")
+async def ble_connect_wifi(ssid: str, password: str) -> Literal['ok']:
+    dev = await AnovaBluetoothClient.scan()
+    if not dev:
+        raise HTTPException(status_code=404, detail="No BLE device found")
+
+    async with AnovaBluetoothClient(dev[0]) as client:
+        await client.set_wifi_credentials(ssid, password)
+        return 'ok'
 
 
-@router.patch("/patch_ble_device")
+@router.patch("/ble/patch_wifi_server")
 async def patch_ble_device(host: Optional[str]) -> Literal['ok']:
     """
     Patch the Anova Precision Cooker to communicate with our server
@@ -234,12 +237,15 @@ async def patch_ble_device(host: Optional[str]) -> Literal['ok']:
 
     async with AnovaBluetoothClient(dev[0]) as client:
         if not host:
-            host = get_local_ip()
-        ret = await client.set_server_info(host, 8080)
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(('10.255.255.255', 1))
+            host = s.getsockname()[0]
+            s.close()
+        await client.set_server_info(host, 8080)
         return 'ok'
 
 
-@router.patch("/restore_ble_device")
+@router.patch("/ble/restore_wifi_server")
 async def patch_ble_device() -> Literal['ok']:
     """
     Restore the Anova Precision Cooker to communicate with the Anova Cloud server
@@ -250,5 +256,5 @@ async def patch_ble_device() -> Literal['ok']:
         raise HTTPException(status_code=404, detail="No BLE device found")
 
     async with AnovaBluetoothClient(dev[0]) as client:
-        ret = await client.set_server_info()
+        await client.set_server_info()
         return 'ok'
