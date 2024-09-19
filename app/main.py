@@ -7,7 +7,7 @@ from anova_wifi.manager import AnovaManager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import router as anova_router
+from api import router as anova_router
 
 
 @asynccontextmanager

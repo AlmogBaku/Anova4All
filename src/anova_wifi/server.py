@@ -39,5 +39,6 @@ class AsyncTCPServer:
     async def _handle_connection(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         connection = AnovaConnection(reader, writer)
         logger.info(f'New connection from {writer.transport.get_extra_info("peername")}')
+        connection.start_listening()
         if self.connection_callback: # type: ignore
             await self.connection_callback(connection)

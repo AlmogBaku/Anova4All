@@ -8,7 +8,7 @@ from .server import AsyncTCPServer
 
 logger = logging.getLogger(__name__)
 
-HEARTBEAT_INTERVAL = 1  # seconds
+HEARTBEAT_INTERVAL = 2  # seconds
 
 
 class AnovaManager:
