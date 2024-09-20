@@ -1,6 +1,7 @@
 import logging
+from typing import Callable, Coroutine, Type, Optional, Any
+
 from pydantic import BaseModel
-from typing import Callable, Coroutine, Type, Optional, Any, List
 
 from .commands import UnitType, AnovaCommand, GetIdCardCommand, VersionCommand, GetNumberCommand, StatusCommand, \
     ReadSetTempCommand, ReadTempCommand, ReadUnitCommand, ReadTimerCommand, SetTempCommand, SetTimerCommand, \
@@ -24,8 +25,9 @@ class AnovaDevice:
     id_card: Optional[str]
     version: Optional[str]
     device_number: Optional[str]
-    _state_change_callbacks: List[Callable[[str, DeviceState], Coroutine[None, None, None]]] = []
+    _state_change_callback: Optional[Callable[[str, DeviceState], Coroutine[None, None, None]]]
     _state: DeviceState = DeviceState()
+    _event_callback: Optional[Callable[[str, AnovaEvent], Coroutine[None, None, None]]]
 
     def __init__(self, connection: AnovaConnection):
         self.connection = connection
@@ -35,8 +37,17 @@ class AnovaDevice:
     def state(self) -> DeviceState:
         return self._state
 
-    def set_state_change_callback(self, callback: Callable[[str, DeviceState], Coroutine[None, None, None]]) -> None:
-        self._state_change_callbacks.append(callback)
+    def add_state_change_callback(self, callback: Callable[[str, DeviceState], Coroutine[None, None, None]]) -> None:
+        self._state_change_callback = callback
+
+    def remove_state_change_callback(self) -> None:
+        self._state_change_callback = None
+
+    def add_event_callback(self, callback: Callable[[str, AnovaEvent], Coroutine[None, None, None]]) -> None:
+        self._event_callback = callback
+
+    def remove_event_callback(self) -> None:
+        self._event_callback = None
 
     async def perform_handshake(self) -> None:
         try:
@@ -76,17 +87,19 @@ class AnovaDevice:
 
     async def send_command(self, command_class: Type[AnovaCommand], *args: Any, **kwargs: Any) -> Any:
         command = await command_class.execute(*args, **kwargs)
-        logger.info(f"Sending command: {command}")
         response_data = await self.connection.send_command(command)
-        logger.info(f"Received response: {response_data}")
         response = command_class.parse_response(response_data)
         await self._update_state(command_class, response)
         return response
 
-    async def handle_event(self, event: str) -> None:
-        parsed_event = AnovaEvent.parse_event(event)
-        await self._update_state_from_event(parsed_event)
+    async def handle_event(self, event: AnovaEvent) -> None:
+        await self._update_state_from_event(event)
         await self._notify_state_change()
+        if self.id_card is None:
+            logger.warning("Device ID is None when notifying state change")
+            return
+        if self._event_callback is not None:
+            await self._event_callback(self.id_card, event)
 
     async def _update_state_from_event(self, event: AnovaEvent) -> None:
         if event.type == EventType.TEMP_REACHED:
@@ -150,8 +163,6 @@ class AnovaDevice:
     async def _update_state(self, command_class: Type[AnovaCommand], response: Any) -> None:
         if isinstance(response, StatusCommand):
             self._state.running = response.running
-            self._state.temperature = response.temperature
-            self._state.unit = response.unit
         elif isinstance(response, ReadTempCommand):
             self._state.temperature = response.temperature
         elif isinstance(response, (SetTempCommand, ReadSetTempCommand)):
@@ -164,11 +175,14 @@ class AnovaDevice:
             self._state.speaker_status = response.is_on
 
     async def _notify_state_change(self) -> None:
-        for callback in self._state_change_callbacks:
-            if self.id_card is None:
-                logger.warning("Device ID is None when notifying state change")
-                return
-            await callback(self.id_card, self.state)
+        if self.id_card is None:
+            logger.warning("Device ID is None when notifying state change")
+            return
+        if self._state_change_callback is not None:
+            await self._state_change_callback(self.id_card, self.state)
 
     async def close(self) -> None:
         await self.connection.close()
+
+    def __repr__(self):
+        return f"<AnovaDevice id_card={self.id_card} version={self.version} device_number={self.device_number}>"

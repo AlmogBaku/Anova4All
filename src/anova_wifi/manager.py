@@ -2,6 +2,7 @@ import asyncio
 import logging
 from typing import Dict, List, Callable, Coroutine, Any, Optional
 
+from .commands import AnovaEvent
 from .connection import AnovaConnection
 from .device import AnovaDevice, DeviceState
 from .server import AsyncTCPServer
@@ -16,19 +17,28 @@ class AnovaManager:
     devices: Dict[str, AnovaDevice] = {}
     _monitoring_tasks: Dict[str, asyncio.Task[None]] = {}
 
-    device_connected_callbacks: List[Callable[[AnovaDevice], Coroutine[None, None, None]]] = []
-    device_disconnected_callbacks: Dict[str, Callable[[str], Coroutine[None, None, None]]] = {}
-    device_state_change_callbacks: Dict[str, Callable[[str, DeviceState], Coroutine[None, None, None]]] = {}
+    device_connected_callbacks: List[Optional[Callable[[AnovaDevice], Coroutine[None, None, None]]]] = []
+    device_disconnected_callbacks: Dict[str, Optional[Callable[[str], Coroutine[None, None, None]]]] = {}
+    device_state_change_callbacks: Dict[str, Optional[Callable[[str, DeviceState], Coroutine[None, None, None]]]] = {}
+    device_event_callbacks: Dict[str, Optional[Callable[[str, AnovaEvent], Coroutine[None, None, None]]]] = {}
 
     def __init__(self, host: str = "0.0.0.0", port: int = 8080):
         self.server = AsyncTCPServer(host, port)
 
     async def start(self) -> None:
+        """
+        Start the AnovaManager
+        :return:
+        """
         self.server.on_connection(self._handle_new_connection)
         await self.server.start()
         logger.info(f"AsyncAnovaManager started on {self.server.host}:{self.server.port}")
 
     async def stop(self) -> None:
+        """
+        Stop the AnovaManager and close all devices
+        :return:
+        """
         await self._stop_all_monitoring_tasks()
         await self._close_all_devices()
         await self.server.stop()
@@ -50,19 +60,88 @@ class AnovaManager:
         self.devices.clear()
 
     def get_devices(self) -> List[AnovaDevice]:
+        """
+        Get a list of all connected devices
+        :return: List of AnovaDevice objects
+        """
         return list(self.devices.values())
 
     def get_device(self, device_id: str) -> Optional[AnovaDevice]:
+        """
+        Get a device by its ID
+        :param device_id: The device ID
+        :return: AnovaDevice object or None if not found
+        """
         return self.devices.get(device_id)
 
-    def on_device_connected(self, callback: Callable[[AnovaDevice], Coroutine[Any, Any, None]]) -> None:
+    def on_device_connected(self, callback: Callable[[AnovaDevice], Coroutine[Any, Any, None]]) -> int:
+        """
+        Register a callback for when a new device is connected
+        :param callback: The callback function of the form `async def callback(device: AnovaDevice)`
+        :return: The callback ID
+        """
         self.device_connected_callbacks.append(callback)
+        return len(self.device_connected_callbacks) - 1
+
+    def remove_device_connected_callback(self, callback_id: int) -> None:
+        """
+        Remove a device connected callback
+        :param callback_id: The callback ID returned by `on_device_connected`
+        :return: None
+        """
+        self.device_connected_callbacks[callback_id] = None
 
     def on_device_disconnected(self, device_id: str, callback: Callable[[str], Coroutine[Any, Any, None]]) -> None:
+        """
+        Register a callback for when a device is disconnected
+        :param device_id: The device ID (use "*" for all devices)
+        :param callback: The callback function of the form `async def callback(device_id: str)`
+        :return:
+        """
         self.device_disconnected_callbacks[device_id] = callback
 
-    def on_device_state_change(self, device_id: str, callback: Callable[[str, DeviceState], Coroutine[Any, Any, None]]) -> None:
+    def remove_device_disconnected_callback(self, device_id: str) -> None:
+        """
+        Remove a device disconnected callback
+        :param device_id:
+        :return:
+        """
+        self.device_disconnected_callbacks[device_id] = None
+
+    def on_device_state_change(self, device_id: str,
+                               callback: Callable[[str, DeviceState], Coroutine[Any, Any, None]]) -> None:
+        """
+        Register a callback for when a device's state changes
+        :param device_id: The device ID (use "*" for all devices)
+        :param callback: The callback function of the form `async def callback(device_id: str, state: DeviceState)`
+        :return:
+        """
         self.device_state_change_callbacks[device_id] = callback
+
+    def remove_device_state_change_callback(self, device_id: str) -> None:
+        """
+        Remove a device state change callback
+        :param device_id: The device ID (use "*" for all devices)
+        :return:
+        """
+        self.device_state_change_callbacks[device_id] = None
+
+    def on_device_event(self, device_id: str, callback: Callable[[str, AnovaEvent], Coroutine[Any, Any, None]]) -> None:
+        """
+        Register a callback for when a device sends an event
+        :param device_id: The device ID (use "*" for all devices)
+        :param callback: The callback function of the form `async def callback(device_id: str, event: AnovaEvent)`
+        :return:
+        """
+        self.device_event_callbacks[device_id] = callback
+
+    def remove_device_event_callback(self, device_id: str) -> None:
+        """
+        Remove a device event callback
+        :param device_id: The device ID (use "*" for all devices)
+        :return:
+        """
+        self.device_event_callbacks[device_id] = None
 
     async def _handle_new_connection(self, connection: AnovaConnection) -> None:
         device = AnovaDevice(connection)
@@ -77,14 +156,16 @@ class AnovaManager:
             await self._handle_device_disconnection(device_id)
 
         self.devices[device_id] = device
-        device.set_state_change_callback(self._handle_device_state_change)
+        device.add_state_change_callback(self._handle_device_state_change)
+        device.add_event_callback(self._handle_device_event)
 
         self._monitoring_tasks[device_id] = asyncio.create_task(self._monitor_device(device))
 
         logger.info(f"New device connected: {device}")
 
         for callback in self.device_connected_callbacks:
-            await callback(device)
+            if callback:
+                await callback(device)
 
     async def _monitor_device(self, device: AnovaDevice) -> None:
         while True:
@@ -112,10 +193,25 @@ class AnovaManager:
                 del self._monitoring_tasks[device_id]
 
             await device.close()
+            await self._handle_callback(device_id, self.device_disconnected_callbacks, device_id)
 
-            if device_id in self.device_disconnected_callbacks:
-                await self.device_disconnected_callbacks[device_id](device_id)
+            del self.device_disconnected_callbacks[device_id]
+            del self.device_state_change_callbacks[device_id]
+            del self.device_event_callbacks[device_id]
 
     async def _handle_device_state_change(self, device_id: str, state: DeviceState) -> None:
-        if device_id in self.device_state_change_callbacks:
-            await self.device_state_change_callbacks[device_id](device_id, state)
+        await self._handle_callback(device_id, self.device_state_change_callbacks, device_id, state)
+
+    async def _handle_device_event(self, device_id: str, event: AnovaEvent) -> None:
+        await self._handle_callback(device_id, self.device_event_callbacks, device_id, event)
+
+    @staticmethod
+    async def _handle_callback(device_id: str, callback_dict: Dict[str, Optional[Callable]], *args, **kwargs) -> None:
+        if "*" in callback_dict:
+            cb = callback_dict["*"]
+            if cb:
+                await cb(*args, **kwargs)
+        if device_id in callback_dict:
+            cb = callback_dict[device_id]
+            if cb:
+                await cb(*args, **kwargs)

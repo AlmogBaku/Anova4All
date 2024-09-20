@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 class AnovaConnection:
     response_future: Optional[asyncio.Future[str]] = None
-    event_callback: Optional[Callable[[str], Coroutine[None, None, None]]] = None
+    event_callback: Optional[Callable[[AnovaEvent], Coroutine[None, None, None]]] = None
     listen_task: Optional[asyncio.Task] = None
 
     def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
@@ -22,12 +22,12 @@ class AnovaConnection:
         self.writer.write(encoded)
         self.writer.write(b'\x16')
         await self.writer.drain()
-        logger.info(f"Sent message: {message}")
+        logger.debug(f"Sent message: {message}")
 
         self.response_future = asyncio.Future()
         try:
             # Wait for up to 1 second
-            return await asyncio.wait_for(self.response_future, timeout=5)
+            return await asyncio.wait_for(self.response_future, timeout=10)
         except asyncio.TimeoutError:
             logger.warning(f"No response received within timeout for command: {message}")
             # Continue waiting for the response
@@ -44,20 +44,20 @@ class AnovaConnection:
             while True:
                 await self.receive()
         except ConnectionResetError:
-            logger.info("Connection closed by remote host")
+            logger.debug("Connection closed by remote host")
         except asyncio.CancelledError:
-            logger.info("Listening task cancelled")
+            logger.debug("Listening task cancelled")
         except Exception as e:
             logger.error(f"Error in listening task: {e}")
 
-    async def receive(self) -> str:
+    async def receive(self) -> Optional[str]:
         data = await self.reader.read(1024)
         if not data:
             logger.error("Connection closed by remote host")
             raise ConnectionResetError("Connection closed by remote host")
 
         msg = Encoder.decode(data)
-        logger.info(f"Received message: {msg}")
+        logger.debug(f"Received message: {msg}")
 
         if "invalid command" in msg.lower():
             logger.error(f"Received invalid command, skipping: {msg}")
@@ -65,7 +65,7 @@ class AnovaConnection:
 
         if AnovaEvent.is_event(msg):
             if self.event_callback:
-                await self.event_callback(msg)
+                await self.event_callback(AnovaEvent.parse_event(msg))
         elif self.response_future and not self.response_future.done():
             self.response_future.set_result(msg)
         else:
@@ -73,7 +73,7 @@ class AnovaConnection:
 
         return msg
 
-    def set_event_callback(self, callback: Callable[[str], Coroutine[None, None, None]]) -> None:
+    def set_event_callback(self, callback: Callable[[AnovaEvent], Coroutine[None, None, None]]) -> None:
         self.event_callback = callback
 
     async def close(self) -> None:

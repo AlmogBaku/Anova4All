@@ -58,8 +58,6 @@ class GetNumberCommand(AnovaCommand):
 
 class StatusCommand(AnovaCommand):
     running: bool
-    temperature: float
-    unit: Optional[UnitType]
 
     @classmethod
     async def execute(cls) -> str:
@@ -68,13 +66,11 @@ class StatusCommand(AnovaCommand):
     @classmethod
     def parse_response(cls, response: str) -> 'StatusCommand':
         if response.lower() == "stopped":
-            return cls(running=False, temperature=0.0, unit=None)
+            return cls(running=False)
 
-        parts = response.split(',')
+        parts = response.split(' ')
         return cls(
-            running=parts[0] == "running",
-            temperature=float(parts[1]),
-            unit=parts[2].strip().lower(),  # type: ignore[arg-type]
+            running=parts[0] == "running"
         )
 
 

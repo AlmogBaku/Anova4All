@@ -1,20 +1,19 @@
+import asyncio
 import socket
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, AsyncIterator
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from anova_ble.client import AnovaBluetoothClient
 from anova_wifi.commands import UnitType
 from anova_wifi.device import DeviceState
 from anova_wifi.manager import AnovaManager
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from .deps import get_device_manager, get_sse_manager
+from .sse import SSEManager, SSEEvent, event_stream
 
 router = APIRouter()
-
-
-async def get_manager(request: Request) -> AnovaManager:
-    if request.app.state.anova_manager is None:
-        raise RuntimeError("Manager not initialized. Please wait for application startup to complete.")
-    return request.app.state.anova_manager
 
 
 class DeviceInfo(BaseModel):
@@ -31,8 +30,8 @@ class TimerCommand(BaseModel):
     minutes: int
 
 
-@router.get("/devices", response_model=List[DeviceInfo])
-async def get_devices(manager: AnovaManager = Depends(get_manager)) -> List[DeviceInfo]:
+@router.get("/devices")
+async def get_devices(manager: AnovaManager = Depends(get_device_manager)) -> List[DeviceInfo]:
     devices = manager.get_devices()
     return [
         DeviceInfo(
@@ -44,8 +43,8 @@ async def get_devices(manager: AnovaManager = Depends(get_manager)) -> List[Devi
     ]
 
 
-@router.get("/devices/{device_id}/state", response_model=DeviceState)
-async def get_device_state(device_id: str, manager: AnovaManager = Depends(get_manager)) -> DeviceState:
+@router.get("/devices/{device_id}/state")
+async def get_device_state(device_id: str, manager: AnovaManager = Depends(get_device_manager)) -> DeviceState:
     device = manager.get_device(device_id)
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
@@ -58,7 +57,7 @@ class SetTemperatureResponse(BaseModel):
 
 @router.post("/devices/{device_id}/temperature")
 async def set_temperature(device_id: str, command: TemperatureCommand,
-                          manager: AnovaManager = Depends(get_manager)) -> SetTemperatureResponse:
+                          manager: AnovaManager = Depends(get_device_manager)) -> SetTemperatureResponse:
     try:
         device = manager.get_device(device_id)
         if not device:
@@ -70,7 +69,7 @@ async def set_temperature(device_id: str, command: TemperatureCommand,
 
 
 @router.post("/devices/{device_id}/start")
-async def start_cooking(device_id: str, manager: AnovaManager = Depends(get_manager)) -> Literal['ok']:
+async def start_cooking(device_id: str, manager: AnovaManager = Depends(get_device_manager)) -> Literal['ok']:
     try:
         device = manager.get_device(device_id)
         if not device:
@@ -85,7 +84,7 @@ async def start_cooking(device_id: str, manager: AnovaManager = Depends(get_mana
 
 
 @router.post("/devices/{device_id}/stop")
-async def stop_cooking(device_id: str, manager: AnovaManager = Depends(get_manager)) -> Literal['ok']:
+async def stop_cooking(device_id: str, manager: AnovaManager = Depends(get_device_manager)) -> Literal['ok']:
     try:
         device = manager.get_device(device_id)
         if not device:
@@ -105,7 +104,7 @@ class SetTimerResponse(BaseModel):
 
 @router.post("/devices/{device_id}/timer")
 async def set_timer(device_id: str, command: TimerCommand,
-                    manager: AnovaManager = Depends(get_manager)) -> SetTimerResponse:
+                    manager: AnovaManager = Depends(get_device_manager)) -> SetTimerResponse:
     try:
         device = manager.get_device(device_id)
         if not device:
@@ -117,7 +116,7 @@ async def set_timer(device_id: str, command: TimerCommand,
 
 
 @router.post("/devices/{device_id}/timer/stop")
-async def stop_timer(device_id: str, manager: AnovaManager = Depends(get_manager)) -> Literal['ok']:
+async def stop_timer(device_id: str, manager: AnovaManager = Depends(get_device_manager)) -> Literal['ok']:
     try:
         device = manager.get_device(device_id)
         if not device:
@@ -131,7 +130,7 @@ async def stop_timer(device_id: str, manager: AnovaManager = Depends(get_manager
 
 
 @router.post("/devices/{device_id}/alarm/clear")
-async def clear_alarm(device_id: str, manager: AnovaManager = Depends(get_manager)) -> Literal['ok']:
+async def clear_alarm(device_id: str, manager: AnovaManager = Depends(get_device_manager)) -> Literal['ok']:
     try:
         device = manager.get_device(device_id)
         if not device:
@@ -149,7 +148,7 @@ class TemperatureResponse(BaseModel):
 
 
 @router.get("/devices/{device_id}/temperature")
-async def get_temperature(device_id: str, manager: AnovaManager = Depends(get_manager)) -> TemperatureResponse:
+async def get_temperature(device_id: str, manager: AnovaManager = Depends(get_device_manager)) -> TemperatureResponse:
     device = manager.get_device(device_id)
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
@@ -157,7 +156,7 @@ async def get_temperature(device_id: str, manager: AnovaManager = Depends(get_ma
 
 
 @router.get("/devices/{device_id}/set_temperature")
-async def get_set_temperature(device_id: str, manager: AnovaManager = Depends(get_manager)) -> Literal['ok']:
+async def get_set_temperature(device_id: str, manager: AnovaManager = Depends(get_device_manager)) -> Literal['ok']:
     device = manager.get_device(device_id)
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
@@ -169,7 +168,7 @@ class UnitResponse(BaseModel):
 
 
 @router.get("/devices/{device_id}/unit")
-async def get_unit(device_id: str, manager: AnovaManager = Depends(get_manager)) -> UnitResponse:
+async def get_unit(device_id: str, manager: AnovaManager = Depends(get_device_manager)) -> UnitResponse:
     device = manager.get_device(device_id)
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
@@ -181,7 +180,7 @@ class TimerResponse(BaseModel):
 
 
 @router.get("/devices/{device_id}/timer")
-async def get_timer(device_id: str, manager: AnovaManager = Depends(get_manager)) -> TimerResponse:
+async def get_timer(device_id: str, manager: AnovaManager = Depends(get_device_manager)) -> TimerResponse:
     device = manager.get_device(device_id)
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
@@ -193,12 +192,48 @@ class SpeakerStatusResponse(BaseModel):
 
 
 @router.get("/devices/{device_id}/speaker_status")
-async def get_speaker_status(device_id: str, manager: AnovaManager = Depends(get_manager)) -> SpeakerStatusResponse:
+async def get_speaker_status(device_id: str,
+                             manager: AnovaManager = Depends(get_device_manager)) -> SpeakerStatusResponse:
     device = manager.get_device(device_id)
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
     return SpeakerStatusResponse(speaker_status=device.state.speaker_status)
 
+
+@router.get("/devices/{device_id}/sse", response_model=SSEEvent, response_class=StreamingResponse)
+async def sse_endpoint(
+        request: Request,
+        device_id: str,
+        manager: AnovaManager = Depends(get_device_manager),
+        sse_manager: SSEManager = Depends(get_sse_manager),
+) -> StreamingResponse:
+    """
+    Server-Sent Events route that listens for events from a specific device.
+    """
+    if manager.get_device(device_id) is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    listener_id, queue = await sse_manager.connect(device_id)
+
+    async def event_generator() -> AsyncIterator[SSEEvent]:
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+
+                try:
+                    async with asyncio.timeout(1.0):
+                        event = await queue.get()
+                        yield event
+                except asyncio.TimeoutError:
+                    yield SSEEvent(event_type="ping")
+        finally:
+            await sse_manager.disconnect(device_id, listener_id)
+
+    return StreamingResponse(event_stream(event_generator()), media_type="text/event-stream")
+
+
+# BLE endpoints
 
 class BLEDevice(BaseModel):
     address: str
@@ -225,7 +260,7 @@ async def ble_connect_wifi(ssid: str, password: str) -> Literal['ok']:
 
 
 @router.patch("/ble/patch_wifi_server")
-async def patch_ble_device(host: Optional[str]) -> Literal['ok']:
+async def patch_ble_device(host: Optional[str] = None) -> Literal['ok']:
     """
     Patch the Anova Precision Cooker to communicate with our server
     :param host: The IP address of the server. If not provided, the local IP address will be determined automatically

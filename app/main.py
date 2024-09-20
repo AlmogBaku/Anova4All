@@ -7,6 +7,7 @@ from anova_wifi.manager import AnovaManager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .sse import SSEManager
 from .api import router as anova_router
 
 
@@ -14,6 +15,7 @@ from .api import router as anova_router
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, Never]:
     # Startup
     app.state.anova_manager = AnovaManager(host="0.0.0.0", port=8080)
+    app.state.sse_manager = SSEManager(app.state.anova_manager)
     startup_task = asyncio.create_task(app.state.anova_manager.start())
     print("Starting up... Manager initialization started in background.")
 
