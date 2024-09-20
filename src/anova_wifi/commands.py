@@ -74,7 +74,7 @@ class StatusCommand(AnovaCommand):
         return cls(
             running=parts[0] == "running",
             temperature=float(parts[1]),
-            unit=parts[2].strip().lower(), # type: ignore[arg-type]
+            unit=parts[2].strip().lower(),  # type: ignore[arg-type]
         )
 
 
@@ -220,6 +220,7 @@ class EventType(str, Enum):
     CHANGE_TEMP = "change_temp"
     TIME_START = "time_start"
     TIME_STOP = "time_stop"
+    ChangeParam = "change_param"
 
 
 class EventOriginator(str, Enum):
@@ -244,7 +245,9 @@ class AnovaEvent(BaseModel):
         event_string = event_string.replace("event ", "").replace("wifi ", "").replace("ble ", "")
 
         es = event_string.lower().strip()
-        if es == "stop":
+        if es.startswith("user changed"):
+            return cls(type=EventType.ChangeParam, originator=orig)
+        elif es == "stop":
             return cls(type=EventType.STOP, originator=orig)
         elif es == "start":
             return cls(type=EventType.START, originator=orig)
@@ -258,6 +261,10 @@ class AnovaEvent(BaseModel):
             return cls(type=EventType.TEMP_REACHED, originator=orig)
         else:
             raise ValueError(f"Unknown event: {event_string}")
+
+    @staticmethod
+    def is_event(message: str) -> bool:
+        return message.startswith("event") or message.startswith("user changed")
 
 
 class SetUnitCommand(AnovaCommand):

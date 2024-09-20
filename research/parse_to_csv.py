@@ -42,12 +42,13 @@ def decode_message_with_checksum_fix(hex_string):
 
 def process_line(line):
     parts = line.strip().split('\t')
-    if len(parts) != 3:  # Ensure there are 3 parts (src, dst, payload) in the line
-        return None, None, None, None, None  # Return default values if the line is invalid
+    if len(parts) != 4:  # Ensure there are 3 parts (src, dst, payload) in the line
+        return None, None, None, None, None, None  # Return default values if the line is invalid
 
+    print(f"Parts: {parts}")
     tm, src_port, dst_port, payload = parts
     if not payload.strip():  # Skip lines with no payload
-        return None, None, None, None, None  # Return default values if the line is invalid
+        return None, None, None, None, None, None  # Return default values if the line is invalid
 
     source = "server" if src_port == "8080" else "client"
 

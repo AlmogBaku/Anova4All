@@ -1,30 +1,20 @@
 import asyncio
 from types import TracebackType
-from typing import Optional, Any, Union, Type
+from typing import Optional, Any, Union, Type, Tuple
 
-from bleak import BleakScanner, BleakClient, BLEDevice, AdvertisementData, normalize_uuid_str  # type: ignore
-from bleak.backends.device import BLEDevice
+from bleak import BleakScanner, BleakClient, BLEDevice, AdvertisementData, normalize_uuid_str, \
+    BleakGATTCharacteristic  # type: ignore
 
 from .cmds import StartDevice, StopDevice, GetDeviceStatus, StartTimer, StopTimer, GetTimerStatus, GetTemperatureUnit, \
     GetDeviceInformation, SetCalibrationFactor, SetServerInfo, SetLED, SetSecretKey, SetTargetTemperature, SetTimer, \
     SetTemperatureUnit, GetCurrentTemperature, GetTargetTemperature, ReadCalibrationFactor, ClearAlarm, GetDate, \
-    GetTemperatureHistory, SetWifiCredentials, StartSmartlink, SetDeviceName, TurnOffSpeaker, GetVersion, Command
-from .types import (
-    ANOVA_SERVICE_UUID,
-    ANOVA_CHARACTERISTIC_UUID,
-    ANOVA_DEVICE_NAME,
-    TemperatureValue,
-    TimerValue,
-    TemperatureUnit,
-    DeviceStatus,
-    TimerStatus,
-    AnovaConnectionError,
-    AnovaCommandError,
-)
+    GetTemperatureHistory, SetWifiCredentials, StartSmartlink, SetDeviceName, TurnOffSpeaker, GetVersion, Command, \
+    ANOVA_SERVICE_UUID, ANOVA_CHARACTERISTIC_UUID, ANOVA_DEVICE_NAME, TemperatureUnit, DeviceStatus, TimerStatus, \
+    AnovaConnectionError, AnovaCommandError
 
 
 class AnovaBluetoothClient:
-    client: BleakClient
+    _client: BleakClient
     command_lock: asyncio.Lock
     device: Union[BLEDevice, str]
 
@@ -33,7 +23,7 @@ class AnovaBluetoothClient:
         self.device = device
 
     @staticmethod
-    async def scan(timeout: float = 5.0) -> Optional[Union[BLEDevice, AdvertisementData]]:
+    async def scan(timeout: float = 5.0) -> Optional[Tuple[BLEDevice, AdvertisementData]]:
         """
         Scan for Anova devices.
 
@@ -48,8 +38,8 @@ class AnovaBluetoothClient:
                         return dev, adv
 
     async def __aenter__(self) -> 'AnovaBluetoothClient':
-        self.client = BleakClient(self.device)
-        await self.client.connect()
+        self._client = BleakClient(self.device)
+        await self._client.connect()
         return self
 
     async def __aexit__(
@@ -58,33 +48,40 @@ class AnovaBluetoothClient:
             exc_val: BaseException,
             exc_tb: TracebackType,
     ) -> None:
-        if self.client:
-            await self.client.disconnect()
-            self.client = None
+        if self._client:
+            await self._client.disconnect()
+            self._client = None
 
-    async def send_command(self, command: Command, timeout: float = 5.0) -> Any:
-        if not self.client:
+    async def send_command(self, command: Union[Command, str], timeout: float = 20.0) -> Any:
+        if not self._client:
             raise AnovaConnectionError("Not connected to Anova device")
 
         async with self.command_lock:
-            response_future: asyncio.Future[str] = asyncio.Future()
+            q: asyncio.Queue[bytearray] = asyncio.Queue()
 
-            def response_callback(sender: int, data: bytearray) -> None:
-                nonlocal response_future
-                response = data.decode('utf-8')
-                if '\r' in response:
-                    response_future.set_result(response.strip())
+            async def response_callback(sender: BleakGATTCharacteristic, data: bytearray) -> None:
+                nonlocal q
+                await q.put(data)
 
             try:
-                await self.client.start_notify(normalize_uuid_str(ANOVA_CHARACTERISTIC_UUID), response_callback)
-                await self.client.write_gatt_char(normalize_uuid_str(ANOVA_CHARACTERISTIC_UUID),
-                                                  f"{command.encode()}\r".encode('utf-8'))
-                response = await asyncio.wait_for(response_future, timeout)
-                return command.decode(response)
+                await self._client.start_notify(normalize_uuid_str(ANOVA_CHARACTERISTIC_UUID), response_callback)
+                await self._client.write_gatt_char(normalize_uuid_str(ANOVA_CHARACTERISTIC_UUID),
+                                                   f"{command}\r".encode())
+
+                response_buffer = bytearray()
+                async with asyncio.timeout(timeout):
+                    while chunk := await q.get():
+                        response_buffer.extend(chunk)
+                        if b'\r' in chunk:
+                            break
+
+                if isinstance(command, str):
+                    return response_buffer.decode().strip()
+                return command.decode(response_buffer.decode().strip())
             except asyncio.TimeoutError:
-                raise AnovaCommandError(f"Command '{command.encode()}' timed out")
+                raise AnovaCommandError(f"Command '{command}' timed out")
             finally:
-                await self.client.stop_notify(normalize_uuid_str(ANOVA_CHARACTERISTIC_UUID))
+                await self._client.stop_notify(normalize_uuid_str(ANOVA_CHARACTERISTIC_UUID))
 
     async def set_calibration_factor(self, factor: float = 0.0) -> str:
         return await self.send_command(SetCalibrationFactor(factor))
@@ -98,19 +95,19 @@ class AnovaBluetoothClient:
     async def set_secret_key(self, key: str) -> str:
         return await self.send_command(SetSecretKey(key))
 
-    async def set_target_temperature(self, temperature: TemperatureValue, unit: TemperatureUnit) -> str:
+    async def set_target_temperature(self, temperature: float, unit: TemperatureUnit) -> str:
         return await self.send_command(SetTargetTemperature(temperature, unit))
 
-    async def set_timer(self, minutes: TimerValue) -> str:
+    async def set_timer(self, minutes: int) -> str:
         return await self.send_command(SetTimer(minutes))
 
     async def set_temperature_unit(self, unit: TemperatureUnit) -> str:
         return await self.send_command(SetTemperatureUnit(unit))
 
-    async def get_target_temperature(self) -> TemperatureValue:
+    async def get_target_temperature(self) -> float:
         return await self.send_command(GetTargetTemperature())
 
-    async def get_current_temperature(self) -> TemperatureValue:
+    async def get_current_temperature(self) -> float:
         return await self.send_command(GetCurrentTemperature())
 
     async def start_device(self) -> str:

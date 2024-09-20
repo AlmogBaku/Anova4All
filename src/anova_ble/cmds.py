@@ -1,6 +1,48 @@
 from abc import ABC, abstractmethod
+from enum import Enum
 from typing import Any
-from .types import TemperatureValue, TimerValue, TemperatureUnit, DeviceStatus, TimerStatus
+
+# Bluetooth Constants
+ANOVA_SERVICE_UUID = "ffe0"
+ANOVA_CHARACTERISTIC_UUID = "ffe1"
+ANOVA_DEVICE_NAME = "Anova"
+
+# Command Constants
+MAX_COMMAND_LENGTH = 20
+COMMAND_DELIMITER = "\r"
+
+
+class TemperatureUnit(Enum):
+    CELSIUS = "c"
+    FAHRENHEIT = "f"
+
+
+class DeviceStatus(Enum):
+    RUNNING = "running"
+    STOPPED = "stopped"
+    LOW_WATER = "low water"
+    HEATER_ERROR = "heater error"
+    POWER_LOSS = "power loss"
+    USER_CHANGE_PARAMETER = "user change parameter"
+
+
+class TimerStatus(Enum):
+    RUNNING = "running"
+    STOPPED = "stopped"
+
+
+# Custom Exceptions
+class AnovaException(Exception):
+    """Base exception for Anova-related errors."""
+
+
+class AnovaConnectionError(AnovaException):
+    """Raised when there's an issue connecting to the Anova device."""
+
+
+class AnovaCommandError(AnovaException):
+    """Raised when there's an error executing a command."""
+
 
 class Command(ABC):
     @abstractmethod
@@ -12,6 +54,10 @@ class Command(ABC):
         """Default decode method that returns the stripped response."""
         return response.strip()
 
+    def __str__(self) -> str:
+        return self.encode()
+
+
 class SetCalibrationFactor(Command):
     def __init__(self, factor: float = 0.0):
         if not -9.9 <= factor <= 9.9:
@@ -21,6 +67,7 @@ class SetCalibrationFactor(Command):
     def encode(self) -> str:
         return f"cal {self.factor:.1f}"
 
+
 class SetServerInfo(Command):
     def __init__(self, server_ip: str = "pc.anovaculinary.com", port: int = 8080):
         self.server_ip = server_ip
@@ -28,6 +75,13 @@ class SetServerInfo(Command):
 
     def encode(self) -> str:
         return f"server para {self.server_ip} {self.port}"
+
+    def decode(self, response: str) -> bool:
+        parts = response.strip().split(" ")
+        if len(parts) == 2:
+            return parts[0] == self.server_ip and int(parts[1]) == self.port
+        return False
+
 
 class SetLED(Command):
     def __init__(self, red: int, green: int, blue: int):
@@ -41,6 +95,7 @@ class SetLED(Command):
     def encode(self) -> str:
         return f"set led {self.red} {self.green} {self.blue}"
 
+
 class SetSecretKey(Command):
     def __init__(self, key: str):
         if len(key) != 10 or not key.islower() or not key.isalnum():
@@ -50,8 +105,9 @@ class SetSecretKey(Command):
     def encode(self) -> str:
         return f"set number {self.key}"
 
+
 class SetTargetTemperature(Command):
-    def __init__(self, temperature: TemperatureValue, unit: TemperatureUnit):
+    def __init__(self, temperature: float, unit: TemperatureUnit):
         if unit == TemperatureUnit.CELSIUS:
             if not 5.0 <= temperature <= 99.9:
                 raise ValueError("Temperature must be between 5.0°C and 99.9°C")
@@ -64,14 +120,16 @@ class SetTargetTemperature(Command):
     def encode(self) -> str:
         return f"set temp {self.temperature:.1f}"
 
+
 class SetTimer(Command):
-    def __init__(self, minutes: TimerValue):
+    def __init__(self, minutes: int):
         if not 0 <= minutes <= 6000:
             raise ValueError("Timer must be between 0 and 6000 minutes")
         self.minutes = int(minutes)  # Ensures it's an integer
 
     def encode(self) -> str:
         return f"set timer {self.minutes}"
+
 
 class SetTemperatureUnit(Command):
     def __init__(self, unit: TemperatureUnit):
@@ -80,27 +138,32 @@ class SetTemperatureUnit(Command):
     def encode(self) -> str:
         return f"set unit {self.unit.value}"
 
+
 class GetTargetTemperature(Command):
     def encode(self) -> str:
         return "read set temp"
 
-    def decode(self, response: str) -> TemperatureValue:
-        return TemperatureValue(float(response.strip()))
+    def decode(self, response: str) -> float:
+        return float(float(response.strip()))
+
 
 class GetCurrentTemperature(Command):
     def encode(self) -> str:
         return "read temp"
 
-    def decode(self, response: str) -> TemperatureValue:
-        return TemperatureValue(float(response.strip()))
+    def decode(self, response: str) -> float:
+        return float(float(response.strip()))
+
 
 class StartDevice(Command):
     def encode(self) -> str:
         return "start"
 
+
 class StopDevice(Command):
     def encode(self) -> str:
         return "stop"
+
 
 class GetDeviceStatus(Command):
     def encode(self) -> str:
@@ -112,13 +175,16 @@ class GetDeviceStatus(Command):
         except ValueError:
             raise ValueError(f"Unknown device status: {response}")
 
+
 class StartTimer(Command):
     def encode(self) -> str:
         return "start time"
 
+
 class StopTimer(Command):
     def encode(self) -> str:
         return "stop time"
+
 
 class GetTimerStatus(Command):
     def encode(self) -> str:
@@ -130,6 +196,7 @@ class GetTimerStatus(Command):
         except ValueError:
             raise ValueError(f"Unknown timer status: {response}")
 
+
 class GetTemperatureUnit(Command):
     def encode(self) -> str:
         return "read unit"
@@ -140,9 +207,11 @@ class GetTemperatureUnit(Command):
         except ValueError:
             raise ValueError(f"Unknown temperature unit: {response}")
 
+
 class GetDeviceInformation(Command):
     def encode(self) -> str:
         return "get id card"
+
 
 class ReadCalibrationFactor(Command):
     def encode(self) -> str:
@@ -151,17 +220,21 @@ class ReadCalibrationFactor(Command):
     def decode(self, response: str) -> float:
         return float(response.strip())
 
+
 class ClearAlarm(Command):
     def encode(self) -> str:
         return "clear alarm"
+
 
 class GetDate(Command):
     def encode(self) -> str:
         return "read date"
 
+
 class GetTemperatureHistory(Command):
     def encode(self) -> str:
         return "read data"
+
 
 class SetWifiCredentials(Command):
     def __init__(self, ssid: str, password: str):
@@ -171,9 +244,11 @@ class SetWifiCredentials(Command):
     def encode(self) -> str:
         return f"wifi para 2 {self.ssid} {self.password} WPA2PSK AES"
 
+
 class StartSmartlink(Command):
     def encode(self) -> str:
         return "smartlink start"
+
 
 class SetDeviceName(Command):
     def __init__(self, name: str):
@@ -182,9 +257,11 @@ class SetDeviceName(Command):
     def encode(self) -> str:
         return f"set name {self.name}"
 
+
 class TurnOffSpeaker(Command):
     def encode(self) -> str:
         return "set speaker off"
+
 
 class GetVersion(Command):
     def encode(self) -> str:

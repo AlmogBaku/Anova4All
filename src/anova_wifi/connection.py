@@ -2,6 +2,7 @@ import asyncio
 import logging
 from typing import Optional, Callable, Coroutine
 
+from .commands import AnovaEvent
 from .encoding import Encoder
 
 logger = logging.getLogger(__name__)
@@ -62,7 +63,7 @@ class AnovaConnection:
             logger.error(f"Received invalid command, skipping: {msg}")
             return
 
-        if self.is_event(msg):
+        if AnovaEvent.is_event(msg):
             if self.event_callback:
                 await self.event_callback(msg)
         elif self.response_future and not self.response_future.done():
@@ -71,10 +72,6 @@ class AnovaConnection:
             logger.warning(f"Received unexpected message: {msg}")
 
         return msg
-
-    @staticmethod
-    def is_event(message: str) -> bool:
-        return message.startswith("event")
 
     def set_event_callback(self, callback: Callable[[str], Coroutine[None, None, None]]) -> None:
         self.event_callback = callback

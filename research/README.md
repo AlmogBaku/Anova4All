@@ -9,14 +9,14 @@ tcpdump host HF-LPT220 -w anova_traffic.pcap
 2. create a dump file with the data
 
 ```console
-PCAP=anova_traffic.pcap OUTPUT=anova_traffic_dump.txt; tshark -r $PCAP -Y "tcp.port == 8080" -T fields -e frame.time_relative -e tcp.srcport -e tcp.dstport -e tcp.payload > $OUTPUT
+PCAP=anova_traffic.pcap; tshark -r $PCAP -Y "tcp.port == 8080" -T fields -e frame.time_relative -e tcp.srcport -e tcp.dstport -e tcp.payload > ${PCAP}.parsed.txt
 ```
 
 3. extract the payload from the dump file
 
 ```console
 cd research
-cat rawdump_with_direction.txt | python parse_to_csv.py <output_csv>
+cat anova_traffic.pcap.parsed.txt | python parse_to_csv.py <output_csv>
 ```
 
 Unless second argument is provided, this will create a parsed data under `../src/anova_wifi/test_data.csv`.
