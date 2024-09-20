@@ -2,28 +2,48 @@ import asyncio
 from types import TracebackType
 from typing import Optional, Any, Union, Type, Tuple
 
-from bleak import BleakScanner, BleakClient, BLEDevice, AdvertisementData, normalize_uuid_str, \
-    BleakGATTCharacteristic  # type: ignore
+from bleak import BleakClient, BleakScanner
+from bleak.backends.characteristic import BleakGATTCharacteristic
+from bleak.backends.device import BLEDevice
+from bleak.backends.scanner import AdvertisementData
+from bleak.uuids import normalize_uuid_str
 
-from .cmds import StartDevice, StopDevice, GetDeviceStatus, StartTimer, StopTimer, GetTimerStatus, GetTemperatureUnit, \
-    GetDeviceInformation, SetCalibrationFactor, SetServerInfo, SetLED, SetSecretKey, SetTargetTemperature, SetTimer, \
-    SetTemperatureUnit, GetCurrentTemperature, GetTargetTemperature, ReadCalibrationFactor, ClearAlarm, GetDate, \
-    GetTemperatureHistory, SetWifiCredentials, StartSmartlink, SetDeviceName, TurnOffSpeaker, GetVersion, Command, \
-    ANOVA_SERVICE_UUID, ANOVA_CHARACTERISTIC_UUID, ANOVA_DEVICE_NAME, TemperatureUnit, DeviceStatus, TimerStatus, \
-    AnovaConnectionError, AnovaCommandError
+from commands import AnovaCommand
+
+# Bluetooth Constants
+ANOVA_SERVICE_UUID = "ffe0"
+ANOVA_CHARACTERISTIC_UUID = "ffe1"
+ANOVA_DEVICE_NAME = "Anova"
+
+# Command Constants
+MAX_COMMAND_LENGTH = 20
+COMMAND_DELIMITER = "\r"
+
+
+# Custom Exceptions
+class AnovaException(Exception):
+    """Base exception for Anova-related errors."""
+
+
+class AnovaConnectionError(AnovaException):
+    """Raised when there's an issue connecting to the Anova device."""
+
+
+class AnovaCommandError(AnovaException):
+    """Raised when there's an error executing a command."""
 
 
 class AnovaBluetoothClient:
-    _client: BleakClient
+    _client: Optional[BleakClient]
     command_lock: asyncio.Lock
     device: Union[BLEDevice, str]
 
-    def __init__(self, device: Union[BLEDevice, str] = None):
+    def __init__(self, device: Union[BLEDevice, str]):
         self.command_lock = asyncio.Lock()
         self.device = device
 
     @staticmethod
-    async def scan(timeout: float = 5.0) -> Optional[Tuple[BLEDevice, AdvertisementData]]:
+    async def scan(timeout: float = 5.0) -> Tuple[Optional[BLEDevice], Optional[AdvertisementData]]:
         """
         Scan for Anova devices.
 
@@ -36,6 +56,8 @@ class AnovaBluetoothClient:
                 for uuid in adv.service_uuids:
                     if normalize_uuid_str(ANOVA_SERVICE_UUID) == uuid:
                         return dev, adv
+
+        return None, None
 
     async def __aenter__(self) -> 'AnovaBluetoothClient':
         self._client = BleakClient(self.device)
@@ -52,7 +74,9 @@ class AnovaBluetoothClient:
             await self._client.disconnect()
             self._client = None
 
-    async def send_command(self, command: Union[Command, str], timeout: float = 20.0) -> Any:
+    async def send_command(self, command: Union[AnovaCommand, str], timeout: float = 5.0) -> Any:
+        if isinstance(command, AnovaCommand) and not command.supports_ble():
+            raise AnovaCommandError(f"Command '{command}' is not supported over BLE")
         if not self._client:
             raise AnovaConnectionError("Not connected to Anova device")
 
@@ -82,81 +106,3 @@ class AnovaBluetoothClient:
                 raise AnovaCommandError(f"Command '{command}' timed out")
             finally:
                 await self._client.stop_notify(normalize_uuid_str(ANOVA_CHARACTERISTIC_UUID))
-
-    async def set_calibration_factor(self, factor: float = 0.0) -> str:
-        return await self.send_command(SetCalibrationFactor(factor))
-
-    async def set_server_info(self, server_ip: str = "pc.anovaculinary.com", port: int = 8080) -> str:
-        return await self.send_command(SetServerInfo(server_ip, port))
-
-    async def set_led(self, red: int, green: int, blue: int) -> str:
-        return await self.send_command(SetLED(red, green, blue))
-
-    async def set_secret_key(self, key: str) -> str:
-        return await self.send_command(SetSecretKey(key))
-
-    async def set_target_temperature(self, temperature: float, unit: TemperatureUnit) -> str:
-        return await self.send_command(SetTargetTemperature(temperature, unit))
-
-    async def set_timer(self, minutes: int) -> str:
-        return await self.send_command(SetTimer(minutes))
-
-    async def set_temperature_unit(self, unit: TemperatureUnit) -> str:
-        return await self.send_command(SetTemperatureUnit(unit))
-
-    async def get_target_temperature(self) -> float:
-        return await self.send_command(GetTargetTemperature())
-
-    async def get_current_temperature(self) -> float:
-        return await self.send_command(GetCurrentTemperature())
-
-    async def start_device(self) -> str:
-        return await self.send_command(StartDevice())
-
-    async def stop_device(self) -> str:
-        return await self.send_command(StopDevice())
-
-    async def get_device_status(self) -> DeviceStatus:
-        return await self.send_command(GetDeviceStatus())
-
-    async def start_timer(self) -> str:
-        return await self.send_command(StartTimer())
-
-    async def stop_timer(self) -> str:
-        return await self.send_command(StopTimer())
-
-    async def get_timer_status(self) -> TimerStatus:
-        return await self.send_command(GetTimerStatus())
-
-    async def get_temperature_unit(self) -> TemperatureUnit:
-        return await self.send_command(GetTemperatureUnit())
-
-    async def get_device_information(self) -> str:
-        return await self.send_command(GetDeviceInformation())
-
-    async def read_calibration_factor(self) -> float:
-        return await self.send_command(ReadCalibrationFactor())
-
-    async def clear_alarm(self) -> str:
-        return await self.send_command(ClearAlarm())
-
-    async def get_date(self) -> str:
-        return await self.send_command(GetDate())
-
-    async def get_temperature_history(self) -> str:
-        return await self.send_command(GetTemperatureHistory())
-
-    async def set_wifi_credentials(self, ssid: str, password: str) -> str:
-        return await self.send_command(SetWifiCredentials(ssid, password))
-
-    async def start_smartlink(self) -> str:
-        return await self.send_command(StartSmartlink())
-
-    async def set_device_name(self, name: str) -> str:
-        return await self.send_command(SetDeviceName(name))
-
-    async def turn_off_speaker(self) -> str:
-        return await self.send_command(TurnOffSpeaker())
-
-    async def get_version(self) -> str:
-        return await self.send_command(GetVersion())

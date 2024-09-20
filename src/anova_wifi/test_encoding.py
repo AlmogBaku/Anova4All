@@ -1,8 +1,8 @@
 import csv
 from os.path import dirname, realpath, join
+from typing import List, Tuple
 
 import pytest
-from typing import List, Tuple
 
 from .encoding import Encoder
 

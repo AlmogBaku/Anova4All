@@ -1,219 +1,188 @@
 import asyncio
+import random
 import socket
-from typing import List, Optional, Literal, AsyncIterator
+import string
+from typing import List, Optional, AsyncIterator, Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Body, Security
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
 
 from anova_ble.client import AnovaBluetoothClient
-from anova_wifi.commands import UnitType
-from anova_wifi.device import DeviceState
+from anova_wifi.device import DeviceState, AnovaDevice
 from anova_wifi.manager import AnovaManager
-from .deps import get_device_manager, get_sse_manager
-from .sse import SSEManager, SSEEvent, event_stream
+from commands import SetWifiCredentials, SetServerInfo, GetIDCard, GetVersion, GetTemperatureUnit, GetSpeakerStatus, \
+    SetSecretKey, SetTemperatureUnit, SetTargetTemperature, GetCurrentTemperature, SetTimer, StopTimer, ClearAlarm, \
+    GetTimerStatus, GetTargetTemperature, TemperatureUnit
+from .deps import get_device_manager, get_sse_manager, get_authenticated_device
+from .models import DeviceInfo, SetTemperatureResponse, SetTimerResponse, UnitResponse, SpeakerStatusResponse, \
+    TimerResponse, BLEDevice, OkResponse, GetTargetTemperatureResponse, TemperatureResponse, NewSecretResponse, \
+    BLEDeviceInfo, SSEEvent
+from .sse import SSEManager, event_stream
 
 router = APIRouter()
 
 
-class DeviceInfo(BaseModel):
-    id: str
-    version: Optional[str]
-    device_number: Optional[str]
-
-
-class TemperatureCommand(BaseModel):
-    temperature: float
-
-
-class TimerCommand(BaseModel):
-    minutes: int
-
-
 @router.get("/devices")
 async def get_devices(manager: AnovaManager = Depends(get_device_manager)) -> List[DeviceInfo]:
+    """
+    Get a list of devices connected to the server
+    """
     devices = manager.get_devices()
     return [
         DeviceInfo(
             id=device.id_card,
             version=device.version,
-            device_number=device.device_number
+            device_number=device.secret_key
         )
         for device in devices if device.id_card
     ]
 
 
 @router.get("/devices/{device_id}/state")
-async def get_device_state(device_id: str, manager: AnovaManager = Depends(get_device_manager)) -> DeviceState:
-    device = manager.get_device(device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
+async def get_device_state(device: Annotated[AnovaDevice, Security(get_authenticated_device)]) -> DeviceState:
+    """
+    Get the state of the device
+    """
     return device.state
 
 
-class SetTemperatureResponse(BaseModel):
-    changed_to: float
-
-
 @router.post("/devices/{device_id}/temperature")
-async def set_temperature(device_id: str, command: TemperatureCommand,
-                          manager: AnovaManager = Depends(get_device_manager)) -> SetTemperatureResponse:
-    try:
-        device = manager.get_device(device_id)
-        if not device:
-            raise HTTPException(status_code=404, detail="Device not found")
-        resp = await device.set_temperature(command.temperature)
-        return SetTemperatureResponse(changed_to=resp.temperature)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+async def set_temperature(temperature: Annotated[float, Body(embed=True)],
+                          device: Annotated[AnovaDevice, Security(get_authenticated_device)]) -> SetTemperatureResponse:
+    """
+    Set the target temperature of the device
+    """
+    resp = await device.send_command(SetTargetTemperature(temperature, device.state.unit))
+    return SetTemperatureResponse(changed_to=resp)
 
 
 @router.post("/devices/{device_id}/start")
-async def start_cooking(device_id: str, manager: AnovaManager = Depends(get_device_manager)) -> Literal['ok']:
-    try:
-        device = manager.get_device(device_id)
-        if not device:
-            raise HTTPException(status_code=404, detail="Device not found")
-        resp = await device.start_cooking()
+async def start_cooking(device: Annotated[AnovaDevice, Security(get_authenticated_device)]) -> OkResponse:
+    """
+    Start the device cooking
+    """
 
-        if not resp.success:
-            raise ValueError("Failed to start cooking")
-        return "ok"
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.post("/devices/{device_id}/stop")
-async def stop_cooking(device_id: str, manager: AnovaManager = Depends(get_device_manager)) -> Literal['ok']:
-    try:
-        device = manager.get_device(device_id)
-        if not device:
-            raise HTTPException(status_code=404, detail="Device not found")
-        resp = await device.stop_cooking()
-        if not resp.success:
-            raise ValueError("Failed to stop cooking")
-        return "ok"
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-class SetTimerResponse(BaseModel):
-    message: str
-    minutes: int
-
-
-@router.post("/devices/{device_id}/timer")
-async def set_timer(device_id: str, command: TimerCommand,
-                    manager: AnovaManager = Depends(get_device_manager)) -> SetTimerResponse:
-    try:
-        device = manager.get_device(device_id)
-        if not device:
-            raise HTTPException(status_code=404, detail="Device not found")
-        resp = await device.set_timer(command.minutes)
-        return SetTimerResponse(message="Timer set successfully", minutes=resp.minutes)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.post("/devices/{device_id}/timer/stop")
-async def stop_timer(device_id: str, manager: AnovaManager = Depends(get_device_manager)) -> Literal['ok']:
-    try:
-        device = manager.get_device(device_id)
-        if not device:
-            raise HTTPException(status_code=404, detail="Device not found")
-        resp = await device.stop_timer()
-        if not resp.success:
-            raise ValueError("Failed to stop timer")
-        return "ok"
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.post("/devices/{device_id}/alarm/clear")
-async def clear_alarm(device_id: str, manager: AnovaManager = Depends(get_device_manager)) -> Literal['ok']:
-    try:
-        device = manager.get_device(device_id)
-        if not device:
-            raise HTTPException(status_code=404, detail="Device not found")
-        resp = await device.clear_alarm()
-        if not resp.success:
-            raise ValueError("Failed to clear alarm")
-        return "ok"
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-class TemperatureResponse(BaseModel):
-    temperature: float
-
-
-@router.get("/devices/{device_id}/temperature")
-async def get_temperature(device_id: str, manager: AnovaManager = Depends(get_device_manager)) -> TemperatureResponse:
-    device = manager.get_device(device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
-    return TemperatureResponse(temperature=device.state.temperature)
-
-
-@router.get("/devices/{device_id}/set_temperature")
-async def get_set_temperature(device_id: str, manager: AnovaManager = Depends(get_device_manager)) -> Literal['ok']:
-    device = manager.get_device(device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
+    if not await device.start_cooking():
+        raise ValueError("Failed to start cooking")
     return "ok"
 
 
-class UnitResponse(BaseModel):
-    unit: UnitType
+@router.post("/devices/{device_id}/stop")
+async def stop_cooking(device: Annotated[AnovaDevice, Security(get_authenticated_device)]) -> OkResponse:
+    """
+    Stop the device from cooking
+    """
+    if not await device.stop_cooking():
+        raise ValueError("Failed to stop cooking")
+    return "ok"
+
+
+@router.post("/devices/{device_id}/timer")
+async def set_timer(minutes: Annotated[int, Body(embed=True)],
+                    device: Annotated[AnovaDevice, Security(get_authenticated_device)]) -> SetTimerResponse:
+    """
+    Set the timer on the device
+    """
+    return SetTimerResponse(message="Timer set successfully", minutes=await device.send_command(SetTimer(minutes)))
+
+
+@router.post("/devices/{device_id}/timer/stop")
+async def stop_timer(device: Annotated[AnovaDevice, Security(get_authenticated_device)]) -> OkResponse:
+    """
+    Stop the timer on the device
+    """
+    if not await device.send_command(StopTimer()):
+        raise ValueError("Failed to stop timer")
+
+    return "ok"
+
+
+@router.post("/devices/{device_id}/alarm/clear")
+async def clear_alarm(device: Annotated[AnovaDevice, Security(get_authenticated_device)]) -> OkResponse:
+    """
+    Clear the alarm on the device
+    """
+    if not await device.send_command(ClearAlarm()):
+        raise ValueError("Failed to clear alarm")
+
+    return "ok"
+
+
+@router.get("/devices/{device_id}/temperature")
+async def get_temperature(device: Annotated[AnovaDevice, Security(get_authenticated_device)],
+                          from_state: bool = True) -> TemperatureResponse:
+    """
+    Get the current temperature of the device
+    """
+    if from_state:
+        return TemperatureResponse(temperature=device.state.current_temperature)
+
+    return TemperatureResponse(temperature=await device.send_command(GetCurrentTemperature()))
+
+
+@router.get("/devices/{device_id}/target_temperature")
+async def get_target_temperature(device: Annotated[AnovaDevice, Security(get_authenticated_device)],
+                                 from_state: bool = True) -> GetTargetTemperatureResponse:
+    """
+    Get the target temperature of the device
+    """
+    if from_state:
+        return GetTargetTemperatureResponse(temperature=device.state.target_temperature)
+    return GetTargetTemperatureResponse(temperature=await device.send_command(GetTargetTemperature()))
 
 
 @router.get("/devices/{device_id}/unit")
-async def get_unit(device_id: str, manager: AnovaManager = Depends(get_device_manager)) -> UnitResponse:
-    device = manager.get_device(device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
-    return UnitResponse(unit=device.state.unit)  # type: ignore
+async def get_unit(device: Annotated[AnovaDevice, Security(get_authenticated_device)],
+                   from_state: bool = True) -> UnitResponse:
+    """
+    Get the temperature unit of the device - either Celsius(c) or Fahrenheit(f)
+    """
+    if from_state:
+        return UnitResponse(unit=device.state.unit)
+    return UnitResponse(unit=await device.send_command(GetTemperatureUnit()))
 
 
-class TimerResponse(BaseModel):
-    timer: int
+@router.post("/devices/{device_id}/unit")
+async def set_unit(unit: Annotated[TemperatureUnit, Body(embed=True)],
+                   device: Annotated[AnovaDevice, Security(get_authenticated_device)]) -> OkResponse:
+    """
+    Set the temperature unit of the device
+    """
+    await device.send_command(SetTemperatureUnit(unit))
+    return "ok"
 
 
 @router.get("/devices/{device_id}/timer")
-async def get_timer(device_id: str, manager: AnovaManager = Depends(get_device_manager)) -> TimerResponse:
-    device = manager.get_device(device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
-    return TimerResponse(timer=device.state.timer_value)
+async def get_timer(device: Annotated[AnovaDevice, Security(get_authenticated_device)],
+                    from_state: bool = True) -> TimerResponse:
+    """
+    Get the timer value of the device
+    """
+    if from_state:
+        return TimerResponse(timer=device.state.timer_value)
 
-
-class SpeakerStatusResponse(BaseModel):
-    speaker_status: bool
+    return TimerResponse(timer=await device.send_command(GetTimerStatus()))
 
 
 @router.get("/devices/{device_id}/speaker_status")
-async def get_speaker_status(device_id: str,
-                             manager: AnovaManager = Depends(get_device_manager)) -> SpeakerStatusResponse:
-    device = manager.get_device(device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
-    return SpeakerStatusResponse(speaker_status=device.state.speaker_status)
+async def get_speaker_status(device: Annotated[AnovaDevice, Security(get_authenticated_device)],
+                             from_state: bool = True) -> SpeakerStatusResponse:
+    """
+    Get the speaker status of the device
+    """
+    return SpeakerStatusResponse(speaker_status=await device.send_command(GetSpeakerStatus()))
 
 
 @router.get("/devices/{device_id}/sse", response_model=SSEEvent, response_class=StreamingResponse)
 async def sse_endpoint(
         request: Request,
-        device_id: str,
-        manager: AnovaManager = Depends(get_device_manager),
-        sse_manager: SSEManager = Depends(get_sse_manager),
+        device: Annotated[AnovaDevice, Security(get_authenticated_device)],
+        sse_manager: Annotated[SSEManager, Depends(get_sse_manager)],
 ) -> StreamingResponse:
     """
     Server-Sent Events route that listens for events from a specific device.
     """
-    if manager.get_device(device_id) is None:
-        raise HTTPException(status_code=404, detail="Device not found")
-
-    listener_id, queue = await sse_manager.connect(device_id)
+    listener_id, queue = await sse_manager.connect(device.id_card)  # type: ignore
 
     async def event_generator() -> AsyncIterator[SSEEvent]:
         try:
@@ -228,68 +197,124 @@ async def sse_endpoint(
                 except asyncio.TimeoutError:
                     yield SSEEvent(event_type="ping")
         finally:
-            await sse_manager.disconnect(device_id, listener_id)
+            await sse_manager.disconnect(device.id_card, listener_id)  # type: ignore
 
     return StreamingResponse(event_stream(event_generator()), media_type="text/event-stream")
 
 
 # BLE endpoints
 
-class BLEDevice(BaseModel):
-    address: str
-    name: str
-
 
 @router.get("/ble_devices")
 async def get_ble_device() -> BLEDevice:
-    dev = await AnovaBluetoothClient.scan()
+    """
+    Get the BLE device
+    """
+    dev, adv = await AnovaBluetoothClient.scan()
     if not dev:
         raise HTTPException(status_code=404, detail="No BLE device found")
-    return BLEDevice(address=dev[0].address, name=dev[1].local_name)
+
+    return BLEDevice(address=dev.address, name=adv.local_name)  # type: ignore
 
 
 @router.post("/ble/connect_wifi")
-async def ble_connect_wifi(ssid: str, password: str) -> Literal['ok']:
-    dev = await AnovaBluetoothClient.scan()
+async def ble_connect_wifi(ssid: str, password: str) -> OkResponse:
+    """
+    Connect the Anova Precision Cooker to a Wi-Fi network
+    """
+    dev, adv = await AnovaBluetoothClient.scan()
     if not dev:
         raise HTTPException(status_code=404, detail="No BLE device found")
 
-    async with AnovaBluetoothClient(dev[0]) as client:
-        await client.set_wifi_credentials(ssid, password)
+    async with AnovaBluetoothClient(dev) as client:
+        await client.send_command(SetWifiCredentials(ssid, password))
         return 'ok'
 
 
 @router.patch("/ble/patch_wifi_server")
-async def patch_ble_device(host: Optional[str] = None) -> Literal['ok']:
+async def patch_ble_device(
+        manager: Annotated[AnovaManager, Depends(get_device_manager)],
+        host: Annotated[Optional[str], Body(
+            embed=True,
+            description="The IP address of the server."
+                        "If not provided, the local IP address will be determined automatically"
+        )] = None,
+        port: Annotated[Optional[int], Body(
+            embed=True,
+            description="The port of the server. If not provided, port of the server will be used"
+        )] = None
+) -> OkResponse:
     """
     Patch the Anova Precision Cooker to communicate with our server
-    :param host: The IP address of the server. If not provided, the local IP address will be determined automatically
-    :return:
     """
-    dev = await AnovaBluetoothClient.scan()
+    dev, adv = await AnovaBluetoothClient.scan()
     if not dev:
         raise HTTPException(status_code=404, detail="No BLE device found")
 
-    async with AnovaBluetoothClient(dev[0]) as client:
+    async with AnovaBluetoothClient(dev) as client:
         if not host:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(('10.255.255.255', 1))
             host = s.getsockname()[0]
             s.close()
-        await client.set_server_info(host, 8080)
+        if not port:
+            port = manager.server.port
+        if not await client.send_command(SetServerInfo(host, port)):
+            raise ValueError("Failed to set server info")
         return 'ok'
 
 
 @router.patch("/ble/restore_wifi_server")
-async def patch_ble_device() -> Literal['ok']:
+async def restore_ble_device() -> OkResponse:
     """
     Restore the Anova Precision Cooker to communicate with the Anova Cloud server
-    :return:
     """
-    dev = await AnovaBluetoothClient.scan()
+    dev, adv = await AnovaBluetoothClient.scan()
     if not dev:
         raise HTTPException(status_code=404, detail="No BLE device found")
 
-    async with AnovaBluetoothClient(dev[0]) as client:
-        await client.set_server_info()
+    async with AnovaBluetoothClient(dev) as client:
+        if not await client.send_command(SetServerInfo()):
+            raise ValueError("Failed to restore server info")
         return 'ok'
+
+
+@router.get("/ble/")
+async def ble_get_info() -> BLEDeviceInfo:
+    """
+    Get the number on the Anova Precision Cooker
+    """
+    dev, adv = await AnovaBluetoothClient.scan()
+    if not dev:
+        raise HTTPException(status_code=404, detail="No BLE device found")
+
+    async with AnovaBluetoothClient(dev) as client:
+        id_card = await client.send_command(GetIDCard())
+        ver = await client.send_command(GetVersion())
+        unit = await client.send_command(GetTemperatureUnit())
+        speaker = await client.send_command(GetSpeakerStatus())
+        return BLEDeviceInfo(
+            ble_address=dev.address,
+            ble_name=adv.local_name,  # type: ignore
+            version=ver,
+            id_card=id_card,
+            temperature_unit=unit,
+            speaker_status=speaker
+        )
+
+
+@router.post("/ble/new_secret_key")
+async def ble_new_secret_key() -> NewSecretResponse:
+    """
+    Set a new secret key on the Anova Precision Cooker
+    """
+    dev, adv = await AnovaBluetoothClient.scan()
+    if not dev:
+        raise HTTPException(status_code=404, detail="No BLE device found")
+
+    characters = string.ascii_lowercase + string.digits
+    secret_key = ''.join(random.choice(characters) for _ in range(10))
+
+    async with AnovaBluetoothClient(dev) as client:
+        await client.send_command(SetSecretKey(secret_key))
+        return NewSecretResponse(secret_key=secret_key)

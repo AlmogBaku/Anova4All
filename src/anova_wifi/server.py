@@ -40,5 +40,5 @@ class AsyncTCPServer:
         connection = AnovaConnection(reader, writer)
         logger.info(f'New connection from {writer.transport.get_extra_info("peername")}')
         connection.start_listening()
-        if self.connection_callback: # type: ignore
+        if self.connection_callback:  # type: ignore
             await self.connection_callback(connection)

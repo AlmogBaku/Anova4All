@@ -2,8 +2,8 @@ import asyncio
 import logging
 from typing import Optional, Callable, Coroutine
 
-from .commands import AnovaEvent
 from .encoding import Encoder
+from .event import AnovaEvent
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class AnovaConnection:
     response_future: Optional[asyncio.Future[str]] = None
     event_callback: Optional[Callable[[AnovaEvent], Coroutine[None, None, None]]] = None
-    listen_task: Optional[asyncio.Task] = None
+    listen_task: Optional[asyncio.Task[None]] = None
 
     def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         self.reader = reader
@@ -35,11 +35,11 @@ class AnovaConnection:
         finally:
             self.response_future = None
 
-    def start_listening(self):
+    def start_listening(self) -> None:
         if not self.listen_task:
             self.listen_task = asyncio.create_task(self._listen())
 
-    async def _listen(self):
+    async def _listen(self) -> None:
         try:
             while True:
                 await self.receive()
@@ -61,7 +61,7 @@ class AnovaConnection:
 
         if "invalid command" in msg.lower():
             logger.error(f"Received invalid command, skipping: {msg}")
-            return
+            return None
 
         if AnovaEvent.is_event(msg):
             if self.event_callback:

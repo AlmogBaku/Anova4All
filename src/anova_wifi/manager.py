@@ -2,9 +2,9 @@ import asyncio
 import logging
 from typing import Dict, List, Callable, Coroutine, Any, Optional
 
-from .commands import AnovaEvent
 from .connection import AnovaConnection
 from .device import AnovaDevice, DeviceState
+from .event import AnovaEvent
 from .server import AsyncTCPServer
 
 logger = logging.getLogger(__name__)
@@ -206,7 +206,7 @@ class AnovaManager:
         await self._handle_callback(device_id, self.device_event_callbacks, device_id, event)
 
     @staticmethod
-    async def _handle_callback(device_id: str, callback_dict: Dict[str, Optional[Callable]], *args, **kwargs) -> None:
+    async def _handle_callback(device_id: str, callback_dict: Dict[str, Optional[Callable]], *args, **kwargs) -> None:  # type: ignore
         if "*" in callback_dict:
             cb = callback_dict["*"]
             if cb:

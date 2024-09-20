@@ -3,7 +3,7 @@ from typing import AsyncIterator
 from pydantic import BaseModel
 
 
-async def event_stream(resp: AsyncIterator[BaseModel]):
+async def event_stream(resp: AsyncIterator[BaseModel]) -> AsyncIterator[str]:
     async for event in resp:
         evnt = event.__class__.__name__
         if hasattr(event, "event_type"):
