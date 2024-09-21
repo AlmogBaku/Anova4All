@@ -231,7 +231,7 @@ async def ble_connect_wifi(ssid: str, password: str) -> OkResponse:
         return 'ok'
 
 
-@router.patch("/ble/patch_wifi_server")
+@router.post("/ble/config_wifi_server")
 async def patch_ble_device(
         manager: Annotated[AnovaManager, Depends(get_device_manager)],
         host: Annotated[Optional[str], Body(
@@ -264,7 +264,7 @@ async def patch_ble_device(
         return 'ok'
 
 
-@router.patch("/ble/restore_wifi_server")
+@router.post("/ble/restore_wifi_server")
 async def restore_ble_device() -> OkResponse:
     """
     Restore the Anova Precision Cooker to communicate with the Anova Cloud server
@@ -303,7 +303,7 @@ async def ble_get_info() -> BLEDeviceInfo:
         )
 
 
-@router.post("/ble/new_secret_key")
+@router.post("/ble/ secret_key")
 async def ble_new_secret_key() -> NewSecretResponse:
     """
     Set a new secret key on the Anova Precision Cooker

@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
+from os.path import join, dirname
 from typing import Never, AsyncGenerator
 
 import uvicorn
@@ -28,7 +29,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, Never]:
     print("Shutdown complete")
 
 
-app = FastAPI(lifespan=lifespan)
+with open(join(dirname(__file__), "README.md"), "r") as f:
+    readme = f.read()
+
+app = FastAPI(
+    title="Anova4All API",
+    summary="API for controlling Anova Precision Cooker devices over WiFi",
+    description=readme,
+    lifespan=lifespan
+)
 
 # Add CORS middleware
 app.add_middleware(

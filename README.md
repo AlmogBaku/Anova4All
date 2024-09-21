@@ -33,9 +33,9 @@ It uses the Anova Wi-Fi protocol to communicate with the device directly over th
 To use the Anova for All, you need to patch the `anova` package to use the server's IP address instead of the Anova
 cloud services.
 
-To do this, assist the `PATCH /api/ble/patch_wifi_server` endpoint.
+To do this, assist the `POST /api/ble/config_wifi_server` endpoint.
 
-To revert the changes, use the `PATCH /api/ble/restore_wifi_server` endpoint.
+To revert the changes, use the `POST /api/ble/restore_wifi_server` endpoint.
 
 ## Usage
 
