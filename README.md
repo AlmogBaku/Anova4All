@@ -12,10 +12,12 @@ It uses the Anova Wi-Fi protocol to communicate with the device directly over th
 ## Features & Roadmap
 
 - [x] Connect to the Anova Precision Cooker Wi-Fi
-- [x] Send commands to the device
+- [x] Discover the device on the local network (Bluetooth Low Energy)
+- [x] Send commands to the device (Wi-Fi or Bluetooth)
 - [x] Receive responses from the device
 - [x] Control the device settings
 - [x] Monitor the device status
+- [x] Use the library via a REST API
 - [ ] Implement a web interface
 
 ## Installation
