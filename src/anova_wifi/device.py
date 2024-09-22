@@ -102,7 +102,7 @@ class AnovaDevice:
 
         response_data = await self.connection.send_command(command.encode())
         response = command.decode(response_data)
-        await self._update_state(type(command), response)
+        await self._update_state(command, response)
         return response
 
     async def handle_event(self, event: AnovaEvent) -> None:
