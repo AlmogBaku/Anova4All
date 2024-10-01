@@ -10,6 +10,7 @@ dependencies = [
     "asyncer~=0.0.8",
     "bleak>=0.22.2",
     "fastapi[standard]~=0.114.0",
+    "pydantic-settings>=2.5.2",
     "pydantic>=2.9.2",
 ]
 

@@ -1,4 +1,6 @@
-# Anova for All
+<h1>
+<img src="app/frontend/public/logo.svg" width="20"> Anova for All
+</h1>
 
 > Recently, Anova decided to shut down their cloud services for the Anova Precision Cooker Wi-Fi 1 - although the device
 > is still fully functional, and still serves its purpose.
@@ -14,11 +16,13 @@ It uses the Anova Wi-Fi protocol to communicate with the device directly over th
 - [x] Connect to the Anova Precision Cooker Wi-Fi
 - [x] Discover the device on the local network (Bluetooth Low Energy)
 - [x] Send commands to the device (Wi-Fi or Bluetooth)
+- [x] Configure the device to work with the local server without any DNS patching
 - [x] Receive responses from the device
 - [x] Control the device settings
 - [x] Monitor the device status
 - [x] Use the library via a REST API
-- [ ] Implement a web interface
+- [x] Use the library via a Python package
+- [x] Implement a web interface
 
 ## Installation
 
@@ -27,6 +31,16 @@ It uses the Anova Wi-Fi protocol to communicate with the device directly over th
 3. Sync the dependencies with `uv sync`
 4. Run the server with `uv run fastapi run`
 5. Open the OpenAPI documentation at `http://localhost:8000/docs`
+
+### Building the UI
+
+To build the UI:
+
+1. navigate to the `app/frontend` directory
+2. install the dependencies using `yarn install`
+3. build the UI using `yarn build --base=/static/`
+4. To serve the UI using the FastAPI server, configure the environment variable `FRONTEND_DIST_DIR`
+   to `app/frontend/dist/` and run the server.
 
 ## Configuration
 
