@@ -24,6 +24,8 @@ It uses the Anova Wi-Fi protocol to communicate with the device directly over th
 - [x] Use the library via a Python package
 - [x] Implement a web interface
 
+![Anova for All - Web UI](./.github/screenshot.jpeg)
+
 ## Installation
 
 1. git clone
@@ -44,12 +46,26 @@ To build the UI:
 
 ## Configuration
 
-To use the Anova for All, you need to patch the `anova` package to use the server's IP address instead of the Anova
+To use the Anova for All, you need to change the `anova` package to use the server's IP address instead of the Anova
 cloud services.
 
-To do this, assist the `POST /api/ble/config_wifi_server` endpoint.
+### Changing the server via the REST API
+
+If your (server) device supports BLE, you can use the API to change the server address.
+
+1. Run the server
+2. Use the `POST /api/ble/config_wifi_server` endpoint.
 
 To revert the changes, use the `POST /api/ble/restore_wifi_server` endpoint.
+
+### Changing the server via the Web UI
+
+You can also use the web interface to change the server address. This is usually more user-friendly :)
+
+Notice: this require Web Bluetooth API support. Currently, it's not supported natively in iOS, but it's supported in
+Android and desktop browsers. You can try use an iOS app like Bluefy to connect to the device (not tested).
+
+### Con
 
 ## Usage
 

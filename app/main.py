@@ -63,10 +63,11 @@ app.add_middleware(
 # Include the Anova API router
 app.include_router(anova_router, prefix="/api")
 
+
 @app.exception_handler(404)
 async def exception_404_handler(req: Request, exc: HTTPException) -> Response:
-    if req.url.path.startswith("/static"):
-        return exec  # Let FastAPI handle 404s for missing static files
+    if req.url.path.startswith("/static") or req.url.path.startswith("/api"):
+        raise exc  # Let FastAPI handle 404s for missing static files
 
     settings = get_settings(req)
     if settings.frontend_dist_dir:

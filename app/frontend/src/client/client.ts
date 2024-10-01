@@ -20,7 +20,7 @@ export class Anova4AllError extends Error {
 
 // noinspection JSUnusedGlobalSymbols
 export class Client {
-    private static baseUrl: string = import.meta.env.VITE_API_BASE_URL || '/api';
+    private static baseUrl: string = '/api';
 
     public static setBaseUrl(url: string): void {
         this.baseUrl = url;
@@ -31,7 +31,10 @@ export class Client {
         method: string = 'GET',
         options: { headers?: Record<string, string>, secretKey?: string, body?: unknown } = {},
     ): Promise<T> {
-        const url = new URL(endpoint, this.baseUrl);
+        // remove last / if present
+        const baseUrl = this.baseUrl.endsWith('/') ? this.baseUrl.slice(0, -1) : this.baseUrl;
+        const ep = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+        const url = `${baseUrl}/${ep}`;
 
         const headers: HeadersInit = options.headers || {
             'Content-Type': 'application/json',
@@ -40,7 +43,7 @@ export class Client {
             headers['Authorization'] = `Bearer ${options.secretKey}`;
         }
 
-        const response = await fetch(url.toString(), {
+        const response = await fetch(url, {
             method,
             headers: headers,
             body: options?.body ? JSON.stringify(options.body) : undefined,
@@ -54,16 +57,16 @@ export class Client {
     }
 
     public static async getServerInfo(): Promise<ServerInfo> {
-        return this.request<ServerInfo>('/api/server_info');
+        return this.request<ServerInfo>('/server_info');
     }
 
     // Device Management
     public static async getDevices(): Promise<DeviceInfo[]> {
-        return this.request<DeviceInfo[]>('/api/devices');
+        return this.request<DeviceInfo[]>('/devices');
     }
 
     public static async getDeviceState(deviceId: string, secretKey: string): Promise<DeviceState> {
-        return this.request<DeviceState>(`/api/devices/${deviceId}/state`, 'GET', {secretKey});
+        return this.request<DeviceState>(`/devices/${deviceId}/state`, 'GET', {secretKey});
     }
 
 
@@ -71,7 +74,7 @@ export class Client {
         changed_to: number
     }> {
         return this.request<{ changed_to: number }>(
-            `/api/devices/${deviceId}/target_temperature`,
+            `/devices/${deviceId}/target_temperature`,
             'POST',
             {body: {temperature}, secretKey}
         );
@@ -82,7 +85,7 @@ export class Client {
         minutes: number
     }> {
         return this.request<{ message: string; minutes: number }>(
-            `/api/devices/${deviceId}/timer`,
+            `/devices/${deviceId}/timer`,
             'POST',
             {body: {minutes}, secretKey}
         );
@@ -90,7 +93,7 @@ export class Client {
 
     public static async setUnit(deviceId: string, secretKey: string, unit: TemperatureUnit): Promise<string> {
         return this.request<string>(
-            `/api/devices/${deviceId}/unit`,
+            `/devices/${deviceId}/unit`,
             'POST',
             {body: {unit}, secretKey}
         );
@@ -99,7 +102,7 @@ export class Client {
     public static async getTemperature(deviceId: string, secretKey: string, fromState: boolean = false): Promise<{
         temperature: number
     }> {
-        return this.request<{ temperature: number }>(`/api/devices/${deviceId}/temperature?from_state=${fromState}`,
+        return this.request<{ temperature: number }>(`/devices/${deviceId}/temperature?from_state=${fromState}`,
             'GET', {secretKey});
     }
 
@@ -108,37 +111,37 @@ export class Client {
     }> {
         return this.request<{
             temperature: number
-        }>(`/api/devices/${deviceId}/target_temperature?from_state=${fromState}`
+        }>(`/devices/${deviceId}/target_temperature?from_state=${fromState}`
             , 'GET', {secretKey});
     }
 
     // Cooking Control
     public static async startCooking(deviceId: string, secretKey: string): Promise<string> {
-        return this.request<string>(`/api/devices/${deviceId}/start`, 'POST', {secretKey});
+        return this.request<string>(`/devices/${deviceId}/start`, 'POST', {secretKey});
     }
 
     public static async stopCooking(deviceId: string, secretKey: string): Promise<string> {
-        return this.request<string>(`/api/devices/${deviceId}/stop`, 'POST', {secretKey});
+        return this.request<string>(`/devices/${deviceId}/stop`, 'POST', {secretKey});
     }
 
     public static async getTimer(deviceId: string, secretKey: string, fromState: boolean = false): Promise<{
         timer: number
     }> {
-        return this.request<{ timer: number }>(`/api/devices/${deviceId}/timer?from_state=${fromState}`,
+        return this.request<{ timer: number }>(`/devices/${deviceId}/timer?from_state=${fromState}`,
             'GET', {secretKey});
     }
 
     public static async startTimer(deviceId: string, secretKey: string): Promise<string> {
-        return this.request<string>(`/api/devices/${deviceId}/timer/start`, 'POST', {secretKey});
+        return this.request<string>(`/devices/${deviceId}/timer/start`, 'POST', {secretKey});
     }
 
     public static async stopTimer(deviceId: string, secretKey: string): Promise<string> {
-        return this.request<string>(`/api/devices/${deviceId}/timer/stop`, 'POST', {secretKey});
+        return this.request<string>(`/devices/${deviceId}/timer/stop`, 'POST', {secretKey});
     }
 
     // Alarm Control
     public static async clearAlarm(deviceId: string, secretKey: string): Promise<string> {
-        return this.request<string>(`/api/devices/${deviceId}/alarm/clear`, 'POST', {secretKey});
+        return this.request<string>(`/devices/${deviceId}/alarm/clear`, 'POST', {secretKey});
     }
 
     // Unit Control
@@ -147,7 +150,7 @@ export class Client {
     }> {
         return this.request<{
             unit: TemperatureUnit
-        }>(`/api/devices/${deviceId}/unit?from_state=${fromState}`, 'GET', {secretKey});
+        }>(`/devices/${deviceId}/unit?from_state=${fromState}`, 'GET', {secretKey});
     }
 
     // Speaker Status
@@ -156,32 +159,32 @@ export class Client {
     }> {
         return this.request<{
             speaker_status: boolean
-        }>(`/api/devices/${deviceId}/speaker_status?from_state=${fromState}`, 'GET', {secretKey});
+        }>(`/devices/${deviceId}/speaker_status?from_state=${fromState}`, 'GET', {secretKey});
     }
 
 
     // BLE
 
     public static async ble_getDevice(): Promise<BLEDevice> {
-        return this.request<BLEDevice>(`/api/ble/device`, 'Get')
+        return this.request<BLEDevice>(`/ble/device`, 'Get')
     }
 
     public static async ble_connectToWiFi(ssid: string, password: string): Promise<string> {
-        return this.request<string>(`/api/ble/connect_wifi`, 'POST',
+        return this.request<string>(`/ble/connect_wifi`, 'POST',
             {body: {ssid, password}});
     }
 
     public static async ble_getInfo(): Promise<BLEDeviceInfo> {
-        return this.request<BLEDeviceInfo>('/api/ble/', 'GET');
+        return this.request<BLEDeviceInfo>('/ble/', 'GET');
     }
 
     public static async ble_setNewSecretKey(): Promise<NewSecretResponse> {
-        return this.request<NewSecretResponse>('/api/ble/secret_key', 'POST');
+        return this.request<NewSecretResponse>('/ble/secret_key', 'POST');
     }
 
     public static async ble_configureWiFiServer(host?: string, port?: number): Promise<string> {
         return this.request<string>(
-            '/api/ble/config_wifi_server',
+            '/ble/config_wifi_server',
             'POST',
             {body: {host, port}},
         );
@@ -203,7 +206,8 @@ export class Client {
      * ```
      */
     public static SubscribeToSSE(device_id: string, secretKey: string): AsyncGenerator<SSEEvent> {
-        const url = new URL(`/api/devices/${device_id}/sse`, this.baseUrl);
+        const baseUrl = this.baseUrl.endsWith('/') ? this.baseUrl.slice(0, -1) : this.baseUrl;
+        const url = `${baseUrl}/devices/${device_id}/sse`;
         const headers: HeadersInit = {
             'Authorization': `Bearer ${secretKey}`,
             'Accept': 'text/event-stream'
@@ -212,7 +216,7 @@ export class Client {
         const queue: AsyncQueue<SSEEvent> = new AsyncQueueImpl<SSEEvent>();
         const controller = new AbortController();
 
-        fetchEventSource(url.toString(), {
+        fetchEventSource(url, {
             method: 'GET',
             headers: headers,
             signal: controller.signal,
