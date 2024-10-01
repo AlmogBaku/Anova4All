@@ -20,6 +20,7 @@ from commands import (
     SetTemperatureUnit,
     StartDevice,
     StopDevice,
+    DeviceStatus,
 )
 from .connection import AnovaConnection
 from .event import AnovaEvent, EventType
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 class DeviceState(BaseModel):
-    running: bool = False
+    status: DeviceStatus = DeviceStatus.STOPPED
     current_temperature: float = 0.0
     target_temperature: float = 0.0
     timer_running: bool = False
@@ -83,6 +84,7 @@ class AnovaDevice:
             raise
 
     async def heartbeat(self) -> None:
+        logger.debug("❤️Heartbeat -- start")
         try:
             await self.send_command(GetDeviceStatus())
             await self.send_command(GetTargetTemperature())
@@ -95,6 +97,7 @@ class AnovaDevice:
         except Exception as e:
             logger.error(f"Error during heartbeat: {e}")
             raise
+        logger.debug("❤️Heartbeat -- end")
 
     async def send_command(self, command: AnovaCommand) -> Any:
         if not command.supports_wifi():
@@ -118,31 +121,35 @@ class AnovaDevice:
         if event.type == EventType.TEMP_REACHED:
             self.state.current_temperature = self.state.target_temperature
         elif event.type == EventType.LOW_WATER:
-            self.state.running = False
+            self.state.status = DeviceStatus.LOW_WATER
         elif event.type == EventType.STOP:
-            self.state.running = False
+            self.state.status = DeviceStatus.STOPPED
         elif event.type == EventType.START:
-            self.state.running = True
+            self.state.status = DeviceStatus.RUNNING
         elif event.type == EventType.TIME_START:
             self.state.timer_running = True
         elif event.type == EventType.TIME_STOP:
+            self.state.timer_running = False
+        elif event.type == EventType.TIME_FINISH:
             self.state.timer_running = False
 
     async def get_id_card(self) -> str:
         return await self.send_command(GetIDCard())
 
     async def _update_state(self, command_class: Type[AnovaCommand], response: Any) -> None:
-        if isinstance(command_class, GetDeviceStatus):
-            self._state.running = response
-        elif isinstance(command_class, GetCurrentTemperature):
+        if command_class == GetDeviceStatus:
+            self._state.status = response
+        elif command_class == GetCurrentTemperature:
             self._state.current_temperature = response
-        elif isinstance(command_class, (GetTargetTemperature, SetTargetTemperature)):
+        elif command_class in (GetTargetTemperature, SetTargetTemperature):
             self._state.target_temperature = response
-        elif isinstance(command_class, (SetTemperatureUnit, GetTemperatureUnit)):
+        elif command_class in (SetTemperatureUnit, GetTemperatureUnit):
             self._state.unit = response
-        elif isinstance(command_class, (SetTimer, GetTimerStatus)):
+        elif command_class == GetTimerStatus:
+            self._state.timer_value, self._state.timer_running = response
+        elif command_class == SetTimer:
             self._state.timer_value = response
-        elif isinstance(command_class, GetSpeakerStatus):
+        elif command_class == GetSpeakerStatus:
             self._state.speaker_status = response
 
     async def _notify_state_change(self) -> None:

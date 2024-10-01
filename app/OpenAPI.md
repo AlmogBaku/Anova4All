@@ -427,7 +427,7 @@ Get the state of the device
 
 ```json
 {
-  "running": false,
+  "status": "running",
   "current_temperature": 0,
   "target_temperature": 0,
   "timer_running": false,
@@ -449,22 +449,22 @@ To perform this operation, you must be authenticated by means of one of the foll
 APIKeyQuery, HTTPBearer
 </aside>
 
-## set_temperature_api_devices__device_id__temperature_post
+## set_temperature_api_devices__device_id__target_temperature_post
 
-<a id="opIdset_temperature_api_devices__device_id__temperature_post"></a>
+<a id="opIdset_temperature_api_devices__device_id__target_temperature_post"></a>
 
 > Code samples
 
 ```shell
 # You can also use wget
-curl -X POST /api/devices/{device_id}/temperature \
+curl -X POST /api/devices/{device_id}/target_temperature \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json'
 
 ```
 
 ```http
-POST /api/devices/{device_id}/temperature HTTP/1.1
+POST /api/devices/{device_id}/target_temperature HTTP/1.1
 
 Content-Type: application/json
 Accept: application/json
@@ -480,7 +480,7 @@ const headers = {
   'Accept':'application/json'
 };
 
-fetch('/api/devices/{device_id}/temperature',
+fetch('/api/devices/{device_id}/target_temperature',
 {
   method: 'POST',
   body: inputBody,
@@ -503,7 +503,7 @@ headers = {
   'Accept' => 'application/json'
 }
 
-result = RestClient.post '/api/devices/{device_id}/temperature',
+result = RestClient.post '/api/devices/{device_id}/target_temperature',
   params: {
   }, headers: headers
 
@@ -518,7 +518,7 @@ headers = {
   'Accept': 'application/json'
 }
 
-r = requests.post('/api/devices/{device_id}/temperature', headers = headers)
+r = requests.post('/api/devices/{device_id}/target_temperature', headers = headers)
 
 print(r.json())
 
@@ -540,7 +540,7 @@ $client = new \GuzzleHttp\Client();
 $request_body = array();
 
 try {
-    $response = $client->request('POST','/api/devices/{device_id}/temperature', array(
+    $response = $client->request('POST','/api/devices/{device_id}/target_temperature', array(
         'headers' => $headers,
         'json' => $request_body,
        )
@@ -557,7 +557,7 @@ try {
 ```
 
 ```java
-URL obj = new URL("/api/devices/{device_id}/temperature");
+URL obj = new URL("/api/devices/{device_id}/target_temperature");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("POST");
 int responseCode = con.getResponseCode();
@@ -589,7 +589,7 @@ func main() {
     }
 
     data := bytes.NewBuffer([]byte{jsonReq})
-    req, err := http.NewRequest("POST", "/api/devices/{device_id}/temperature", data)
+    req, err := http.NewRequest("POST", "/api/devices/{device_id}/target_temperature", data)
     req.Header = headers
 
     client := &http.Client{}
@@ -599,7 +599,7 @@ func main() {
 
 ```
 
-`POST /api/devices/{device_id}/temperature`
+`POST /api/devices/{device_id}/target_temperature`
 
 *Set Temperature*
 
@@ -613,12 +613,12 @@ Set the target temperature of the device
 }
 ```
 
-<h3 id="set_temperature_api_devices__device_id__temperature_post-parameters">Parameters</h3>
+<h3 id="set_temperature_api_devices__device_id__target_temperature_post-parameters">Parameters</h3>
 
 |Name|In|Type|Required|Description|
 |---|---|---|---|---|
 |device_id|path|string|true|none|
-|body|body|[Body_set_temperature_api_devices__device_id__temperature_post](#schemabody_set_temperature_api_devices__device_id__temperature_post)|true|none|
+|body|body|[Body_set_temperature_api_devices__device_id__target_temperature_post](#schemabody_set_temperature_api_devices__device_id__target_temperature_post)|true|none|
 
 > Example responses
 
@@ -630,7 +630,7 @@ Set the target temperature of the device
 }
 ```
 
-<h3 id="set_temperature_api_devices__device_id__temperature_post-responses">Responses</h3>
+<h3 id="set_temperature_api_devices__device_id__target_temperature_post-responses">Responses</h3>
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
@@ -642,21 +642,21 @@ To perform this operation, you must be authenticated by means of one of the foll
 APIKeyQuery, HTTPBearer
 </aside>
 
-## get_temperature_api_devices__device_id__temperature_get
+## get_target_temperature_api_devices__device_id__target_temperature_get
 
-<a id="opIdget_temperature_api_devices__device_id__temperature_get"></a>
+<a id="opIdget_target_temperature_api_devices__device_id__target_temperature_get"></a>
 
 > Code samples
 
 ```shell
 # You can also use wget
-curl -X GET /api/devices/{device_id}/temperature \
+curl -X GET /api/devices/{device_id}/target_temperature \
   -H 'Accept: application/json'
 
 ```
 
 ```http
-GET /api/devices/{device_id}/temperature HTTP/1.1
+GET /api/devices/{device_id}/target_temperature HTTP/1.1
 
 Accept: application/json
 
@@ -668,7 +668,7 @@ const headers = {
   'Accept':'application/json'
 };
 
-fetch('/api/devices/{device_id}/temperature',
+fetch('/api/devices/{device_id}/target_temperature',
 {
   method: 'GET',
 
@@ -690,7 +690,7 @@ headers = {
   'Accept' => 'application/json'
 }
 
-result = RestClient.get '/api/devices/{device_id}/temperature',
+result = RestClient.get '/api/devices/{device_id}/target_temperature',
   params: {
   }, headers: headers
 
@@ -704,7 +704,7 @@ headers = {
   'Accept': 'application/json'
 }
 
-r = requests.get('/api/devices/{device_id}/temperature', headers = headers)
+r = requests.get('/api/devices/{device_id}/target_temperature', headers = headers)
 
 print(r.json())
 
@@ -725,7 +725,7 @@ $client = new \GuzzleHttp\Client();
 $request_body = array();
 
 try {
-    $response = $client->request('GET','/api/devices/{device_id}/temperature', array(
+    $response = $client->request('GET','/api/devices/{device_id}/target_temperature', array(
         'headers' => $headers,
         'json' => $request_body,
        )
@@ -742,7 +742,7 @@ try {
 ```
 
 ```java
-URL obj = new URL("/api/devices/{device_id}/temperature");
+URL obj = new URL("/api/devices/{device_id}/target_temperature");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("GET");
 int responseCode = con.getResponseCode();
@@ -773,7 +773,7 @@ func main() {
     }
 
     data := bytes.NewBuffer([]byte{jsonReq})
-    req, err := http.NewRequest("GET", "/api/devices/{device_id}/temperature", data)
+    req, err := http.NewRequest("GET", "/api/devices/{device_id}/target_temperature", data)
     req.Header = headers
 
     client := &http.Client{}
@@ -783,13 +783,13 @@ func main() {
 
 ```
 
-`GET /api/devices/{device_id}/temperature`
+`GET /api/devices/{device_id}/target_temperature`
 
-*Get Temperature*
+*Get Target Temperature*
 
-Get the current temperature of the device
+Get the target temperature of the device
 
-<h3 id="get_temperature_api_devices__device_id__temperature_get-parameters">Parameters</h3>
+<h3 id="get_target_temperature_api_devices__device_id__target_temperature_get-parameters">Parameters</h3>
 
 |Name|In|Type|Required|Description|
 |---|---|---|---|---|
@@ -806,11 +806,11 @@ Get the current temperature of the device
 }
 ```
 
-<h3 id="get_temperature_api_devices__device_id__temperature_get-responses">Responses</h3>
+<h3 id="get_target_temperature_api_devices__device_id__target_temperature_get-responses">Responses</h3>
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|Successful Response|[TemperatureResponse](#schematemperatureresponse)|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|Successful Response|[GetTargetTemperatureResponse](#schemagettargettemperatureresponse)|
 |422|[Unprocessable Entity](https://tools.ietf.org/html/rfc2518#section-10.3)|Validation Error|[HTTPValidationError](#schemahttpvalidationerror)|
 
 <aside class="warning">
@@ -1534,6 +1534,179 @@ To perform this operation, you must be authenticated by means of one of the foll
 APIKeyQuery, HTTPBearer
 </aside>
 
+## start_timer_api_devices__device_id__timer_start_post
+
+<a id="opIdstart_timer_api_devices__device_id__timer_start_post"></a>
+
+> Code samples
+
+```shell
+# You can also use wget
+curl -X POST /api/devices/{device_id}/timer/start \
+  -H 'Accept: application/json'
+
+```
+
+```http
+POST /api/devices/{device_id}/timer/start HTTP/1.1
+
+Accept: application/json
+
+```
+
+```javascript
+
+const headers = {
+  'Accept':'application/json'
+};
+
+fetch('/api/devices/{device_id}/timer/start',
+{
+  method: 'POST',
+
+  headers: headers
+})
+.then(function(res) {
+    return res.json();
+}).then(function(body) {
+    console.log(body);
+});
+
+```
+
+```ruby
+require 'rest-client'
+require 'json'
+
+headers = {
+  'Accept' => 'application/json'
+}
+
+result = RestClient.post '/api/devices/{device_id}/timer/start',
+  params: {
+  }, headers: headers
+
+p JSON.parse(result)
+
+```
+
+```python
+import requests
+headers = {
+  'Accept': 'application/json'
+}
+
+r = requests.post('/api/devices/{device_id}/timer/start', headers = headers)
+
+print(r.json())
+
+```
+
+```php
+<?php
+
+require 'vendor/autoload.php';
+
+$headers = array(
+    'Accept' => 'application/json',
+);
+
+$client = new \GuzzleHttp\Client();
+
+// Define array of request body.
+$request_body = array();
+
+try {
+    $response = $client->request('POST','/api/devices/{device_id}/timer/start', array(
+        'headers' => $headers,
+        'json' => $request_body,
+       )
+    );
+    print_r($response->getBody()->getContents());
+ }
+ catch (\GuzzleHttp\Exception\BadResponseException $e) {
+    // handle exception or api errors.
+    print_r($e->getMessage());
+ }
+
+ // ...
+
+```
+
+```java
+URL obj = new URL("/api/devices/{device_id}/timer/start");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("POST");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+```
+
+```go
+package main
+
+import (
+       "bytes"
+       "net/http"
+)
+
+func main() {
+
+    headers := map[string][]string{
+        "Accept": []string{"application/json"},
+    }
+
+    data := bytes.NewBuffer([]byte{jsonReq})
+    req, err := http.NewRequest("POST", "/api/devices/{device_id}/timer/start", data)
+    req.Header = headers
+
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    // ...
+}
+
+```
+
+`POST /api/devices/{device_id}/timer/start`
+
+*Start Timer*
+
+Start the timer on the device
+
+<h3 id="start_timer_api_devices__device_id__timer_start_post-parameters">Parameters</h3>
+
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|device_id|path|string|true|none|
+
+> Example responses
+
+> 200 Response
+
+```json
+"ok"
+```
+
+<h3 id="start_timer_api_devices__device_id__timer_start_post-responses">Responses</h3>
+
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|Successful Response|string|
+|422|[Unprocessable Entity](https://tools.ietf.org/html/rfc2518#section-10.3)|Validation Error|[HTTPValidationError](#schemahttpvalidationerror)|
+
+<aside class="warning">
+To perform this operation, you must be authenticated by means of one of the following methods:
+APIKeyQuery, HTTPBearer
+</aside>
+
 ## stop_timer_api_devices__device_id__timer_stop_post
 
 <a id="opIdstop_timer_api_devices__device_id__timer_stop_post"></a>
@@ -1880,21 +2053,21 @@ To perform this operation, you must be authenticated by means of one of the foll
 APIKeyQuery, HTTPBearer
 </aside>
 
-## get_target_temperature_api_devices__device_id__target_temperature_get
+## get_temperature_api_devices__device_id__temperature_get
 
-<a id="opIdget_target_temperature_api_devices__device_id__target_temperature_get"></a>
+<a id="opIdget_temperature_api_devices__device_id__temperature_get"></a>
 
 > Code samples
 
 ```shell
 # You can also use wget
-curl -X GET /api/devices/{device_id}/target_temperature \
+curl -X GET /api/devices/{device_id}/temperature \
   -H 'Accept: application/json'
 
 ```
 
 ```http
-GET /api/devices/{device_id}/target_temperature HTTP/1.1
+GET /api/devices/{device_id}/temperature HTTP/1.1
 
 Accept: application/json
 
@@ -1906,7 +2079,7 @@ const headers = {
   'Accept':'application/json'
 };
 
-fetch('/api/devices/{device_id}/target_temperature',
+fetch('/api/devices/{device_id}/temperature',
 {
   method: 'GET',
 
@@ -1928,7 +2101,7 @@ headers = {
   'Accept' => 'application/json'
 }
 
-result = RestClient.get '/api/devices/{device_id}/target_temperature',
+result = RestClient.get '/api/devices/{device_id}/temperature',
   params: {
   }, headers: headers
 
@@ -1942,7 +2115,7 @@ headers = {
   'Accept': 'application/json'
 }
 
-r = requests.get('/api/devices/{device_id}/target_temperature', headers = headers)
+r = requests.get('/api/devices/{device_id}/temperature', headers = headers)
 
 print(r.json())
 
@@ -1963,7 +2136,7 @@ $client = new \GuzzleHttp\Client();
 $request_body = array();
 
 try {
-    $response = $client->request('GET','/api/devices/{device_id}/target_temperature', array(
+    $response = $client->request('GET','/api/devices/{device_id}/temperature', array(
         'headers' => $headers,
         'json' => $request_body,
        )
@@ -1980,7 +2153,7 @@ try {
 ```
 
 ```java
-URL obj = new URL("/api/devices/{device_id}/target_temperature");
+URL obj = new URL("/api/devices/{device_id}/temperature");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("GET");
 int responseCode = con.getResponseCode();
@@ -2011,7 +2184,7 @@ func main() {
     }
 
     data := bytes.NewBuffer([]byte{jsonReq})
-    req, err := http.NewRequest("GET", "/api/devices/{device_id}/target_temperature", data)
+    req, err := http.NewRequest("GET", "/api/devices/{device_id}/temperature", data)
     req.Header = headers
 
     client := &http.Client{}
@@ -2021,13 +2194,13 @@ func main() {
 
 ```
 
-`GET /api/devices/{device_id}/target_temperature`
+`GET /api/devices/{device_id}/temperature`
 
-*Get Target Temperature*
+*Get Temperature*
 
-Get the target temperature of the device
+Get the current temperature of the device
 
-<h3 id="get_target_temperature_api_devices__device_id__target_temperature_get-parameters">Parameters</h3>
+<h3 id="get_temperature_api_devices__device_id__temperature_get-parameters">Parameters</h3>
 
 |Name|In|Type|Required|Description|
 |---|---|---|---|---|
@@ -2044,11 +2217,11 @@ Get the target temperature of the device
 }
 ```
 
-<h3 id="get_target_temperature_api_devices__device_id__target_temperature_get-responses">Responses</h3>
+<h3 id="get_temperature_api_devices__device_id__temperature_get-responses">Responses</h3>
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|Successful Response|[GetTargetTemperatureResponse](#schemagettargettemperatureresponse)|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|Successful Response|[TemperatureResponse](#schematemperatureresponse)|
 |422|[Unprocessable Entity](https://tools.ietf.org/html/rfc2518#section-10.3)|Validation Error|[HTTPValidationError](#schemahttpvalidationerror)|
 
 <aside class="warning">
@@ -2782,21 +2955,21 @@ To perform this operation, you must be authenticated by means of one of the foll
 APIKeyQuery, HTTPBearer
 </aside>
 
-## get_ble_device_api_ble_devices_get
+## get_server_info_api_server_info_get
 
-<a id="opIdget_ble_device_api_ble_devices_get"></a>
+<a id="opIdget_server_info_api_server_info_get"></a>
 
 > Code samples
 
 ```shell
 # You can also use wget
-curl -X GET /api/ble_devices \
+curl -X GET /api/server_info \
   -H 'Accept: application/json'
 
 ```
 
 ```http
-GET /api/ble_devices HTTP/1.1
+GET /api/server_info HTTP/1.1
 
 Accept: application/json
 
@@ -2808,7 +2981,7 @@ const headers = {
   'Accept':'application/json'
 };
 
-fetch('/api/ble_devices',
+fetch('/api/server_info',
 {
   method: 'GET',
 
@@ -2830,7 +3003,7 @@ headers = {
   'Accept' => 'application/json'
 }
 
-result = RestClient.get '/api/ble_devices',
+result = RestClient.get '/api/server_info',
   params: {
   }, headers: headers
 
@@ -2844,7 +3017,7 @@ headers = {
   'Accept': 'application/json'
 }
 
-r = requests.get('/api/ble_devices', headers = headers)
+r = requests.get('/api/server_info', headers = headers)
 
 print(r.json())
 
@@ -2865,7 +3038,7 @@ $client = new \GuzzleHttp\Client();
 $request_body = array();
 
 try {
-    $response = $client->request('GET','/api/ble_devices', array(
+    $response = $client->request('GET','/api/server_info', array(
         'headers' => $headers,
         'json' => $request_body,
        )
@@ -2882,7 +3055,7 @@ try {
 ```
 
 ```java
-URL obj = new URL("/api/ble_devices");
+URL obj = new URL("/api/server_info");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("GET");
 int responseCode = con.getResponseCode();
@@ -2913,7 +3086,7 @@ func main() {
     }
 
     data := bytes.NewBuffer([]byte{jsonReq})
-    req, err := http.NewRequest("GET", "/api/ble_devices", data)
+    req, err := http.NewRequest("GET", "/api/server_info", data)
     req.Header = headers
 
     client := &http.Client{}
@@ -2923,11 +3096,11 @@ func main() {
 
 ```
 
-`GET /api/ble_devices`
+`GET /api/server_info`
 
-*Get Ble Device*
+*Get Server Info*
 
-Get the BLE device
+Get the server info
 
 > Example responses
 
@@ -2935,36 +3108,36 @@ Get the BLE device
 
 ```json
 {
-  "address": "string",
-  "name": "string"
+  "host": "string",
+  "port": 0
 }
 ```
 
-<h3 id="get_ble_device_api_ble_devices_get-responses">Responses</h3>
+<h3 id="get_server_info_api_server_info_get-responses">Responses</h3>
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|Successful Response|[BLEDevice](#schemabledevice)|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|Successful Response|[ServerInfo](#schemaserverinfo)|
 
 <aside class="success">
 This operation does not require authentication
 </aside>
 
-## ble_connect_wifi_api_ble_connect_wifi_post
+## get_ble_device_api_ble_device_get
 
-<a id="opIdble_connect_wifi_api_ble_connect_wifi_post"></a>
+<a id="opIdget_ble_device_api_ble_device_get"></a>
 
 > Code samples
 
 ```shell
 # You can also use wget
-curl -X POST /api/ble/connect_wifi?ssid=string&password=string \
+curl -X GET /api/ble/device \
   -H 'Accept: application/json'
 
 ```
 
 ```http
-POST /api/ble/connect_wifi?ssid=string&password=string HTTP/1.1
+GET /api/ble/device HTTP/1.1
 
 Accept: application/json
 
@@ -2976,9 +3149,9 @@ const headers = {
   'Accept':'application/json'
 };
 
-fetch('/api/ble/connect_wifi?ssid=string&password=string',
+fetch('/api/ble/device',
 {
-  method: 'POST',
+  method: 'GET',
 
   headers: headers
 })
@@ -2998,11 +3171,9 @@ headers = {
   'Accept' => 'application/json'
 }
 
-result = RestClient.post '/api/ble/connect_wifi',
+result = RestClient.get '/api/ble/device',
   params: {
-  'ssid' => 'string',
-'password' => 'string'
-}, headers: headers
+  }, headers: headers
 
 p JSON.parse(result)
 
@@ -3014,9 +3185,7 @@ headers = {
   'Accept': 'application/json'
 }
 
-r = requests.post('/api/ble/connect_wifi', params={
-  'ssid': 'string',  'password': 'string'
-}, headers = headers)
+r = requests.get('/api/ble/device', headers = headers)
 
 print(r.json())
 
@@ -3037,7 +3206,7 @@ $client = new \GuzzleHttp\Client();
 $request_body = array();
 
 try {
-    $response = $client->request('POST','/api/ble/connect_wifi', array(
+    $response = $client->request('GET','/api/ble/device', array(
         'headers' => $headers,
         'json' => $request_body,
        )
@@ -3054,9 +3223,9 @@ try {
 ```
 
 ```java
-URL obj = new URL("/api/ble/connect_wifi?ssid=string&password=string");
+URL obj = new URL("/api/ble/device");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
-con.setRequestMethod("POST");
+con.setRequestMethod("GET");
 int responseCode = con.getResponseCode();
 BufferedReader in = new BufferedReader(
     new InputStreamReader(con.getInputStream()));
@@ -3085,6 +3254,184 @@ func main() {
     }
 
     data := bytes.NewBuffer([]byte{jsonReq})
+    req, err := http.NewRequest("GET", "/api/ble/device", data)
+    req.Header = headers
+
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    // ...
+}
+
+```
+
+`GET /api/ble/device`
+
+*Get Ble Device*
+
+Get the BLE device
+
+> Example responses
+
+> 200 Response
+
+```json
+{
+  "address": "string",
+  "name": "string"
+}
+```
+
+<h3 id="get_ble_device_api_ble_device_get-responses">Responses</h3>
+
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|Successful Response|[BLEDevice](#schemabledevice)|
+
+<aside class="success">
+This operation does not require authentication
+</aside>
+
+## ble_connect_wifi_api_ble_connect_wifi_post
+
+<a id="opIdble_connect_wifi_api_ble_connect_wifi_post"></a>
+
+> Code samples
+
+```shell
+# You can also use wget
+curl -X POST /api/ble/connect_wifi \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json'
+
+```
+
+```http
+POST /api/ble/connect_wifi HTTP/1.1
+
+Content-Type: application/json
+Accept: application/json
+
+```
+
+```javascript
+const inputBody = '{
+  "ssid": "string",
+  "password": "string"
+}';
+const headers = {
+  'Content-Type':'application/json',
+  'Accept':'application/json'
+};
+
+fetch('/api/ble/connect_wifi',
+{
+  method: 'POST',
+  body: inputBody,
+  headers: headers
+})
+.then(function(res) {
+    return res.json();
+}).then(function(body) {
+    console.log(body);
+});
+
+```
+
+```ruby
+require 'rest-client'
+require 'json'
+
+headers = {
+  'Content-Type' => 'application/json',
+  'Accept' => 'application/json'
+}
+
+result = RestClient.post '/api/ble/connect_wifi',
+  params: {
+  }, headers: headers
+
+p JSON.parse(result)
+
+```
+
+```python
+import requests
+headers = {
+  'Content-Type': 'application/json',
+  'Accept': 'application/json'
+}
+
+r = requests.post('/api/ble/connect_wifi', headers = headers)
+
+print(r.json())
+
+```
+
+```php
+<?php
+
+require 'vendor/autoload.php';
+
+$headers = array(
+    'Content-Type' => 'application/json',
+    'Accept' => 'application/json',
+);
+
+$client = new \GuzzleHttp\Client();
+
+// Define array of request body.
+$request_body = array();
+
+try {
+    $response = $client->request('POST','/api/ble/connect_wifi', array(
+        'headers' => $headers,
+        'json' => $request_body,
+       )
+    );
+    print_r($response->getBody()->getContents());
+ }
+ catch (\GuzzleHttp\Exception\BadResponseException $e) {
+    // handle exception or api errors.
+    print_r($e->getMessage());
+ }
+
+ // ...
+
+```
+
+```java
+URL obj = new URL("/api/ble/connect_wifi");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("POST");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+```
+
+```go
+package main
+
+import (
+       "bytes"
+       "net/http"
+)
+
+func main() {
+
+    headers := map[string][]string{
+        "Content-Type": []string{"application/json"},
+        "Accept": []string{"application/json"},
+    }
+
+    data := bytes.NewBuffer([]byte{jsonReq})
     req, err := http.NewRequest("POST", "/api/ble/connect_wifi", data)
     req.Header = headers
 
@@ -3101,12 +3448,20 @@ func main() {
 
 Connect the Anova Precision Cooker to a Wi-Fi network
 
+> Body parameter
+
+```json
+{
+  "ssid": "string",
+  "password": "string"
+}
+```
+
 <h3 id="ble_connect_wifi_api_ble_connect_wifi_post-parameters">Parameters</h3>
 
 |Name|In|Type|Required|Description|
 |---|---|---|---|---|
-|ssid|query|string|true|none|
-|password|query|string|true|none|
+|body|body|[Body_ble_connect_wifi_api_ble_connect_wifi_post](#schemabody_ble_connect_wifi_api_ble_connect_wifi_post)|true|none|
 
 > Example responses
 
@@ -3655,21 +4010,21 @@ Get the number on the Anova Precision Cooker
 This operation does not require authentication
 </aside>
 
-## ble_new_secret_key_api_ble_new_secret_key_post
+## ble_new_secret_key_api_ble_secret_key_post
 
-<a id="opIdble_new_secret_key_api_ble_new_secret_key_post"></a>
+<a id="opIdble_new_secret_key_api_ble_secret_key_post"></a>
 
 > Code samples
 
 ```shell
 # You can also use wget
-curl -X POST /api/ble/new_secret_key \
+curl -X POST /api/ble/secret_key \
   -H 'Accept: application/json'
 
 ```
 
 ```http
-POST /api/ble/new_secret_key HTTP/1.1
+POST /api/ble/secret_key HTTP/1.1
 
 Accept: application/json
 
@@ -3681,7 +4036,7 @@ const headers = {
   'Accept':'application/json'
 };
 
-fetch('/api/ble/new_secret_key',
+fetch('/api/ble/secret_key',
 {
   method: 'POST',
 
@@ -3703,7 +4058,7 @@ headers = {
   'Accept' => 'application/json'
 }
 
-result = RestClient.post '/api/ble/new_secret_key',
+result = RestClient.post '/api/ble/secret_key',
   params: {
   }, headers: headers
 
@@ -3717,7 +4072,7 @@ headers = {
   'Accept': 'application/json'
 }
 
-r = requests.post('/api/ble/new_secret_key', headers = headers)
+r = requests.post('/api/ble/secret_key', headers = headers)
 
 print(r.json())
 
@@ -3738,7 +4093,7 @@ $client = new \GuzzleHttp\Client();
 $request_body = array();
 
 try {
-    $response = $client->request('POST','/api/ble/new_secret_key', array(
+    $response = $client->request('POST','/api/ble/secret_key', array(
         'headers' => $headers,
         'json' => $request_body,
        )
@@ -3755,7 +4110,7 @@ try {
 ```
 
 ```java
-URL obj = new URL("/api/ble/new_secret_key");
+URL obj = new URL("/api/ble/secret_key");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("POST");
 int responseCode = con.getResponseCode();
@@ -3786,7 +4141,7 @@ func main() {
     }
 
     data := bytes.NewBuffer([]byte{jsonReq})
-    req, err := http.NewRequest("POST", "/api/ble/new_secret_key", data)
+    req, err := http.NewRequest("POST", "/api/ble/secret_key", data)
     req.Header = headers
 
     client := &http.Client{}
@@ -3796,7 +4151,7 @@ func main() {
 
 ```
 
-`POST /api/ble/new_secret_key`
+`POST /api/ble/secret_key`
 
 *Ble New Secret Key*
 
@@ -3812,7 +4167,7 @@ Set a new secret key on the Anova Precision Cooker
 }
 ```
 
-<h3 id="ble_new_secret_key_api_ble_new_secret_key_post-responses">Responses</h3>
+<h3 id="ble_new_secret_key_api_ble_secret_key_post-responses">Responses</h3>
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
@@ -3898,6 +4253,28 @@ BLEDeviceInfo
 |temperature_unit|[TemperatureUnit](#schematemperatureunit)|true|none|none|
 |speaker_status|boolean|true|none|none|
 
+<h2 id="tocS_Body_ble_connect_wifi_api_ble_connect_wifi_post">Body_ble_connect_wifi_api_ble_connect_wifi_post</h2>
+<!-- backwards compatibility -->
+<a id="schemabody_ble_connect_wifi_api_ble_connect_wifi_post"></a>
+<a id="schema_Body_ble_connect_wifi_api_ble_connect_wifi_post"></a>
+<a id="tocSbody_ble_connect_wifi_api_ble_connect_wifi_post"></a>
+<a id="tocsbody_ble_connect_wifi_api_ble_connect_wifi_post"></a>
+
+```yaml
+ssid: string
+password: string
+
+```
+
+Body_ble_connect_wifi_api_ble_connect_wifi_post
+
+### Properties
+
+|Name|Type|Required|Restrictions|Description|
+|---|---|---|---|---|
+|ssid|string|true|none|none|
+|password|string|true|none|none|
+
 <h2 id="tocS_Body_patch_ble_device_api_ble_config_wifi_server_post">Body_patch_ble_device_api_ble_config_wifi_server_post</h2>
 <!-- backwards compatibility -->
 <a id="schemabody_patch_ble_device_api_ble_config_wifi_server_post"></a>
@@ -3949,19 +4326,19 @@ or
 |---|---|---|---|---|
 |» *anonymous*|null|false|none|none|
 
-<h2 id="tocS_Body_set_temperature_api_devices__device_id__temperature_post">Body_set_temperature_api_devices__device_id__temperature_post</h2>
+<h2 id="tocS_Body_set_temperature_api_devices__device_id__target_temperature_post">Body_set_temperature_api_devices__device_id__target_temperature_post</h2>
 <!-- backwards compatibility -->
-<a id="schemabody_set_temperature_api_devices__device_id__temperature_post"></a>
-<a id="schema_Body_set_temperature_api_devices__device_id__temperature_post"></a>
-<a id="tocSbody_set_temperature_api_devices__device_id__temperature_post"></a>
-<a id="tocsbody_set_temperature_api_devices__device_id__temperature_post"></a>
+<a id="schemabody_set_temperature_api_devices__device_id__target_temperature_post"></a>
+<a id="schema_Body_set_temperature_api_devices__device_id__target_temperature_post"></a>
+<a id="tocSbody_set_temperature_api_devices__device_id__target_temperature_post"></a>
+<a id="tocsbody_set_temperature_api_devices__device_id__target_temperature_post"></a>
 
 ```yaml
 temperature: 0
 
 ```
 
-Body_set_temperature_api_devices__device_id__temperature_post
+Body_set_temperature_api_devices__device_id__target_temperature_post
 
 ### Properties
 
@@ -4070,7 +4447,7 @@ or
 <a id="tocsdevicestate"></a>
 
 ```yaml
-running: false
+status: running
 current_temperature: 0
 target_temperature: 0
 timer_running: false
@@ -4086,7 +4463,7 @@ DeviceState
 
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
-|running|boolean|false|none|none|
+|status|[DeviceStatus](#schemadevicestatus)|false|none|none|
 |current_temperature|number|false|none|none|
 |target_temperature|number|false|none|none|
 |timer_running|boolean|false|none|none|
@@ -4110,6 +4487,37 @@ continued
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
 |speaker_status|boolean|false|none|none|
+
+<h2 id="tocS_DeviceStatus">DeviceStatus</h2>
+<!-- backwards compatibility -->
+<a id="schemadevicestatus"></a>
+<a id="schema_DeviceStatus"></a>
+<a id="tocSdevicestatus"></a>
+<a id="tocsdevicestatus"></a>
+
+```yaml
+running
+
+```
+
+DeviceStatus
+
+### Properties
+
+|Name|Type|Required|Restrictions|Description|
+|---|---|---|---|---|
+|DeviceStatus|string|false|none|none|
+
+#### Enumerated Values
+
+|Property|Value|
+|---|---|
+|DeviceStatus|running|
+|DeviceStatus|stopped|
+|DeviceStatus|low water|
+|DeviceStatus|heater error|
+|DeviceStatus|power loss|
+|DeviceStatus|user change parameter|
 
 <h2 id="tocS_EventOriginator">EventOriginator</h2>
 <!-- backwards compatibility -->
@@ -4170,6 +4578,7 @@ EventType
 |EventType|change_temp|
 |EventType|time_start|
 |EventType|time_stop|
+|EventType|time_finish|
 |EventType|change_param|
 
 <h2 id="tocS_GetTargetTemperatureResponse">GetTargetTemperatureResponse</h2>
@@ -4244,7 +4653,7 @@ NewSecretResponse
 <a id="tocssseevent"></a>
 
 ```yaml
-event_type: string
+event_type: device_connected
 device_id: string
 payload:
   type: temp_reached
@@ -4258,7 +4667,7 @@ SSEEvent
 
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
-|event_type|string|true|none|none|
+|event_type|[SSEEventType](#schemasseeventtype)|true|none|none|
 |device_id|any|false|none|none|
 
 anyOf
@@ -4296,6 +4705,58 @@ or
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
 |» *anonymous*|null|false|none|none|
+
+<h2 id="tocS_SSEEventType">SSEEventType</h2>
+<!-- backwards compatibility -->
+<a id="schemasseeventtype"></a>
+<a id="schema_SSEEventType"></a>
+<a id="tocSsseeventtype"></a>
+<a id="tocssseeventtype"></a>
+
+```yaml
+device_connected
+
+```
+
+SSEEventType
+
+### Properties
+
+|Name|Type|Required|Restrictions|Description|
+|---|---|---|---|---|
+|SSEEventType|string|false|none|none|
+
+#### Enumerated Values
+
+|Property|Value|
+|---|---|
+|SSEEventType|device_connected|
+|SSEEventType|device_disconnected|
+|SSEEventType|state_changed|
+|SSEEventType|event|
+|SSEEventType|ping|
+
+<h2 id="tocS_ServerInfo">ServerInfo</h2>
+<!-- backwards compatibility -->
+<a id="schemaserverinfo"></a>
+<a id="schema_ServerInfo"></a>
+<a id="tocSserverinfo"></a>
+<a id="tocsserverinfo"></a>
+
+```yaml
+host: string
+port: 0
+
+```
+
+ServerInfo
+
+### Properties
+
+|Name|Type|Required|Restrictions|Description|
+|---|---|---|---|---|
+|host|string|true|none|none|
+|port|integer|true|none|none|
 
 <h2 id="tocS_SetTemperatureResponse">SetTemperatureResponse</h2>
 <!-- backwards compatibility -->

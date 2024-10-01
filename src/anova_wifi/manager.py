@@ -9,7 +9,7 @@ from .server import AsyncTCPServer
 
 logger = logging.getLogger(__name__)
 
-HEARTBEAT_INTERVAL = 2  # seconds
+HEARTBEAT_INTERVAL = 3  # seconds
 
 
 class AnovaManager:
@@ -195,9 +195,12 @@ class AnovaManager:
             await device.close()
             await self._handle_callback(device_id, self.device_disconnected_callbacks, device_id)
 
-            del self.device_disconnected_callbacks[device_id]
-            del self.device_state_change_callbacks[device_id]
-            del self.device_event_callbacks[device_id]
+            if device_id in self.device_disconnected_callbacks:
+                del self.device_disconnected_callbacks[device_id]
+            if device_id in self.device_state_change_callbacks:
+                del self.device_state_change_callbacks[device_id]
+            if device_id in self.device_event_callbacks:
+                del self.device_event_callbacks[device_id]
 
     async def _handle_device_state_change(self, device_id: str, state: DeviceState) -> None:
         await self._handle_callback(device_id, self.device_state_change_callbacks, device_id, state)
@@ -206,7 +209,8 @@ class AnovaManager:
         await self._handle_callback(device_id, self.device_event_callbacks, device_id, event)
 
     @staticmethod
-    async def _handle_callback(device_id: str, callback_dict: Dict[str, Optional[Callable]], *args, **kwargs) -> None:  # type: ignore
+    async def _handle_callback(device_id: str, callback_dict: Dict[str, Optional[Callable]], *args,
+                               **kwargs) -> None:  # type: ignore
         if "*" in callback_dict:
             cb = callback_dict["*"]
             if cb:

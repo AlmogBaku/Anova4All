@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from anova_wifi.device import AnovaDevice, DeviceState
 from anova_wifi.event import AnovaEvent
 from anova_wifi.manager import AnovaManager
-from .models import SSEEvent
+from .models import SSEEvent, SSEEventType
 
 
 async def event_stream(resp: AsyncIterator[BaseModel]) -> AsyncIterator[str]:
@@ -48,21 +48,21 @@ class SSEManager:
     async def device_connected_callback(self, device: AnovaDevice) -> None:
         event = SSEEvent(
             device_id=device.id_card,
-            event_type="device_connected",
+            event_type=SSEEventType.device_connected,
         )
         await self.broadcast(event)
 
     async def device_disconnected_callback(self, device_id: str) -> None:
         event = SSEEvent(
             device_id=device_id,
-            event_type="device_disconnected",
+            event_type=SSEEventType.device_disconnected,
         )
         await self.broadcast(event)
 
     async def device_state_change_callback(self, device_id: str, state: DeviceState) -> None:
         event = SSEEvent(
             device_id=device_id,
-            event_type="state_change",
+            event_type=SSEEventType.state_change,
             payload=state
         )
         await self.broadcast(event)
@@ -70,7 +70,7 @@ class SSEManager:
     async def device_event_callback(self, device_id: str, event: AnovaEvent) -> None:
         await self.broadcast(SSEEvent(
             device_id=device_id,
-            event_type="event",
+            event_type=SSEEventType.event,
             payload=event
         ))
 

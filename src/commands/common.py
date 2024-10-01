@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
 
 
 class AnovaCommand(ABC):
@@ -148,7 +148,7 @@ class GetDeviceStatus(AnovaCommand):
 
     def decode(self, response: str) -> DeviceStatus:
         try:
-            return DeviceStatus(response.strip().lower())
+            return DeviceStatus(response.strip().lower().split(" ")[0])
         except ValueError:
             raise ValueError(f"Unknown device status: {response}")
 
@@ -184,10 +184,12 @@ class GetTimerStatus(AnovaCommand):
     def encode(self) -> str:
         return "read timer"
 
-    def decode(self, response: str) -> int:
+    def decode(self, response: str) -> Tuple[int, bool]:
         if response.lower().endswith(" stopped"):
-            return 0
-        return int(response.strip())
+            return 0, False
+        if response.lower().endswith(" running"):
+            return int(response[:-8].strip()), True
+        return int(response.strip()), False
 
 
 class GetTemperatureUnit(AnovaCommand):

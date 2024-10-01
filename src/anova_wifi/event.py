@@ -11,6 +11,7 @@ class EventType(str, Enum):
     CHANGE_TEMP = "change_temp"
     TIME_START = "time_start"
     TIME_STOP = "time_stop"
+    TIME_FINISH = "time_finish"
     ChangeParam = "change_param"
 
 
@@ -48,6 +49,8 @@ class AnovaEvent(BaseModel):
             return cls(type=EventType.TIME_START, originator=orig)
         elif es == "time stop":
             return cls(type=EventType.TIME_STOP, originator=orig)
+        elif es == "time finish":
+            return cls(type=EventType.TIME_FINISH, originator=orig)
         elif es.startswith("temp has reached"):
             return cls(type=EventType.TEMP_REACHED, originator=orig)
         else:

@@ -9,31 +9,26 @@ logger = logging.getLogger(__name__)
 
 
 class AnovaConnection:
-    response_future: Optional[asyncio.Future[str]] = None
     event_callback: Optional[Callable[[AnovaEvent], Coroutine[None, None, None]]] = None
     listen_task: Optional[asyncio.Task[None]] = None
+    response_queue: asyncio.Queue[str] = asyncio.Queue(maxsize=1)
+    cmd_lock = asyncio.Lock()
 
     def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         self.reader = reader
         self.writer = writer
 
     async def send_command(self, message: str) -> str:
-        encoded = Encoder.encode(message)
-        self.writer.write(encoded)
-        self.writer.write(b'\x16')
-        await self.writer.drain()
-        logger.debug(f"Sent message: {message}")
-
-        self.response_future = asyncio.Future()
-        try:
-            # Wait for up to 1 second
-            return await asyncio.wait_for(self.response_future, timeout=10)
-        except asyncio.TimeoutError:
-            logger.warning(f"No response received within timeout for command: {message}")
-            # Continue waiting for the response
-            return await self.response_future
-        finally:
-            self.response_future = None
+        async with self.cmd_lock:
+            async with asyncio.timeout(10):
+                encoded = Encoder.encode(message)
+                self.writer.write(encoded)
+                self.writer.write(b'\x16')
+                await self.writer.drain()
+                logger.debug(f"--> Sent message: {message}")
+                resp = await self.response_queue.get()
+                logger.debug(f"<-- Received response: {resp}")
+                return resp
 
     def start_listening(self) -> None:
         if not self.listen_task:
@@ -57,7 +52,6 @@ class AnovaConnection:
             raise ConnectionResetError("Connection closed by remote host")
 
         msg = Encoder.decode(data)
-        logger.debug(f"Received message: {msg}")
 
         if "invalid command" in msg.lower():
             logger.error(f"Received invalid command, skipping: {msg}")
@@ -66,10 +60,12 @@ class AnovaConnection:
         if AnovaEvent.is_event(msg):
             if self.event_callback:
                 await self.event_callback(AnovaEvent.parse_event(msg))
-        elif self.response_future and not self.response_future.done():
-            self.response_future.set_result(msg)
+            else:
+                logger.warning(f"Received event message but no event callback set: {msg}")
+        elif self.cmd_lock.locked():
+            await self.response_queue.put(msg)
         else:
-            logger.warning(f"Received unexpected message: {msg}")
+            logger.warning(f"Received unexpected message while not locked: {msg}")
 
         return msg
 

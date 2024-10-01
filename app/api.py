@@ -12,11 +12,12 @@ from anova_wifi.device import DeviceState, AnovaDevice
 from anova_wifi.manager import AnovaManager
 from commands import SetWifiCredentials, SetServerInfo, GetIDCard, GetVersion, GetTemperatureUnit, GetSpeakerStatus, \
     SetSecretKey, SetTemperatureUnit, SetTargetTemperature, GetCurrentTemperature, SetTimer, StopTimer, ClearAlarm, \
-    GetTimerStatus, GetTargetTemperature, TemperatureUnit
-from .deps import get_device_manager, get_sse_manager, get_authenticated_device
+    GetTimerStatus, GetTargetTemperature, TemperatureUnit, StartTimer
+from .deps import get_device_manager, get_sse_manager, get_authenticated_device, get_settings
 from .models import DeviceInfo, SetTemperatureResponse, SetTimerResponse, UnitResponse, SpeakerStatusResponse, \
     TimerResponse, BLEDevice, OkResponse, GetTargetTemperatureResponse, TemperatureResponse, NewSecretResponse, \
-    BLEDeviceInfo, SSEEvent
+    BLEDeviceInfo, SSEEvent, SSEEventType, ServerInfo
+from .settings import Settings
 from .sse import SSEManager, event_stream
 
 router = APIRouter()
@@ -46,7 +47,7 @@ async def get_device_state(device: Annotated[AnovaDevice, Security(get_authentic
     return device.state
 
 
-@router.post("/devices/{device_id}/temperature")
+@router.post("/devices/{device_id}/target_temperature")
 async def set_temperature(temperature: Annotated[float, Body(embed=True)],
                           device: Annotated[AnovaDevice, Security(get_authenticated_device)]) -> SetTemperatureResponse:
     """
@@ -84,6 +85,17 @@ async def set_timer(minutes: Annotated[int, Body(embed=True)],
     Set the timer on the device
     """
     return SetTimerResponse(message="Timer set successfully", minutes=await device.send_command(SetTimer(minutes)))
+
+
+@router.post("/devices/{device_id}/timer/start")
+async def start_timer(device: Annotated[AnovaDevice, Security(get_authenticated_device)]) -> OkResponse:
+    """
+    Start the timer on the device
+    """
+    if not await device.send_command(StartTimer()):
+        raise ValueError("Failed to start timer")
+
+    return "ok"
 
 
 @router.post("/devices/{device_id}/timer/stop")
@@ -195,17 +207,37 @@ async def sse_endpoint(
                         event = await queue.get()
                         yield event
                 except asyncio.TimeoutError:
-                    yield SSEEvent(event_type="ping")
+                    yield SSEEvent(event_type=SSEEventType.ping)
         finally:
             await sse_manager.disconnect(device.id_card, listener_id)  # type: ignore
 
     return StreamingResponse(event_stream(event_generator()), media_type="text/event-stream")
 
 
+@router.get("/server_info")
+async def get_server_info(
+        manager: Annotated[AnovaManager, Depends(get_device_manager)],
+        settings: Annotated[Settings, Depends(get_settings)],
+) -> ServerInfo:
+    """
+    Get the server info
+    """
+    if settings.server_host:
+        host = settings.server_host
+    else:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('10.255.255.255', 1))
+        host = s.getsockname()[0]
+        s.close()
+
+    port = manager.server.port
+    return ServerInfo(host=host, port=port)
+
+
 # BLE endpoints
 
 
-@router.get("/ble_devices")
+@router.get("/ble/device")
 async def get_ble_device() -> BLEDevice:
     """
     Get the BLE device
@@ -218,7 +250,10 @@ async def get_ble_device() -> BLEDevice:
 
 
 @router.post("/ble/connect_wifi")
-async def ble_connect_wifi(ssid: str, password: str) -> OkResponse:
+async def ble_connect_wifi(
+        ssid: Annotated[str, Body(embed=True)],
+        password: Annotated[str, Body(embed=True)]
+) -> OkResponse:
     """
     Connect the Anova Precision Cooker to a Wi-Fi network
     """
@@ -234,6 +269,7 @@ async def ble_connect_wifi(ssid: str, password: str) -> OkResponse:
 @router.post("/ble/config_wifi_server")
 async def patch_ble_device(
         manager: Annotated[AnovaManager, Depends(get_device_manager)],
+        settings: Annotated[Settings, Depends(get_settings)],
         host: Annotated[Optional[str], Body(
             embed=True,
             description="The IP address of the server."
@@ -253,10 +289,13 @@ async def patch_ble_device(
 
     async with AnovaBluetoothClient(dev) as client:
         if not host:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(('10.255.255.255', 1))
-            host = s.getsockname()[0]
-            s.close()
+            if settings.server_host:
+                host = settings.server_host
+            else:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(('10.255.255.255', 1))
+                host = s.getsockname()[0]
+                s.close()
         if not port:
             port = manager.server.port
         if not await client.send_command(SetServerInfo(host, port)):
@@ -303,7 +342,7 @@ async def ble_get_info() -> BLEDeviceInfo:
         )
 
 
-@router.post("/ble/ secret_key")
+@router.post("/ble/secret_key")
 async def ble_new_secret_key() -> NewSecretResponse:
     """
     Set a new secret key on the Anova Precision Cooker

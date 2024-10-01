@@ -5,6 +5,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, APIKeyQue
 
 from anova_wifi.device import AnovaDevice
 from anova_wifi.manager import AnovaManager
+from .settings import Settings
 from .sse import SSEManager
 
 
@@ -18,6 +19,12 @@ def get_sse_manager(request: Request) -> SSEManager:
     if request.app.state.sse_manager is None:
         raise RuntimeError("SSE Manager not initialized. Please wait for application startup to complete.")
     return request.app.state.sse_manager
+
+
+def get_settings(request: Request) -> Settings:
+    if request.app.state.settings is None:
+        raise RuntimeError("Settings not initialized. Please wait for application startup to complete.")
+    return request.app.state.settings
 
 
 # Define security schemes

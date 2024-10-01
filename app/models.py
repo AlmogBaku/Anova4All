@@ -1,3 +1,4 @@
+import enum
 from typing import Optional, Union, Literal
 
 from pydantic import BaseModel
@@ -9,8 +10,21 @@ from commands import TemperatureUnit
 OkResponse = Literal['ok']
 
 
+class ServerInfo(BaseModel):
+    host: str
+    port: int
+
+
+class SSEEventType(enum.StrEnum):
+    device_connected = "device_connected"
+    device_disconnected = "device_disconnected"
+    state_changed = "state_changed"
+    event = "event"
+    ping = "ping"
+
+
 class SSEEvent(BaseModel):
-    event_type: str
+    event_type: SSEEventType
     device_id: Optional[str] = None
     payload: Optional[Union[AnovaEvent, DeviceState]] = None
 
