@@ -24,7 +24,7 @@ It uses the Anova Wi-Fi protocol to communicate with the device directly over th
 - [x] Use the library via a Python package
 - [x] Implement a web interface
 
-![Anova for All - Web UI](./.github/screenshot.jpeg)
+<img src="./.github/screenshot.jpeg" width="300" alt="Anova for All screenshot" />
 
 ## Installation
 
