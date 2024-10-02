@@ -13,8 +13,10 @@ permissions:
   id-token: write
 jobs:
   build:
+    permissions:
+      contents: write
+      pages: write
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
