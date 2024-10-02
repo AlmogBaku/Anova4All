@@ -11,6 +11,11 @@ This project aims to provide a way to control the Anova Precision Cooker Wi-Fi w
 
 It uses the Anova Wi-Fi protocol to communicate with the device directly over the local network.
 
+**This project can be used as a library, a REST API, or a web interface.**
+
+**Important**: This project is not affiliated with Anova or any other company. It's a community project that aims to
+keep the device functional after the cloud services are shut down.
+
 ## Features & Roadmap
 
 - [x] Connect to the Anova Precision Cooker Wi-Fi
@@ -24,7 +29,7 @@ It uses the Anova Wi-Fi protocol to communicate with the device directly over th
 - [x] Use the library via a Python package
 - [x] Implement a web interface
 
-<img src="./.github/screenshot.jpeg" width="300" alt="Anova for All screenshot" />
+![Anova for All screenshot](./.github/screenshot.jpg)
 
 ## Installation
 
@@ -64,8 +69,6 @@ You can also use the web interface to change the server address. This is usually
 
 Notice: this require Web Bluetooth API support. Currently, it's not supported natively in iOS, but it's supported in
 Android and desktop browsers. You can try use an iOS app like Bluefy to connect to the device (not tested).
-
-### Con
 
 ## Usage
 
