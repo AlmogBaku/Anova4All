@@ -44,6 +44,7 @@ jobs:
 
       - name: Build UI
         working-directory: ./app/frontend
+        shell: bash
         run: |
           VITE_BASE_ROUTE=/Anova4All/ yarn build --base=/Anova4All/
 
