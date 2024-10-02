@@ -16,7 +16,7 @@ function App() {
     return (
         <QueryClientProvider client={queryClient}>
             <AnovaProvider>
-                <Router>
+                <Router basename={import.meta.env.VITE_BASE_ROUTE}>
                     <Layout>
                         <Routes>
                             <Route path="/" element={<WelcomeOrHome/>}/>
