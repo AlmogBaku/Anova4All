@@ -23,10 +23,12 @@ jobs:
       uses: actions/setup-node@v3
 
     - name: Install dependencies
+      working-directory: ./app/frontend
       run: |
         yarn install
 
     - name: Build UI
+      working-directory: ./app/frontend
       run: |
         yarn build
 
@@ -34,4 +36,4 @@ jobs:
       uses: peaceiris/actions-gh-pages@v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./dist
+        publish_dir: ./app/frontend/dist
