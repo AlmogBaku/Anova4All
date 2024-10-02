@@ -72,7 +72,16 @@ Android and desktop browsers. You can try use an iOS app like Bluefy to connect 
 
 ## Usage
 
-OpenAPI documentation is available at `http://localhost:8000/docs`
+OpenAPI documentation is available at `http://localhost:8000/docs`.
+
+When configuring the `FRONTEND_DIST_DIR` environment variable, the UI will be available at `http://localhost:8000/`.
+
+### Using the deployed UI
+You can use the deployed UI, and set your own server address in the Settings page: https://AlmogBaku.com/Anova4All/
+This saves the configuration in the browser's local storage.
+
+This can be quite useful if you deploy the server on a Raspberry Pi or similar device, expose it externally, and use the
+UI from anywhere.
 
 ## References
 
