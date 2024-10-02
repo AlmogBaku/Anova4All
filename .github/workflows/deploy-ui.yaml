@@ -16,24 +16,37 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v3
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          check-latest: true
 
-    - name: Install dependencies
-      working-directory: ./app/frontend
-      run: |
-        yarn install
+      - name: Enable corepack
+        run: |
+          corepack enable
 
-    - name: Build UI
-      working-directory: ./app/frontend
-      run: |
-        yarn build
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          check-latest: true
+          cache: 'yarn'
+          cache-dependency-path: ./app/frontend/yarn.lock
 
-    - name: Deploy to GitHub Pages
-      uses: peaceiris/actions-gh-pages@v4
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./app/frontend/dist
+      - name: Install dependencies
+        working-directory: ./app/frontend
+        run: |
+          yarn install --immutable
+
+      - name: Build UI
+        working-directory: ./app/frontend
+        run: |
+          yarn build
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./app/frontend/dist
