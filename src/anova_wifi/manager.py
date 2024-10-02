@@ -209,8 +209,8 @@ class AnovaManager:
         await self._handle_callback(device_id, self.device_event_callbacks, device_id, event)
 
     @staticmethod
-    async def _handle_callback(device_id: str, callback_dict: Dict[str, Optional[Callable]], *args,
-                               **kwargs) -> None:  # type: ignore
+    async def _handle_callback(device_id: str, callback_dict: Dict[str, Optional[Callable]], *args,  # type: ignore
+                               **kwargs) -> None:
         if "*" in callback_dict:
             cb = callback_dict["*"]
             if cb:

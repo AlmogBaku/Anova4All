@@ -62,7 +62,7 @@ class SSEManager:
     async def device_state_change_callback(self, device_id: str, state: DeviceState) -> None:
         event = SSEEvent(
             device_id=device_id,
-            event_type=SSEEventType.state_change,
+            event_type=SSEEventType.state_changed,
             payload=state
         )
         await self.broadcast(event)

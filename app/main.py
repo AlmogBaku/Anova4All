@@ -3,10 +3,9 @@ from contextlib import asynccontextmanager
 from http.client import HTTPException
 from os.path import join, dirname
 from typing import Never, AsyncGenerator
-from urllib.request import Request
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
