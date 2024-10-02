@@ -45,7 +45,7 @@ jobs:
       - name: Build UI
         working-directory: ./app/frontend
         run: |
-          yarn build
+          yarn build --base=/Anova4All/
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
