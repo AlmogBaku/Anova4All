@@ -1,5 +1,6 @@
 import React, {useState} from 'react';
 import {TbMoon, TbSettings, TbSun, TbSunMoon} from "react-icons/tb";
+import {Link} from "react-router-dom";
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -15,12 +16,12 @@ const Layout: React.FC<LayoutProps> = ({children}) => {
     };
     return <div className="App flex h-screen flex-col p-3">
         <div className="navbar bg-base-100 gap-2 mb-3 shadow-md rounded-box">
-            <a href="/" className="flex-1 font-bold font-mono p-1 pl-4">
+            <Link to="/" className="flex-1 font-bold font-mono p-1 pl-4">
                 <img src={`${import.meta.env.BASE_URL}/logo.svg`} className={"h-12 mr-3"} alt="Anova4All logo"/>
                 Anova 4 All
-            </a>
+            </Link>
             <div className="flex-none">
-                <a href="/settings" className="btn btn-ghost btn-circle"><TbSettings className="h-7 w-7"/></a>
+                <Link to="/settings" className="btn btn-ghost btn-circle"><TbSettings className="h-7 w-7"/></Link>
             </div>
 
             <label className="btn btn-ghost btn-circle swap swap-rotate" onClick={toggleTheme}>
