@@ -42,6 +42,10 @@ func NewService(manager wifi.AnovaManager, adminUsername, adminPassword, frontEn
 
 	if frontEndDistDir != "" {
 		s.Use(static.Serve("/", static.LocalFile(frontEndDistDir, true)))
+		// Handle unmatched routes and redirect them to index.html
+		s.NoRoute(func(c *gin.Context) {
+			c.File(frontEndDistDir + "/index.html")
+		})
 	}
 
 	return s, nil
