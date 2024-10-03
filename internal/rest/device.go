@@ -7,12 +7,12 @@ import (
 	"net/http"
 )
 
-func (s *Service) getDeviceState(c *gin.Context) {
+func (s *svc) getDeviceState(c *gin.Context) {
 	device := c.MustGet("device").(wifi.AnovaDevice)
 	c.JSON(http.StatusOK, device.State())
 }
 
-func (s *Service) setTemperature(c *gin.Context) {
+func (s *svc) setTemperature(c *gin.Context) {
 	device := c.MustGet("device").(wifi.AnovaDevice)
 	var req struct {
 		Temperature float64 `json:"temperature" binding:"required"`
@@ -31,7 +31,7 @@ func (s *Service) setTemperature(c *gin.Context) {
 	c.JSON(http.StatusOK, SetTemperatureResponse{ChangedTo: resp.(float64)})
 }
 
-func (s *Service) getTargetTemperature(c *gin.Context) {
+func (s *svc) getTargetTemperature(c *gin.Context) {
 	device := c.MustGet("device").(wifi.AnovaDevice)
 	temp, err := device.SendCommand(c, &commands.GetTargetTemperature{})
 	if err != nil {
@@ -41,7 +41,7 @@ func (s *Service) getTargetTemperature(c *gin.Context) {
 	c.JSON(http.StatusOK, GetTargetTemperatureResponse{Temperature: temp.(float64)})
 }
 
-func (s *Service) getCurrentTemperature(c *gin.Context) {
+func (s *svc) getCurrentTemperature(c *gin.Context) {
 	device := c.MustGet("device").(wifi.AnovaDevice)
 	temp, err := device.SendCommand(c, &commands.GetCurrentTemperature{})
 	if err != nil {
@@ -51,7 +51,7 @@ func (s *Service) getCurrentTemperature(c *gin.Context) {
 	c.JSON(http.StatusOK, TemperatureResponse{Temperature: temp.(float64)})
 }
 
-func (s *Service) startCooking(c *gin.Context) {
+func (s *svc) startCooking(c *gin.Context) {
 	device := c.MustGet("device").(wifi.AnovaDevice)
 	if err := device.StartCooking(c); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -60,7 +60,7 @@ func (s *Service) startCooking(c *gin.Context) {
 	c.JSON(http.StatusOK, OkResponseValue)
 }
 
-func (s *Service) stopCooking(c *gin.Context) {
+func (s *svc) stopCooking(c *gin.Context) {
 	device := c.MustGet("device").(wifi.AnovaDevice)
 	if err := device.StopCooking(c); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -69,7 +69,7 @@ func (s *Service) stopCooking(c *gin.Context) {
 	c.JSON(http.StatusOK, OkResponseValue)
 }
 
-func (s *Service) setTimer(c *gin.Context) {
+func (s *svc) setTimer(c *gin.Context) {
 	device := c.MustGet("device").(wifi.AnovaDevice)
 	var req struct {
 		Minutes int `json:"minutes" binding:"required"`
@@ -88,7 +88,7 @@ func (s *Service) setTimer(c *gin.Context) {
 	c.JSON(http.StatusOK, SetTimerResponse{Message: "Timer set successfully", Minutes: resp.(int)})
 }
 
-func (s *Service) startTimer(c *gin.Context) {
+func (s *svc) startTimer(c *gin.Context) {
 	device := c.MustGet("device").(wifi.AnovaDevice)
 	if _, err := device.SendCommand(c, &commands.StartTimer{}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -97,7 +97,7 @@ func (s *Service) startTimer(c *gin.Context) {
 	c.JSON(http.StatusOK, OkResponseValue)
 }
 
-func (s *Service) stopTimer(c *gin.Context) {
+func (s *svc) stopTimer(c *gin.Context) {
 	device := c.MustGet("device").(wifi.AnovaDevice)
 	if _, err := device.SendCommand(c, &commands.StopTimer{}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -106,7 +106,7 @@ func (s *Service) stopTimer(c *gin.Context) {
 	c.JSON(http.StatusOK, OkResponseValue)
 }
 
-func (s *Service) clearAlarm(c *gin.Context) {
+func (s *svc) clearAlarm(c *gin.Context) {
 	device := c.MustGet("device").(wifi.AnovaDevice)
 	if _, err := device.SendCommand(c, &commands.ClearAlarm{}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -115,7 +115,7 @@ func (s *Service) clearAlarm(c *gin.Context) {
 	c.JSON(http.StatusOK, OkResponseValue)
 }
 
-func (s *Service) getUnit(c *gin.Context) {
+func (s *svc) getUnit(c *gin.Context) {
 	device := c.MustGet("device").(wifi.AnovaDevice)
 	unit, err := device.SendCommand(c, &commands.GetTemperatureUnit{})
 	if err != nil {
@@ -125,7 +125,7 @@ func (s *Service) getUnit(c *gin.Context) {
 	c.JSON(http.StatusOK, UnitResponse{Unit: unit.(commands.TemperatureUnit)})
 }
 
-func (s *Service) setUnit(c *gin.Context) {
+func (s *svc) setUnit(c *gin.Context) {
 	device := c.MustGet("device").(wifi.AnovaDevice)
 	var req struct {
 		Unit commands.TemperatureUnit `json:"unit" binding:"required"`
@@ -142,7 +142,7 @@ func (s *Service) setUnit(c *gin.Context) {
 	c.JSON(http.StatusOK, OkResponseValue)
 }
 
-func (s *Service) getTimer(c *gin.Context) {
+func (s *svc) getTimer(c *gin.Context) {
 	device := c.MustGet("device").(wifi.AnovaDevice)
 	timer, err := device.SendCommand(c, &commands.GetTimerStatus{})
 	if err != nil {
@@ -152,7 +152,7 @@ func (s *Service) getTimer(c *gin.Context) {
 	c.JSON(http.StatusOK, TimerResponse{Timer: timer.(int)})
 }
 
-func (s *Service) getSpeakerStatus(c *gin.Context) {
+func (s *svc) getSpeakerStatus(c *gin.Context) {
 	device := c.MustGet("device").(wifi.AnovaDevice)
 	status, err := device.SendCommand(c, &commands.GetSpeakerStatus{})
 	if err != nil {

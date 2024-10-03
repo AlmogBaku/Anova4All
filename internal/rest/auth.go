@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func (s *Service) isLocalRequest(c *gin.Context) bool {
+func (s *svc) isLocalRequest(c *gin.Context) bool {
 	ip, _, err := net.SplitHostPort(c.Request.RemoteAddr)
 	if err != nil {
 		return false
@@ -31,7 +31,7 @@ func (s *Service) isLocalRequest(c *gin.Context) bool {
 	return false
 }
 
-func (s *Service) adminAuth(c *gin.Context) {
+func (s *svc) adminAuth(c *gin.Context) {
 	if s.isLocalRequest(c) {
 		c.Next()
 		return
@@ -51,7 +51,7 @@ func (s *Service) adminAuth(c *gin.Context) {
 	c.Next()
 }
 
-func (s *Service) getAuthenticatedDevice(c *gin.Context) {
+func (s *svc) getAuthenticatedDevice(c *gin.Context) {
 	deviceID := c.Param("device_id")
 	auth := strings.SplitN(c.GetHeader("Authorization"), " ", 2)
 	if len(auth) != 2 || auth[0] != "Bearer" {

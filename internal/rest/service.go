@@ -8,7 +8,11 @@ import (
 	"net/http"
 )
 
-type Service struct {
+type Service interface {
+	http.Handler
+}
+
+type svc struct {
 	*gin.Engine
 	manager       wifi.AnovaManager
 	adminUsername string
@@ -16,8 +20,8 @@ type Service struct {
 	sse           *SSEManager
 }
 
-func NewService(manager wifi.AnovaManager, adminUsername, adminPassword, frontEndDistDir string) (*Service, error) {
-	s := &Service{
+func NewService(manager wifi.AnovaManager, adminUsername, adminPassword, frontEndDistDir string) (Service, error) {
+	s := &svc{
 		Engine:        gin.Default(),
 		manager:       manager,
 		sse:           NewSSEManager(manager),
@@ -63,7 +67,7 @@ func NewService(manager wifi.AnovaManager, adminUsername, adminPassword, frontEn
 	return s, nil
 }
 
-func (s *Service) getDevices(c *gin.Context) {
+func (s *svc) getDevices(c *gin.Context) {
 	devices := s.manager.Devices()
 	var deviceInfos []DeviceInfo
 	for _, device := range devices {
@@ -75,7 +79,7 @@ func (s *Service) getDevices(c *gin.Context) {
 	c.JSON(http.StatusOK, deviceInfos)
 }
 
-func (s *Service) getServerInfo(c *gin.Context) {
+func (s *svc) getServerInfo(c *gin.Context) {
 	// Assume we have a method to get server info from the manager
 	host, port := s.manager.Server().HostPort()
 	c.JSON(http.StatusOK, ServerInfo{Host: host, Port: port})

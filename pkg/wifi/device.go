@@ -147,6 +147,9 @@ func (d *device) heartbeat(ctx context.Context) {
 
 // SendCommand sends a command to the device and updates the device state.
 func (d *device) SendCommand(ctx context.Context, command commands.Command) (any, error) {
+	if command == nil || !command.SupportsWiFi() {
+		return nil, fmt.Errorf("invalid command: %v", command)
+	}
 	response, err := d.connection.SendCommand(ctx, command.Encode())
 	if err != nil {
 		return nil, err
