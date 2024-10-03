@@ -11,43 +11,39 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type DeviceConnectedCallback func(device AnovaDevice)
-type DeviceDisconnectedCallback func(deviceID string)
-type DeviceStateChangeCallback func(deviceID string, state DeviceState)
+type ConnectedCallback func(ctx context.Context, device AnovaDevice)
 
 type AnovaManager interface {
 	Devices() []AnovaDevice
 	Device(deviceID string) AnovaDevice
-	OnDeviceConnected(callback DeviceConnectedCallback)
-	OnDeviceDisconnected(deviceID string, callback DeviceDisconnectedCallback)
-	OnDeviceStateChange(deviceID string, callback DeviceStateChangeCallback)
+	OnDeviceConnected(callback ConnectedCallback)
+	OnDeviceDisconnected(deviceID string, callback DisconnectedCallback)
+	OnDeviceStateChange(deviceID string, callback StateChangeCallback)
 	OnDeviceEvent(deviceID string, callback DeviceEventCallback)
 	Server() AnovaServer
 	Close() error
 }
 
 type manager struct {
-	ctx                         context.Context
 	server                      AnovaServer
 	devices                     *xsync.MapOf[string, AnovaDevice]
-	deviceConnectedCallbacks    []DeviceConnectedCallback
-	deviceDisconnectedCallbacks *xsync.MapOf[string, DeviceDisconnectedCallback]
-	deviceStateChangeCallbacks  *xsync.MapOf[string, DeviceStateChangeCallback]
+	deviceConnectedCallbacks    []ConnectedCallback
+	deviceDisconnectedCallbacks *xsync.MapOf[string, DisconnectedCallback]
+	deviceStateChangeCallbacks  *xsync.MapOf[string, StateChangeCallback]
 	deviceEventCallbacks        *xsync.MapOf[string, DeviceEventCallback]
 }
 
 func NewAnovaManager(ctx context.Context, host string, port int) (AnovaManager, error) {
-	srv, err := NewAnovaServer(host, port)
+	srv, err := NewAnovaServer(ctx, host, port)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create AnovaServer: %w", err)
 	}
 
 	mgr := &manager{
-		ctx:                         ctx,
 		server:                      srv,
 		devices:                     xsync.NewMapOf[AnovaDevice](),
-		deviceDisconnectedCallbacks: xsync.NewMapOf[DeviceDisconnectedCallback](),
-		deviceStateChangeCallbacks:  xsync.NewMapOf[DeviceStateChangeCallback](),
+		deviceDisconnectedCallbacks: xsync.NewMapOf[DisconnectedCallback](),
+		deviceStateChangeCallbacks:  xsync.NewMapOf[StateChangeCallback](),
 		deviceEventCallbacks:        xsync.NewMapOf[DeviceEventCallback](),
 	}
 	mgr.server.OnConnection(mgr.handleNewConnection)
@@ -93,15 +89,15 @@ func (m *manager) Device(deviceID string) AnovaDevice {
 	return dev
 }
 
-func (m *manager) OnDeviceConnected(callback DeviceConnectedCallback) {
+func (m *manager) OnDeviceConnected(callback ConnectedCallback) {
 	m.deviceConnectedCallbacks = append(m.deviceConnectedCallbacks, callback)
 }
 
-func (m *manager) OnDeviceDisconnected(deviceID string, callback DeviceDisconnectedCallback) {
+func (m *manager) OnDeviceDisconnected(deviceID string, callback DisconnectedCallback) {
 	m.deviceDisconnectedCallbacks.Store(deviceID, callback)
 }
 
-func (m *manager) OnDeviceStateChange(deviceID string, callback DeviceStateChangeCallback) {
+func (m *manager) OnDeviceStateChange(deviceID string, callback StateChangeCallback) {
 	m.deviceStateChangeCallbacks.Store(deviceID, callback)
 }
 
@@ -109,8 +105,8 @@ func (m *manager) OnDeviceEvent(deviceID string, callback DeviceEventCallback) {
 	m.deviceEventCallbacks.Store(deviceID, callback)
 }
 
-func (m *manager) handleNewConnection(conn AnovaConnection) error {
-	dev, err := NewAnovaDevice(conn, m.ctx)
+func (m *manager) handleNewConnection(ctx context.Context, conn AnovaConnection) error {
+	dev, err := NewAnovaDevice(ctx, conn)
 	if err != nil {
 		return fmt.Errorf("failed to create AnovaDevice: %w", err)
 	}
@@ -128,17 +124,18 @@ func (m *manager) handleNewConnection(conn AnovaConnection) error {
 
 	dev.SetStateChangeCallback(m.handleDeviceStateChange)
 	dev.SetEventCallback(m.handleDeviceEvent)
+	dev.SetHandleDisconnectCallback(m.handleDeviceDisconnection)
 
 	log.Printf("New device connected: %v", dev)
 
 	for _, callback := range m.deviceConnectedCallbacks {
-		callback(dev)
+		callback(ctx, dev)
 	}
 
 	return nil
 }
 
-func (m *manager) handleDeviceDisconnection(deviceID string) {
+func (m *manager) handleDeviceDisconnection(ctx context.Context, deviceID string) {
 	if dev, loaded := m.devices.LoadAndDelete(deviceID); loaded {
 		log.Printf("Device disconnected: %v", dev)
 		if err := dev.Close(); err != nil {
@@ -146,10 +143,10 @@ func (m *manager) handleDeviceDisconnection(deviceID string) {
 		}
 
 		if callback, ok := m.deviceDisconnectedCallbacks.Load(deviceID); ok {
-			callback(deviceID)
+			callback(ctx, deviceID)
 		}
 		if callback, ok := m.deviceDisconnectedCallbacks.Load("*"); ok {
-			callback(deviceID)
+			callback(ctx, deviceID)
 		}
 
 		m.deviceDisconnectedCallbacks.Delete(deviceID)
@@ -158,20 +155,20 @@ func (m *manager) handleDeviceDisconnection(deviceID string) {
 	}
 }
 
-func (m *manager) handleDeviceStateChange(deviceID string, state DeviceState) {
+func (m *manager) handleDeviceStateChange(ctx context.Context, deviceID string, state DeviceState) {
 	if callback, ok := m.deviceStateChangeCallbacks.Load(deviceID); ok {
-		callback(deviceID, state)
+		callback(ctx, deviceID, state)
 	}
 	if callback, ok := m.deviceStateChangeCallbacks.Load("*"); ok {
-		callback(deviceID, state)
+		callback(ctx, deviceID, state)
 	}
 }
 
-func (m *manager) handleDeviceEvent(deviceID string, event AnovaEvent) {
+func (m *manager) handleDeviceEvent(ctx context.Context, deviceID string, event AnovaEvent) {
 	if callback, ok := m.deviceEventCallbacks.Load(deviceID); ok {
-		callback(deviceID, event)
+		callback(ctx, deviceID, event)
 	}
 	if callback, ok := m.deviceEventCallbacks.Load("*"); ok {
-		callback(deviceID, event)
+		callback(ctx, deviceID, event)
 	}
 }

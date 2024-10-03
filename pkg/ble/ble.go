@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"tinygo.org/x/bluetooth"
 )
@@ -19,25 +20,30 @@ const (
 	commandDelimiter        = "\r"
 )
 
+func init() {
+	adapter := bluetooth.DefaultAdapter
+	err := adapter.Enable()
+	if err != nil {
+		log.Println("failed to enable Bluetooth adapter: %w", err)
+	}
+}
+
 // ErrCommandNotSupported is returned when a command is not supported over BLE.
 var ErrCommandNotSupported = errors.New("command not supported over BLE")
 
 // Scan scans for Anova devices.
 func Scan() (*bluetooth.ScanResult, error) {
 	adapter := bluetooth.DefaultAdapter
-	err := adapter.Enable()
-	if err != nil {
-		return nil, fmt.Errorf("failed to enable Bluetooth adapter: %w", err)
-	}
 
 	var device bluetooth.ScanResult
-	err = adapter.Scan(func(adapter *bluetooth.Adapter, dev bluetooth.ScanResult) {
-		if device.LocalName() == anovaDeviceName {
+	err := adapter.Scan(func(adapter *bluetooth.Adapter, dev bluetooth.ScanResult) {
+		if dev.LocalName() == anovaDeviceName {
 			device = dev
 			_ = adapter.StopScan()
 			return
 		}
 	})
+	adapter.Enable()
 
 	if err != nil {
 		return nil, fmt.Errorf("scan failed: %w", err)
@@ -58,10 +64,6 @@ type client struct {
 
 func New(addr bluetooth.Address) (AnovaBLE, error) {
 	adapter := bluetooth.DefaultAdapter
-	err := adapter.Enable()
-	if err != nil {
-		return nil, fmt.Errorf("failed to enable Bluetooth adapter: %w", err)
-	}
 
 	device, err := adapter.Connect(addr, bluetooth.ConnectionParams{})
 	if err != nil {

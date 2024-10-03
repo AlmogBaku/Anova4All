@@ -25,14 +25,16 @@ type DeviceState struct {
 }
 
 // StateChangeCallback is a function type for state change notifications.
-type StateChangeCallback func(idCard string, state DeviceState)
-type DeviceEventCallback func(idCard string, event AnovaEvent)
+type StateChangeCallback func(ctx context.Context, idCard string, state DeviceState)
+type DeviceEventCallback func(ctx context.Context, idCard string, event AnovaEvent)
+type DisconnectedCallback func(ctx context.Context, idCard string)
 
 // AnovaDevice represents an Anova device connected via WiFi.
 type AnovaDevice interface {
 	SendCommand(ctx context.Context, command commands.Command) (any, error)
 	SetStateChangeCallback(callback StateChangeCallback)
 	SetEventCallback(callback DeviceEventCallback)
+	SetHandleDisconnectCallback(callback DisconnectedCallback)
 	StartCooking(ctx context.Context) error
 	StopCooking(ctx context.Context) error
 	State() DeviceState
@@ -51,10 +53,11 @@ type device struct {
 	stateChangeMu       sync.RWMutex
 	stateChangeCallback StateChangeCallback
 	eventCallback       DeviceEventCallback
+	disconnectCallback  DisconnectedCallback
 }
 
 // NewAnovaDevice creates a new AnovaDevice instance.
-func NewAnovaDevice(connection AnovaConnection, ctx context.Context) (AnovaDevice, error) {
+func NewAnovaDevice(ctx context.Context, connection AnovaConnection) (AnovaDevice, error) {
 	dev := &device{
 		connection: connection,
 		state:      DeviceState{},
@@ -62,9 +65,15 @@ func NewAnovaDevice(connection AnovaConnection, ctx context.Context) (AnovaDevic
 	connection.SetEventCallback(dev.handleEvent)
 	err := dev.handshake(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to perform a handshake: %e", err)
+		return nil, fmt.Errorf("failed to perform a handshake: %e", err)
 	}
 	go dev.heartbeat(ctx)
+	go func() {
+		<-ctx.Done()
+		if dev.disconnectCallback != nil {
+			dev.disconnectCallback(context.Background(), dev.idCard)
+		}
+	}()
 
 	return dev, nil
 }
@@ -162,11 +171,11 @@ func (d *device) SendCommand(ctx context.Context, command commands.Command) (any
 		return nil, err
 	}
 
-	d.updateState(command, result)
+	d.updateState(ctx, command, result)
 	return result, nil
 }
 
-func (d *device) updateState(command commands.Command, response any) {
+func (d *device) updateState(ctx context.Context, command commands.Command, response any) {
 	d.stateChangeMu.Lock()
 	defer d.stateChangeMu.Unlock()
 
@@ -189,16 +198,16 @@ func (d *device) updateState(command commands.Command, response any) {
 		d.state.SpeakerStatus = response.(bool)
 	}
 
-	d.notifyStateChange()
+	d.notifyStateChange(ctx)
 }
 
-func (d *device) notifyStateChange() {
+func (d *device) notifyStateChange(ctx context.Context) {
 	if d.stateChangeCallback != nil {
-		d.stateChangeCallback(d.idCard, d.state)
+		d.stateChangeCallback(ctx, d.idCard, d.state)
 	}
 }
 
-func (d *device) handleEvent(event AnovaEvent) error {
+func (d *device) handleEvent(ctx context.Context, event AnovaEvent) error {
 	d.stateChangeMu.Lock()
 	defer d.stateChangeMu.Unlock()
 
@@ -219,26 +228,27 @@ func (d *device) handleEvent(event AnovaEvent) error {
 		return fmt.Errorf("unknown event: %s", event)
 	}
 
-	d.notifyStateChange()
+	d.notifyStateChange(ctx)
 
 	if d.eventCallback != nil {
-		d.eventCallback(d.idCard, event)
+		d.eventCallback(ctx, d.idCard, event)
 	}
 	return nil
 }
 
 // SetStateChangeCallback sets the callback for state changes.
 func (d *device) SetStateChangeCallback(callback StateChangeCallback) {
-	d.stateChangeMu.Lock()
-	defer d.stateChangeMu.Unlock()
 	d.stateChangeCallback = callback
 }
 
 // SetEventCallback sets the callback for events.
 func (d *device) SetEventCallback(callback DeviceEventCallback) {
-	d.stateChangeMu.Lock()
-	defer d.stateChangeMu.Unlock()
 	d.eventCallback = callback
+}
+
+// SetHandleDisconnectCallback sets the callback for disconnections.
+func (d *device) SetHandleDisconnectCallback(callback DisconnectedCallback) {
+	d.disconnectCallback = callback
 }
 
 // StartCooking starts the cooking process.

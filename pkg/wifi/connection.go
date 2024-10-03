@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-type EventCallback func(AnovaEvent) error
+type EventCallback func(ctx context.Context, event AnovaEvent) error
 
 type AnovaConnection interface {
 	SendCommand(ctx context.Context, message string) (string, error)
@@ -31,11 +31,10 @@ type connection struct {
 	cmdLock       sync.Mutex
 	listenCtx     context.Context
 	listenCancel  context.CancelFunc
-	listenerDone  chan struct{}
 }
 
-func NewAnovaConnection(conn net.Conn) AnovaConnection {
-	ctx, cancel := context.WithCancel(context.Background())
+func NewAnovaConnection(ctx context.Context, conn net.Conn) AnovaConnection {
+	ctx, cancel := context.WithCancel(ctx)
 	c := &connection{
 		conn:          conn,
 		reader:        bufio.NewReader(conn),
@@ -43,16 +42,26 @@ func NewAnovaConnection(conn net.Conn) AnovaConnection {
 		responseQueue: make(chan *AnovaMessage, 1),
 		listenCtx:     ctx,
 		listenCancel:  cancel,
-		listenerDone:  make(chan struct{}),
 	}
 	go func() {
-		defer close(c.listenerDone)
 		c.listen()
+	}()
+	go func() {
+		select {
+		case <-ctx.Done():
+			close(c.responseQueue)
+		}
 	}()
 	return c
 }
 
 func (ac *connection) SendCommand(ctx context.Context, message string) (string, error) {
+	select {
+	case <-ac.listenCtx.Done():
+		return "", errors.New("connection closed")
+	default:
+	}
+
 	ac.cmdLock.Lock()
 	defer ac.cmdLock.Unlock()
 
@@ -74,6 +83,10 @@ func (ac *connection) SendCommand(ctx context.Context, message string) (string, 
 
 	err = ac.writer.Flush()
 	if err != nil {
+		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+			log.Println("Connection closed by remote host")
+			ac.listenCancel()
+		}
 		return "", fmt.Errorf("flush error: %w", err)
 	}
 
@@ -101,6 +114,7 @@ func (ac *connection) listen() {
 			if err != nil {
 				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
 					log.Println("Connection closed by remote host")
+					ac.listenCancel()
 				} else {
 					log.Printf("Error in listening task: %v", err)
 				}
@@ -119,7 +133,7 @@ func (ac *connection) listen() {
 				}
 
 				if ac.eventCallback != nil {
-					if err := ac.eventCallback(event); err != nil {
+					if err := ac.eventCallback(ac.listenCtx, event); err != nil {
 						log.Printf("Error in event callback: %v", err)
 					}
 				} else {
@@ -171,6 +185,6 @@ func (ac *connection) SetEventCallback(callback EventCallback) {
 
 func (ac *connection) Close() error {
 	ac.listenCancel()
-	<-ac.listenerDone
+	<-ac.listenCtx.Done()
 	return ac.conn.Close()
 }

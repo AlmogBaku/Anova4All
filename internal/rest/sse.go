@@ -58,7 +58,7 @@ func (m *SSEManager) Broadcast(event SSEEvent) {
 	}
 }
 
-func (m *SSEManager) DeviceConnectedCallback(device wifi.AnovaDevice) {
+func (m *SSEManager) DeviceConnectedCallback(ctx context.Context, device wifi.AnovaDevice) {
 	event := SSEEvent{
 		DeviceID:  device.IDCard(),
 		EventType: SSEEventTypeDeviceConnected,
@@ -67,7 +67,7 @@ func (m *SSEManager) DeviceConnectedCallback(device wifi.AnovaDevice) {
 	m.Broadcast(event)
 }
 
-func (m *SSEManager) DeviceDisconnectedCallback(deviceID string) {
+func (m *SSEManager) DeviceDisconnectedCallback(ctx context.Context, deviceID string) {
 	event := SSEEvent{
 		DeviceID:  deviceID,
 		EventType: SSEEventTypeDeviceDisconnected,
@@ -76,7 +76,7 @@ func (m *SSEManager) DeviceDisconnectedCallback(deviceID string) {
 	m.Broadcast(event)
 }
 
-func (m *SSEManager) DeviceStateChangeCallback(deviceID string, state wifi.DeviceState) {
+func (m *SSEManager) DeviceStateChangeCallback(ctx context.Context, deviceID string, state wifi.DeviceState) {
 	event := SSEEvent{
 		DeviceID:  deviceID,
 		EventType: SSEEventTypeStateChanged,
@@ -86,7 +86,7 @@ func (m *SSEManager) DeviceStateChangeCallback(deviceID string, state wifi.Devic
 	m.Broadcast(event)
 }
 
-func (m *SSEManager) DeviceEventCallback(deviceID string, anovaEvent wifi.AnovaEvent) {
+func (m *SSEManager) DeviceEventCallback(ctx context.Context, deviceID string, anovaEvent wifi.AnovaEvent) {
 	event := SSEEvent{
 		DeviceID:  deviceID,
 		EventType: SSEEventTypeEvent,

@@ -75,12 +75,12 @@ class AnovaDevice:
             try:
                 await self.send_command(GetDeviceStatus())
             except Exception as e:
-                logger.warning(f"Failed to get initial status: {e}")
+                logger.warning(f"Failed to get initial status: {repr(e)}")
                 raise
 
             logger.info(f"Handshake completed for device {self.id_card}")
         except Exception as e:
-            logger.error(f"Critical error during handshake: {e}")
+            logger.error(f"Critical error during handshake: {repr(e)}")
             raise
 
     async def heartbeat(self) -> None:
@@ -93,9 +93,9 @@ class AnovaDevice:
             await self.send_command(GetTimerStatus())
             await self.send_command(GetSpeakerStatus())
         except ConnectionResetError as e:
-            logger.error(f"Connection reset during heartbeat: {e}")
+            logger.error(f"Connection reset during heartbeat: {repr(e)}")
         except Exception as e:
-            logger.error(f"Error during heartbeat: {e}")
+            logger.error(f"Error during heartbeat: {repr(e)}")
             raise
         logger.debug("❤️Heartbeat -- end")
 

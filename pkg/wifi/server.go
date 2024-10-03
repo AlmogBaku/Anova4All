@@ -10,7 +10,7 @@ import (
 	"sync"
 )
 
-type ConnectionCallback func(anovaConnection AnovaConnection) error
+type ConnectionCallback func(ctx context.Context, anovaConnection AnovaConnection) error
 
 type AnovaServer interface {
 	Close() error
@@ -28,13 +28,11 @@ type server struct {
 	cancel             context.CancelFunc
 }
 
-func NewAnovaServer(host string, port int) (AnovaServer, error) {
-	ctx, cancel := context.WithCancel(context.Background())
+func NewAnovaServer(ctx context.Context, host string, port int) (AnovaServer, error) {
 	srv := &server{
-		host:   host,
-		port:   port,
-		ctx:    ctx,
-		cancel: cancel,
+		host: host,
+		port: port,
+		ctx:  ctx,
 	}
 	err := srv.start()
 	if err != nil {
@@ -113,10 +111,10 @@ func (s *server) handleConnection(conn net.Conn) {
 
 	log.Printf("New connection from %s", conn.RemoteAddr())
 
-	anovaConn := NewAnovaConnection(conn)
+	anovaConn := NewAnovaConnection(s.ctx, conn)
 
 	if s.connectionCallback != nil {
-		if err := s.connectionCallback(anovaConn); err != nil {
+		if err := s.connectionCallback(s.ctx, anovaConn); err != nil {
 			log.Printf("Error in connection callback: %v", err)
 		}
 	}
@@ -125,7 +123,6 @@ func (s *server) handleConnection(conn net.Conn) {
 }
 
 func (s *server) Close() error {
-	s.cancel()
 	if s.listener != nil {
 		if err := s.listener.Close(); err != nil {
 			return fmt.Errorf("error closing listener: %w", err)
