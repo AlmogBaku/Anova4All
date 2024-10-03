@@ -16,3 +16,6 @@ class Settings(BaseSettings):
     anova_server_port: Optional[int] = None
 
     frontend_dist_dir: Optional[str] = None
+
+    admin_username: Optional[str] = None
+    admin_password: Optional[str] = None

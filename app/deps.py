@@ -1,7 +1,9 @@
+import ipaddress
+import secrets
 from typing import Annotated, Optional
 
 from fastapi import Request, Depends, Security, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, APIKeyQuery
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, APIKeyQuery, HTTPBasic, HTTPBasicCredentials
 
 from anova_wifi.device import AnovaDevice
 from anova_wifi.manager import AnovaManager
@@ -30,6 +32,7 @@ def get_settings(request: Request) -> Settings:
 # Define security schemes
 secret_key_query = APIKeyQuery(name="secret_key", auto_error=False, description="Secret key for device authentication")
 secret_key_bearer_scheme = HTTPBearer(auto_error=False, description="Bearer token for device authentication")
+basic_auth_scheme = HTTPBasic(auto_error=False, description="Basic authentication for admin endpoints", realm="Admin")
 
 
 def get_secret_key(
@@ -57,3 +60,39 @@ async def get_authenticated_device(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
     return device
+
+
+async def admin_auth(
+        request: Request,
+        credentials: Annotated[HTTPBasicCredentials|None, Security(basic_auth_scheme)],
+        settings: Annotated[Settings, Depends(get_settings)]
+) -> str:
+    ip = ipaddress.ip_address(request.client.host)
+    if ip.is_loopback:
+        return "localhost_admin"
+    elif ip.is_private:
+        return "local_admin"
+
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+
+    if not (settings.admin_username and settings.admin_password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Admin credentials not set")
+    current_username_bytes = credentials.username.encode("utf8")
+    current_password_bytes = credentials.password.encode("utf8")
+
+    if not (
+            secrets.compare_digest(current_username_bytes, settings.admin_username.encode("utf8")) and
+            secrets.compare_digest(current_password_bytes, settings.admin_password.encode("utf8"))
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+
+    return credentials.username

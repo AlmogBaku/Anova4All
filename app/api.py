@@ -2,6 +2,7 @@ import asyncio
 import random
 import socket
 import string
+from functools import cache
 from typing import List, Optional, AsyncIterator, Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Body, Security
@@ -13,7 +14,7 @@ from anova_wifi.manager import AnovaManager
 from commands import SetWifiCredentials, SetServerInfo, GetIDCard, GetVersion, GetTemperatureUnit, GetSpeakerStatus, \
     SetSecretKey, SetTemperatureUnit, SetTargetTemperature, GetCurrentTemperature, SetTimer, StopTimer, ClearAlarm, \
     GetTimerStatus, GetTargetTemperature, TemperatureUnit, StartTimer
-from .deps import get_device_manager, get_sse_manager, get_authenticated_device, get_settings
+from .deps import get_device_manager, get_sse_manager, get_authenticated_device, get_settings, admin_auth
 from .models import DeviceInfo, SetTemperatureResponse, SetTimerResponse, UnitResponse, SpeakerStatusResponse, \
     TimerResponse, BLEDevice, OkResponse, GetTargetTemperatureResponse, TemperatureResponse, NewSecretResponse, \
     BLEDeviceInfo, SSEEvent, SSEEventType, ServerInfo
@@ -24,7 +25,10 @@ router = APIRouter()
 
 
 @router.get("/devices")
-async def get_devices(manager: AnovaManager = Depends(get_device_manager)) -> List[DeviceInfo]:
+async def get_devices(
+        manager: Annotated[AnovaManager, Depends(get_device_manager)],
+        admin: Annotated[Optional[bool], Security(admin_auth)],
+) -> List[DeviceInfo]:
     """
     Get a list of devices connected to the server
     """
@@ -214,6 +218,15 @@ async def sse_endpoint(
     return StreamingResponse(event_stream(event_generator()), media_type="text/event-stream")
 
 
+@cache
+def get_local_host() -> str:
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(('10.255.255.255', 1))
+    host = s.getsockname()[0]
+    s.close()
+    return host
+
+
 @router.get("/server_info")
 async def get_server_info(
         manager: Annotated[AnovaManager, Depends(get_device_manager)],
@@ -222,14 +235,7 @@ async def get_server_info(
     """
     Get the server info
     """
-    if settings.server_host:
-        host = settings.server_host
-    else:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(('10.255.255.255', 1))
-        host = s.getsockname()[0]
-        s.close()
-
+    host = settings.server_host or get_local_host()
     port = manager.server.port
     return ServerInfo(host=host, port=port)
 
@@ -238,7 +244,7 @@ async def get_server_info(
 
 
 @router.get("/ble/device")
-async def get_ble_device() -> BLEDevice:
+async def get_ble_device(admin: Annotated[Optional[bool], Security(admin_auth)]) -> BLEDevice:
     """
     Get the BLE device
     """
@@ -268,6 +274,7 @@ async def ble_connect_wifi(
 
 @router.post("/ble/config_wifi_server")
 async def patch_ble_device(
+        admin: Annotated[Optional[bool], Security(admin_auth)],
         manager: Annotated[AnovaManager, Depends(get_device_manager)],
         settings: Annotated[Settings, Depends(get_settings)],
         host: Annotated[Optional[str], Body(
@@ -288,23 +295,15 @@ async def patch_ble_device(
         raise HTTPException(status_code=404, detail="No BLE device found")
 
     async with AnovaBluetoothClient(dev) as client:
-        if not host:
-            if settings.server_host:
-                host = settings.server_host
-            else:
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.connect(('10.255.255.255', 1))
-                host = s.getsockname()[0]
-                s.close()
-        if not port:
-            port = manager.server.port
+        host = host or settings.server_host or get_local_host()
+        port = port or manager.server.port
         if not await client.send_command(SetServerInfo(host, port)):
             raise ValueError("Failed to set server info")
         return 'ok'
 
 
 @router.post("/ble/restore_wifi_server")
-async def restore_ble_device() -> OkResponse:
+async def restore_ble_device(admin: Annotated[Optional[bool], Security(admin_auth)]) -> OkResponse:
     """
     Restore the Anova Precision Cooker to communicate with the Anova Cloud server
     """
@@ -319,7 +318,7 @@ async def restore_ble_device() -> OkResponse:
 
 
 @router.get("/ble/")
-async def ble_get_info() -> BLEDeviceInfo:
+async def ble_get_info(admin: Annotated[Optional[bool], Security(admin_auth)]) -> BLEDeviceInfo:
     """
     Get the number on the Anova Precision Cooker
     """
@@ -343,7 +342,7 @@ async def ble_get_info() -> BLEDeviceInfo:
 
 
 @router.post("/ble/secret_key")
-async def ble_new_secret_key() -> NewSecretResponse:
+async def ble_new_secret_key(admin: Annotated[Optional[bool], Security(admin_auth)]) -> NewSecretResponse:
     """
     Set a new secret key on the Anova Precision Cooker
     """
