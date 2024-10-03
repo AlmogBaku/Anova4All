@@ -23,7 +23,7 @@ const (
 var ErrCommandNotSupported = errors.New("command not supported over BLE")
 
 // Scan scans for Anova devices.
-func Scan() (bluetooth.AdvertisementPayload, error) {
+func Scan() (*bluetooth.ScanResult, error) {
 	adapter := bluetooth.DefaultAdapter
 	err := adapter.Enable()
 	if err != nil {
@@ -31,9 +31,9 @@ func Scan() (bluetooth.AdvertisementPayload, error) {
 	}
 
 	var device bluetooth.ScanResult
-	err = adapter.Scan(func(adapter *bluetooth.Adapter, device bluetooth.ScanResult) {
+	err = adapter.Scan(func(adapter *bluetooth.Adapter, dev bluetooth.ScanResult) {
 		if device.LocalName() == anovaDeviceName {
-			device = device
+			device = dev
 			_ = adapter.StopScan()
 			return
 		}
@@ -43,7 +43,7 @@ func Scan() (bluetooth.AdvertisementPayload, error) {
 		return nil, fmt.Errorf("scan failed: %w", err)
 	}
 
-	return device, nil
+	return &device, nil
 }
 
 type AnovaBLE interface {

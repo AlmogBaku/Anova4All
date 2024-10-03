@@ -1,3 +1,5 @@
+//go:build !no_wifi
+
 package rest
 
 import (
@@ -6,6 +8,52 @@ import (
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
+
+func (s *svc) setupWifiRoutes() {
+	s.GET("/api/devices", s.adminAuth, s.getDevices)
+	s.GET("/api/server_info", s.getServerInfo)
+
+	deviceRoutes := s.Group("/api/devices/:device_id")
+	deviceRoutes.Use(s.getAuthenticatedDevice)
+	{
+		deviceRoutes.GET("/state", s.getDeviceState)
+		deviceRoutes.POST("/target_temperature", s.setTemperature)
+		deviceRoutes.GET("/target_temperature", s.getTargetTemperature)
+		deviceRoutes.GET("/temperature", s.getCurrentTemperature)
+		deviceRoutes.POST("/start", s.startCooking)
+		deviceRoutes.POST("/stop", s.stopCooking)
+		deviceRoutes.POST("/timer", s.setTimer)
+		deviceRoutes.POST("/timer/start", s.startTimer)
+		deviceRoutes.POST("/timer/stop", s.stopTimer)
+		deviceRoutes.POST("/alarm/clear", s.clearAlarm)
+		deviceRoutes.GET("/unit", s.getUnit)
+		deviceRoutes.POST("/unit", s.setUnit)
+		deviceRoutes.GET("/timer", s.getTimer)
+		deviceRoutes.GET("/speaker_status", s.getSpeakerStatus)
+		deviceRoutes.GET("/sse", func(context *gin.Context) {
+			server := s.sse.ServeHTTP(context.Param("device_id"))
+			server(context.Writer, context.Request)
+		})
+	}
+}
+
+func (s *svc) getDevices(c *gin.Context) {
+	devices := s.manager.Devices()
+	var deviceInfos []DeviceInfo
+	for _, device := range devices {
+		deviceInfos = append(deviceInfos, DeviceInfo{
+			ID:      device.IDCard(),
+			Version: device.Version(),
+		})
+	}
+	c.JSON(http.StatusOK, deviceInfos)
+}
+
+func (s *svc) getServerInfo(c *gin.Context) {
+	// Assume we have a method to get server info from the manager
+	host, port := s.manager.Server().HostPort()
+	c.JSON(http.StatusOK, ServerInfo{Host: host, Port: port})
+}
 
 func (s *svc) getDeviceState(c *gin.Context) {
 	device := c.MustGet("device").(wifi.AnovaDevice)
