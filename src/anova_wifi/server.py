@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 
-class AsyncTCPServer:
+class AnovaServer:
     host: str
     port: int
     server: asyncio.Server

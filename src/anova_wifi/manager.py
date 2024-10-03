@@ -5,7 +5,7 @@ from typing import Dict, List, Callable, Coroutine, Any, Optional
 from .connection import AnovaConnection
 from .device import AnovaDevice, DeviceState
 from .event import AnovaEvent
-from .server import AsyncTCPServer
+from .server import AnovaServer
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +13,7 @@ HEARTBEAT_INTERVAL = 3  # seconds
 
 
 class AnovaManager:
-    server: AsyncTCPServer
+    server: AnovaServer
     devices: Dict[str, AnovaDevice] = {}
     _monitoring_tasks: Dict[str, asyncio.Task[None]] = {}
 
@@ -23,7 +23,7 @@ class AnovaManager:
     device_event_callbacks: Dict[str, Optional[Callable[[str, AnovaEvent], Coroutine[None, None, None]]]] = {}
 
     def __init__(self, host: str = "0.0.0.0", port: int = 8080):
-        self.server = AsyncTCPServer(host, port)
+        self.server = AnovaServer(host, port)
 
     async def start(self) -> None:
         """
