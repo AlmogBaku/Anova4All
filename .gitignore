@@ -11,3 +11,6 @@ venv/
 # dumps
 research/*.txt
 *.pcap
+
+.DS_Store
+dist/

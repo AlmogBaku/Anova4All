@@ -1,3 +1,5 @@
+//go:build !no_wifi
+
 package wifi
 
 import (
@@ -74,8 +76,8 @@ func (s *server) acceptConnections() {
 		default:
 			conn, err := s.listener.Accept()
 			if err != nil {
-				if ne, ok := err.(net.Error); ok && ne.Temporary() {
-					log.Printf("Temporary error accepting connection: %v", err)
+				if ne, ok := err.(net.Error); ok && ne.Timeout() {
+					log.Printf("Timeout error accepting connection: %v", err)
 					continue
 				}
 				log.Printf("Error accepting connection: %v", err)

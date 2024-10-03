@@ -1,3 +1,5 @@
+//go:build !no_wifi
+
 package wifi
 
 import (
@@ -55,6 +57,8 @@ func ParseEvent(msg *AnovaMessage) (AnovaEvent, error) {
 		eventType = EventTypeChangeParam
 	case eventString == "stop":
 		eventType = EventTypeStop
+	case eventString == "change temp":
+		eventType = EventTypeChangeTemp
 	case eventString == "start":
 		eventType = EventTypeStart
 	case eventString == "low water":

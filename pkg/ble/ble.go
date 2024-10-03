@@ -1,4 +1,4 @@
-//go:build !ble
+//go:build !no_ble
 
 package ble
 
