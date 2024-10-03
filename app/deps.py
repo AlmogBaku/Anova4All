@@ -67,11 +67,12 @@ async def admin_auth(
         credentials: Annotated[HTTPBasicCredentials|None, Security(basic_auth_scheme)],
         settings: Annotated[Settings, Depends(get_settings)]
 ) -> str:
-    ip = ipaddress.ip_address(request.client.host)
-    if ip.is_loopback:
-        return "localhost_admin"
-    elif ip.is_private:
-        return "local_admin"
+    if request.client:
+        ip = ipaddress.ip_address(request.client.host)
+        if ip.is_loopback:
+            return "localhost_admin"
+        elif ip.is_private:
+            return "local_admin"
 
     if not credentials:
         raise HTTPException(
