@@ -56,7 +56,7 @@ async def get_authenticated_device(
     if not device:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found.")
 
-    if device.secret_key != secret_key:
+    if not secrets.compare_digest(device.secret_key.encode("utf8"), secret_key.encode("utf8")):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
     return device

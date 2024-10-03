@@ -37,7 +37,6 @@ async def get_devices(
         DeviceInfo(
             id=device.id_card,
             version=device.version,
-            device_number=device.secret_key
         )
         for device in devices if device.id_card
     ]

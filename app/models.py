@@ -32,7 +32,6 @@ class SSEEvent(BaseModel):
 class DeviceInfo(BaseModel):
     id: str
     version: Optional[str]
-    device_number: Optional[str]
 
 
 class TemperatureResponse(BaseModel):

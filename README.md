@@ -1,5 +1,5 @@
 <h1>
-<img src="app/frontend/public/logo.svg" width="20"> Anova for All
+<img src=".github/logo.svg" width="20"> Anova for All
 </h1>
 
 > Recently, Anova decided to shut down their cloud services for the Anova Precision Cooker Wi-Fi 1 - although the device
@@ -43,11 +43,11 @@ keep the device functional after the cloud services are shut down.
 
 To build the UI:
 
-1. navigate to the `app/frontend` directory
+1. navigate to the `frontend` directory
 2. install the dependencies using `yarn install`
 3. build the UI using `yarn build --base=/static/`
 4. To serve the UI using the FastAPI server, configure the environment variable `FRONTEND_DIST_DIR`
-   to `app/frontend/dist/` and run the server.
+   to `frontend/dist/` and run the server.
 
 ## Configuration
 

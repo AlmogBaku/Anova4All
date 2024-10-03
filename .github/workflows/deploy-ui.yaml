@@ -35,15 +35,15 @@ jobs:
         with:
           check-latest: true
           cache: 'yarn'
-          cache-dependency-path: ./app/frontend/yarn.lock
+          cache-dependency-path: ./frontend/yarn.lock
 
       - name: Install dependencies
-        working-directory: ./app/frontend
+        working-directory: ./frontend
         run: |
           yarn install --immutable
 
       - name: Build UI
-        working-directory: ./app/frontend
+        working-directory: ./frontend
         shell: bash
         run: |
           VITE_BASE_ROUTE=/Anova4All/ yarn build --base=/Anova4All/
@@ -52,4 +52,4 @@ jobs:
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./app/frontend/dist
+          publish_dir: ./frontend/dist

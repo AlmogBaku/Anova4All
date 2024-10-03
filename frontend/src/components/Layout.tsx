@@ -17,7 +17,7 @@ const Layout: React.FC<LayoutProps> = ({children}) => {
     return <div className="App flex h-screen flex-col p-3">
         <div className="navbar bg-base-100 gap-2 mb-3 shadow-md rounded-box">
             <Link to="/" className="flex-1 font-bold font-mono p-1 pl-4">
-                <img src={`${import.meta.env.BASE_URL}/logo.svg`} className={"h-12 mr-3"} alt="Anova4All logo"/>
+                <img src={`${import.meta.env.BASE_URL}logo.svg`} className={"h-12 mr-3"} alt="Anova4All logo"/>
                 Anova 4 All
             </Link>
             <div className="flex-none">
