@@ -58,6 +58,9 @@ func NewAnovaConnection(ctx context.Context, conn net.Conn, logger *zap.Logger) 
 		select {
 		case <-ctx.Done():
 			close(c.responseQueue)
+			if err := c.conn.Close(); err != nil {
+				c.logger.With("error", err).Error("Error closing connection")
+			}
 		}
 	}()
 	return c
@@ -97,10 +100,10 @@ func (ac *connection) SendCommand(ctx context.Context, message string) (string, 
 
 	err = ac.writer.Flush()
 	if err != nil {
-		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
-			ac.logger.Error("Connection closed by remote host")
-			ac.listenCancel()
+		if !(errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed)) {
+			ac.logger.With("error", err).Error("Unexpected error flushing writer")
 		}
+		ac.listenCancel()
 		return "", fmt.Errorf("flush error: %w", err)
 	}
 
@@ -200,5 +203,5 @@ func (ac *connection) SetEventCallback(callback EventCallback) {
 func (ac *connection) Close() error {
 	ac.listenCancel()
 	<-ac.listenCtx.Done()
-	return ac.conn.Close()
+	return nil
 }
