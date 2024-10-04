@@ -84,7 +84,7 @@ func (c GetDeviceStatus) SupportsBLE() bool  { return true }
 func (c GetDeviceStatus) SupportsWiFi() bool { return true }
 func (c GetDeviceStatus) Encode() string     { return "status" }
 func (c GetDeviceStatus) Decode(response string) (any, error) {
-	status := DeviceStatus(strings.ToLower(strings.TrimSpace(response)))
+	status := DeviceStatus(strings.SplitN(strings.ToLower(strings.TrimSpace(response)), " ", 2)[0])
 	switch status {
 	case Running, Stopped, LowWater, HeaterError, PowerLoss, UserChangeParameter:
 		return status, nil
