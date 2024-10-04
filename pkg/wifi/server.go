@@ -123,7 +123,7 @@ func (s *server) handleConnection(conn net.Conn) {
 	anovaConn := NewAnovaConnection(s.ctx, conn, s.logger.Desugar())
 
 	if s.connectionCallback != nil {
-		if err := s.connectionCallback(s.ctx, anovaConn); err != nil {
+		if err := s.connectionCallback(anovaConn.Context(), anovaConn); err != nil {
 			s.logger.With("error", err).Error("Error in connection callback")
 		}
 	}

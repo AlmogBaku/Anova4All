@@ -21,6 +21,7 @@ type AnovaConnection interface {
 	SendCommand(ctx context.Context, message string) (string, error)
 	SetEventCallback(callback EventCallback)
 	Close() error
+	Context() context.Context
 	Name(deviceID string)
 }
 type connection struct {
@@ -43,13 +44,12 @@ func NewAnovaConnection(ctx context.Context, conn net.Conn, logger *zap.Logger) 
 
 	ctx, cancel := context.WithCancel(ctx)
 	c := &connection{
-		conn:          conn,
-		reader:        bufio.NewReader(conn),
-		writer:        bufio.NewWriter(conn),
-		responseQueue: make(chan *AnovaMessage, 1),
-		listenCtx:     ctx,
-		listenCancel:  cancel,
-		logger:        logger.Sugar(),
+		conn:         conn,
+		reader:       bufio.NewReader(conn),
+		writer:       bufio.NewWriter(conn),
+		listenCtx:    ctx,
+		listenCancel: cancel,
+		logger:       logger.Sugar(),
 	}
 	go func() {
 		c.listen()
@@ -66,6 +66,10 @@ func NewAnovaConnection(ctx context.Context, conn net.Conn, logger *zap.Logger) 
 	return c
 }
 
+func (ac *connection) Context() context.Context {
+	return ac.listenCtx
+}
+
 func (ac *connection) Name(deviceID string) {
 	if ac.logger != nil {
 		ac.logger = ac.logger.With("device", deviceID)
@@ -80,7 +84,11 @@ func (ac *connection) SendCommand(ctx context.Context, message string) (string, 
 	}
 
 	ac.cmdLock.Lock()
-	defer ac.cmdLock.Unlock()
+	ac.responseQueue = make(chan *AnovaMessage, 1)
+	defer func() {
+		defer ac.cmdLock.Unlock()
+		ac.responseQueue = nil
+	}()
 
 	anovaMsg := AnovaMessage(message)
 	encoded, err := (&anovaMsg).MarshalBinary()
@@ -101,9 +109,9 @@ func (ac *connection) SendCommand(ctx context.Context, message string) (string, 
 	err = ac.writer.Flush()
 	if err != nil {
 		if !(errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed)) {
-			ac.logger.With("error", err).Error("Unexpected error flushing writer")
+			ac.logger.Debug("Connection closed by remote host")
+			ac.listenCancel()
 		}
-		ac.listenCancel()
 		return "", fmt.Errorf("flush error: %w", err)
 	}
 
@@ -111,6 +119,9 @@ func (ac *connection) SendCommand(ctx context.Context, message string) (string, 
 
 	select {
 	case resp := <-ac.responseQueue:
+		if resp == nil {
+			return "", errors.New("error receiving response")
+		}
 		ac.logger.Debugf("<-- Received response: %s", *resp)
 		return string(*resp), nil
 	case <-ctx.Done():
@@ -129,11 +140,9 @@ func (ac *connection) listen() {
 		default:
 			msg, err := ac.receive()
 			if err != nil {
-				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.ErrClosedPipe) {
-					ac.logger.Debug("Connection closed by remote host")
-					ac.listenCancel()
-				} else {
-					ac.logger.With("error", err).Error("Error in listening task")
+				ac.logger.With("error", err).Error("Error in listening task")
+				if ac.responseQueue != nil {
+					ac.responseQueue <- nil
 				}
 				return
 			}
@@ -156,15 +165,10 @@ func (ac *connection) listen() {
 				} else {
 					ac.logger.With("event", event).Debug("Received event message but no event callback set")
 				}
-			} else if ac.cmdLock.TryLock() {
-				ac.cmdLock.Unlock()
-				ac.logger.Debugf("Received unexpected message while locked, discarding: %s", *msg)
+			} else if ac.responseQueue != nil {
+				ac.responseQueue <- msg
 			} else {
-				select {
-				case ac.responseQueue <- msg:
-				default:
-					ac.logger.Debugf("Response queue full, discarding message: %s", *msg)
-				}
+				ac.logger.Debugf("Received unexpected message while locked, discarding: %s", *msg)
 			}
 		}
 	}
@@ -174,6 +178,12 @@ func (ac *connection) receive() (*AnovaMessage, error) {
 	buff := make([]byte, 1024)
 	n, err := ac.reader.Read(buff)
 	if err != nil {
+		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+			ac.logger.Debug("Connection closed by remote host")
+			ac.listenCancel()
+		} else {
+			ac.logger.With("error", err).Error("Error reading from connection")
+		}
 		return nil, err
 	}
 	buff = buff[:n]
@@ -185,7 +195,7 @@ func (ac *connection) receive() (*AnovaMessage, error) {
 
 	var msg AnovaMessage
 	if err := (&msg).UnmarshalBinary(buff); err != nil {
-		return nil, fmt.Errorf("decoding error: %w", err)
+		return nil, fmt.Errorf("failed to decode %s : %w", buff, err)
 	}
 
 	if strings.Contains(strings.ToLower(string(msg)), "invalid command") {
