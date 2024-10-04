@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 	"tinygo.org/x/bluetooth"
 )
 
@@ -28,16 +29,25 @@ func Scan() (*bluetooth.ScanResult, error) {
 	_ = adapter.Enable()
 
 	var device bluetooth.ScanResult
-	err := adapter.Scan(func(adapter *bluetooth.Adapter, dev bluetooth.ScanResult) {
-		if dev.LocalName() == anovaDeviceName {
-			device = dev
-			_ = adapter.StopScan()
-			return
-		}
-	})
+	devChan := make(chan bluetooth.ScanResult, 1)
+	go func(devChan chan bluetooth.ScanResult) {
+		_ = adapter.Scan(func(adapter *bluetooth.Adapter, dev bluetooth.ScanResult) {
+			if dev.LocalName() == anovaDeviceName {
+				devChan <- dev
+				_ = adapter.StopScan()
+				return
+			}
+		})
+	}(devChan)
+	go func() {
+		<-time.After(15 * time.Second)
+		_ = adapter.StopScan()
+		close(devChan)
+	}()
+	device = <-devChan
 
-	if err != nil {
-		return nil, fmt.Errorf("scan failed: %w", err)
+	if device.RSSI == 0 {
+		return nil, errors.New("no Anova device found")
 	}
 
 	return &device, nil
