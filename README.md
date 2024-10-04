@@ -35,7 +35,8 @@ It uses the Anova Wi-Fi protocol to communicate with the device directly over th
 
 1. git clone
 2. install dependencies: `go mod tidy`
-3. build the project: `go build ./cmd/anova4all` (to build for raspberry pi without the BLE, use `GOOS=linux GOARCH=arm GOARM=6 go build ./cmd/anova4all --tags no_ble`)
+3. build the project: `go build ./cmd/anova4all` (to build for raspberry pi without the BLE, use
+   `GOOS=linux GOARCH=arm GOARM=6 go build ./cmd/anova4all --tags no_ble`)
 
 ### Building the UI
 
@@ -66,7 +67,11 @@ To revert the changes, use the `POST /api/ble/restore_wifi_server` endpoint.
 You can also use the web interface to change the server address. This is usually more user-friendly :)
 
 Notice: this require Web Bluetooth API support. Currently, it's not supported natively in iOS, but it's supported in
-Android and desktop browsers. You can try use an iOS app like Bluefy to connect to the device (not tested).
+Android and desktop browsers. You can use an iOS app
+like [Bluefy](https://apps.apple.com/us/app/bluefy-web-ble-browser/id1492822055) to connect to the device.
+
+Notice that you must have an encrypted connection(tls - https) to the server to use the Web Bluetooth API. You can use
+the server-less version of the UI over https://almogbaku.com/Anova4All/ .
 
 ## Usage
 
