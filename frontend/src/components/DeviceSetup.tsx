@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {useAnova} from "../contexts/Anova.tsx";
 import {TbBluetooth, TbPassword, TbWifi} from "react-icons/tb";
-import {useNavigate} from "react-router-dom";
+import {Link, useNavigate} from "react-router-dom";
 import {BluetoothClient} from "../client/ble/client.ts";
 
 const DeviceSetup: React.FC = () => {
@@ -11,6 +11,7 @@ const DeviceSetup: React.FC = () => {
         const [error, setError] = useState<string | null>(null);
         const {configureDevice, remoteServer} = useAnova();
 
+        const [resetSecretKey, setResetSecretKey] = useState<boolean>(true);
         const [ssid, setSSID] = useState<string>('');
         const [password, setPassword] = useState<string>('');
 
@@ -45,17 +46,21 @@ const DeviceSetup: React.FC = () => {
                 return;
             }
 
-            const characters: string = 'abcdefghijklmnopqrstuvwxyz0123456789';
-            const array = new Uint8Array(10);
-            crypto.getRandomValues(array);
-            const secretKey: string = Array.from(array, byte => characters[byte % characters.length]).join('');
-
             await client!.setServerInfo(remoteServer.host, remoteServer.port);
             if (ssid && password) {
                 await client!.setWifiCredentials(ssid, password);
             }
-            await client!.setSecretKey(secretKey);
-            configureDevice({id: idCard, secretKey});
+            if (resetSecretKey) {
+                const characters: string = 'abcdefghijklmnopqrstuvwxyz0123456789';
+                const array = new Uint8Array(10);
+                crypto.getRandomValues(array);
+                const secretKey: string = Array.from(array, byte => characters[byte % characters.length]).join('');
+
+                await client!.setSecretKey(secretKey);
+                configureDevice({id: idCard, secretKey});
+            } else {
+                configureDevice((prev) => ({...prev, id: idCard}));
+            }
             navigate('/');
         };
 
@@ -77,10 +82,10 @@ const DeviceSetup: React.FC = () => {
 
 
         return (
-            <div className="flex flex-col items-center justify-center min-h-screen">
-                <h1 className="text-3xl font-bold mb-6">Set Up New Device</h1>
+            <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+                <h1 className="text-3xl font-bold">Set Up New Device</h1>
                 {error && <p className="text-error mb-4">{error}</p>}
-                <p className="mb-4">Please make sure your device is powered on and in setup mode</p>
+                <p>Please make sure your device is powered on and in setup mode</p>
 
                 {!selectedDevice ? <>
                     <button
@@ -89,8 +94,8 @@ const DeviceSetup: React.FC = () => {
                     >
                         <TbBluetooth/> Scan for device
                     </button>
-                </> : <>
-                    <div className={`mb-4`}>
+                </> : <div className="w-10/12 flex flex-col gap-4">
+                    <div>
                         <p>Found device: {selectedDevice.name}</p>
                         {idCard && <p>ID Card: {idCard}</p>}
                         <button
@@ -102,17 +107,45 @@ const DeviceSetup: React.FC = () => {
                         </button>
                     </div>
 
-                    <label className="input input-bordered flex items-center gap-2">
-                        <TbWifi/>
-                        <input type="text" className="grow" placeholder="SSID" value={ssid}
-                               onChange={(e) => setSSID(e.target.value)}/>
-                    </label>
+                    <div tabIndex={0} className="collapse collapse-arrow border-base-300 bg-base-200 border">
+                        <input type="checkbox"/>
+                        <div className="collapse-title text-xl font-medium">Configure Wifi</div>
+                        <div className="collapse-content flex flex-col gap-2">
+                            <div className="mb-2">
+                                <p>Enter your wifi credentials to connect the device to your network.</p>
+                                <p>If credentials are not provided, the device will connect to the previously configured
+                                    network.</p>
+                            </div>
 
-                    <label className="input input-bordered flex items-center gap-2">
-                        <TbPassword/>
-                        <input type="password" className="grow" placeholder="Password" value={password}
-                               onChange={(e) => setPassword(e.target.value)}/>
-                    </label>
+
+                            <label className="input input-bordered flex items-center gap-2">
+                                <TbWifi/>
+                                <input type="text" className="grow" placeholder="SSID" value={ssid}
+                                       onChange={(e) => setSSID(e.target.value)}/>
+                            </label>
+
+                            <label className="input input-bordered flex items-center gap-2">
+                                <TbPassword/>
+                                <input type="password" className="grow" placeholder="Password" value={password}
+                                       onChange={(e) => setPassword(e.target.value)}/>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div className="form-control">
+                        <label className="label cursor-pointer pb-0">
+                            <span className="label-text">Regenerate secret key</span>
+                            <input type="checkbox" className="checkbox" checked={resetSecretKey}
+                                   onChange={() => setResetSecretKey(!resetSecretKey)}/>
+                        </label>
+                        <label className="label pt-1">
+                            <span className="label-text-alt">
+                                <p>Regenerating the secret key will invalidate the previous one and require reconfiguration of the device</p>
+                                <p>If you choose not to generate a new secret key, you <strong>must</strong> configure manually on the <Link
+                                    to="/settings" className="underline">settings page</Link>.</p>
+                            </span>
+                        </label>
+                    </div>
 
                     <button
                         className={`btn btn-primary btn-lg ${!selectedDevice ? 'loading' : ''}`}
@@ -122,7 +155,7 @@ const DeviceSetup: React.FC = () => {
                         <TbWifi/>
                         {!selectedDevice ? 'Scanning...' : "Setup your device"}
                     </button>
-                </>}
+                </div>}
             </div>
         );
     }
