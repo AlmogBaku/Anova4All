@@ -4,8 +4,11 @@ import (
 	"anova4all/pkg/wifi"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/static"
+	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"net/http"
+	"time"
 )
 
 type Service interface {
@@ -18,17 +21,27 @@ type svc struct {
 	adminUsername string
 	adminPassword string
 	sse           *SSEManager
+	logger        *zap.SugaredLogger
 }
 
-func NewService(manager wifi.AnovaManager, adminUsername, adminPassword, frontEndDistDir string) (Service, error) {
+func NewService(manager wifi.AnovaManager, adminUsername, adminPassword, frontEndDistDir string, logger *zap.Logger) (Service, error) {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	logger = logger.Named("rest_service")
+
+	gin.SetMode(gin.ReleaseMode)
 	s := &svc{
-		Engine:        gin.Default(),
+		Engine:        gin.New(),
 		manager:       manager,
 		sse:           NewSSEManager(manager),
 		adminUsername: adminUsername,
 		adminPassword: adminPassword,
+		logger:        logger.Sugar(),
 	}
 
+	s.Use(ginzap.Ginzap(logger, time.RFC3339, true))
+	s.Use(ginzap.RecoveryWithZap(logger, true))
 	s.Use(cors.Default())
 
 	s.GET("/health", func(c *gin.Context) {

@@ -6,12 +6,12 @@ import (
 	"anova4all/pkg/commands"
 	"context"
 	"fmt"
-	"log"
+	"go.uber.org/zap"
 	"sync"
 	"time"
 )
 
-const HeartbeatInterval = 3 * time.Second
+const HeartbeatInterval = 2 * time.Second
 
 // DeviceState represents the current state of the Anova device.
 type DeviceState struct {
@@ -54,13 +54,20 @@ type device struct {
 	stateChangeCallback StateChangeCallback
 	eventCallback       DeviceEventCallback
 	disconnectCallback  DisconnectedCallback
+	logger              *zap.SugaredLogger
 }
 
 // NewAnovaDevice creates a new AnovaDevice instance.
-func NewAnovaDevice(ctx context.Context, connection AnovaConnection) (AnovaDevice, error) {
+func NewAnovaDevice(ctx context.Context, connection AnovaConnection, logger *zap.Logger) (AnovaDevice, error) {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	logger = logger.Named("wifi_device")
+
 	dev := &device{
 		connection: connection,
 		state:      DeviceState{},
+		logger:     logger.Sugar(),
 	}
 	connection.SetEventCallback(dev.handleEvent)
 	err := dev.handshake(ctx)
@@ -102,6 +109,7 @@ func (d *device) handshake(ctx context.Context) error {
 		return fmt.Errorf("failed to get ID card: %w", err)
 	}
 	d.idCard = idCard.(string)
+	d.logger.Named(d.idCard)
 
 	version, err := d.SendCommand(ctx, &commands.GetVersion{})
 	if err != nil {
@@ -117,15 +125,16 @@ func (d *device) handshake(ctx context.Context) error {
 
 	_, err = d.SendCommand(ctx, &commands.GetDeviceStatus{})
 	if err != nil {
-		log.Printf("Failed to get initial status: %v", err)
+		d.logger.With("error", err).Error("Failed to get initial status")
 		return fmt.Errorf("failed to get initial status: %w", err)
 	}
 
-	log.Printf("Handshake completed for device %s", d.idCard)
+	d.logger.Debug("Handshake completed")
 	return nil
 }
 
 // heartbeat perform a periodic heartbeat on the device over HeartbeatInterval
+// This is used to keep the connection alive and to keep the device state up to date (polling).
 func (d *device) heartbeat(ctx context.Context) {
 	ticker := time.NewTicker(HeartbeatInterval)
 	defer ticker.Stop()
@@ -135,7 +144,7 @@ func (d *device) heartbeat(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			log.Println("❤️ heartbeat -- start")
+			d.logger.Debug("Heartbeat...")
 
 			sequence := []commands.Command{
 				&commands.GetDeviceStatus{},
@@ -148,10 +157,9 @@ func (d *device) heartbeat(ctx context.Context) {
 
 			for _, cmd := range sequence {
 				if _, err := d.SendCommand(ctx, cmd); err != nil {
-					log.Println("heartbeat failed", err)
+					d.logger.With("error", err).Error("heartbeat failed")
 				}
 			}
-			log.Println("❤️ heartbeat -- end")
 		}
 	}
 }

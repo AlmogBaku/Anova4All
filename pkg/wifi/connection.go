@@ -7,8 +7,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go.uber.org/zap"
 	"io"
-	"log"
 	"net"
 	"strings"
 	"sync"
@@ -31,9 +31,15 @@ type connection struct {
 	cmdLock       sync.Mutex
 	listenCtx     context.Context
 	listenCancel  context.CancelFunc
+	logger        *zap.SugaredLogger
 }
 
-func NewAnovaConnection(ctx context.Context, conn net.Conn) AnovaConnection {
+func NewAnovaConnection(ctx context.Context, conn net.Conn, logger *zap.Logger) AnovaConnection {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	logger = logger.Named("wifi_connection")
+
 	ctx, cancel := context.WithCancel(ctx)
 	c := &connection{
 		conn:          conn,
@@ -42,6 +48,7 @@ func NewAnovaConnection(ctx context.Context, conn net.Conn) AnovaConnection {
 		responseQueue: make(chan *AnovaMessage, 1),
 		listenCtx:     ctx,
 		listenCancel:  cancel,
+		logger:        logger.Sugar(),
 	}
 	go func() {
 		c.listen()
@@ -84,17 +91,17 @@ func (ac *connection) SendCommand(ctx context.Context, message string) (string, 
 	err = ac.writer.Flush()
 	if err != nil {
 		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
-			log.Println("Connection closed by remote host")
+			ac.logger.Error("Connection closed by remote host")
 			ac.listenCancel()
 		}
 		return "", fmt.Errorf("flush error: %w", err)
 	}
 
-	log.Printf("--> Sent message: %s", message)
+	ac.logger.Debugf("--> Sent message: %s", message)
 
 	select {
 	case resp := <-ac.responseQueue:
-		log.Printf("<-- Received response: %s", *resp)
+		ac.logger.Debugf("<-- Received response: %s", *resp)
 		return string(*resp), nil
 	case <-ctx.Done():
 		return "", ctx.Err()
@@ -107,16 +114,16 @@ func (ac *connection) listen() {
 	for {
 		select {
 		case <-ac.listenCtx.Done():
-			log.Println("Listening task cancelled")
+			ac.logger.Debug("Listening task cancelled")
 			return
 		default:
 			msg, err := ac.receive()
 			if err != nil {
-				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
-					log.Println("Connection closed by remote host")
+				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.ErrClosedPipe) {
+					ac.logger.Debug("Connection closed by remote host")
 					ac.listenCancel()
 				} else {
-					log.Printf("Error in listening task: %v", err)
+					ac.logger.With("error", err).Error("Error in listening task")
 				}
 				return
 			}
@@ -128,25 +135,25 @@ func (ac *connection) listen() {
 			if IsEvent(msg) {
 				event, err := ParseEvent(msg)
 				if err != nil {
-					log.Printf("Error parsing event: %v", err)
+					ac.logger.With("error", err).Error("Error parsing event")
 					continue
 				}
 
 				if ac.eventCallback != nil {
 					if err := ac.eventCallback(ac.listenCtx, event); err != nil {
-						log.Printf("Error in event callback: %v", err)
+						ac.logger.With("error", err).Error("Error in event callback")
 					}
 				} else {
-					log.Printf("Received event message but no event callback set: %s", *msg)
+					ac.logger.With("event", event).Debug("Received event message but no event callback set")
 				}
 			} else if ac.cmdLock.TryLock() {
 				ac.cmdLock.Unlock()
-				log.Printf("Received unexpected message while not locked: %s", *msg)
+				ac.logger.Debugf("Received unexpected message while locked, discarding: %s", *msg)
 			} else {
 				select {
 				case ac.responseQueue <- msg:
 				default:
-					log.Printf("Response queue full, discarding message: %s", *msg)
+					ac.logger.Debugf("Response queue full, discarding message: %s", *msg)
 				}
 			}
 		}
@@ -172,7 +179,7 @@ func (ac *connection) receive() (*AnovaMessage, error) {
 	}
 
 	if strings.Contains(strings.ToLower(string(msg)), "invalid command") {
-		log.Printf("Received invalid command, skipping: %s", msg)
+		ac.logger.Debugf("Received invalid command, skipping: %s", msg)
 		return nil, nil
 	}
 

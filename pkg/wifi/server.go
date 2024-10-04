@@ -4,8 +4,9 @@ package wifi
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"log"
+	"go.uber.org/zap"
 	"net"
 	"sync"
 )
@@ -26,13 +27,20 @@ type server struct {
 	wg                 sync.WaitGroup
 	ctx                context.Context
 	cancel             context.CancelFunc
+	logger             *zap.SugaredLogger
 }
 
-func NewAnovaServer(ctx context.Context, host string, port int) (AnovaServer, error) {
+func NewAnovaServer(ctx context.Context, host string, port int, logger *zap.Logger) (AnovaServer, error) {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	logger = logger.Named("wifi_server")
+
 	srv := &server{
-		host: host,
-		port: port,
-		ctx:  ctx,
+		host:   host,
+		port:   port,
+		ctx:    ctx,
+		logger: logger.Sugar(),
 	}
 	err := srv.start()
 	if err != nil {
@@ -70,7 +78,7 @@ func (s *server) start() error {
 	}
 
 	s.listener = listener
-	log.Printf("Serving on %s", addr)
+	s.logger.With("address", addr).Info("Serving...")
 	if s.host == "" {
 		s.host, _ = localIP()
 	}
@@ -91,11 +99,12 @@ func (s *server) acceptConnections() {
 		default:
 			conn, err := s.listener.Accept()
 			if err != nil {
-				if ne, ok := err.(net.Error); ok && ne.Timeout() {
-					log.Printf("Timeout error accepting connection: %v", err)
+				var ne net.Error
+				if errors.As(err, &ne) && ne.Timeout() {
+					s.logger.With("error", err).Error("Timeout error accepting connection")
 					continue
 				}
-				log.Printf("Error accepting connection: %v", err)
+				s.logger.With("error", err).Error("Error accepting connection")
 				return
 			}
 
@@ -109,13 +118,13 @@ func (s *server) handleConnection(conn net.Conn) {
 	defer s.wg.Done()
 	defer conn.Close()
 
-	log.Printf("New connection from %s", conn.RemoteAddr())
+	s.logger.With("remote_addr", conn.RemoteAddr()).Info("New connection")
 
-	anovaConn := NewAnovaConnection(s.ctx, conn)
+	anovaConn := NewAnovaConnection(s.ctx, conn, s.logger.Desugar())
 
 	if s.connectionCallback != nil {
 		if err := s.connectionCallback(s.ctx, anovaConn); err != nil {
-			log.Printf("Error in connection callback: %v", err)
+			s.logger.With("error", err).Error("Error in connection callback")
 		}
 	}
 
@@ -129,7 +138,7 @@ func (s *server) Close() error {
 		}
 	}
 	s.wg.Wait()
-	log.Println("Server stopped")
+	s.logger.Info("Server stopped")
 	return nil
 }
 

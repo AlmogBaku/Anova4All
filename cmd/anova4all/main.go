@@ -5,10 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"go.uber.org/zap"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -19,17 +20,27 @@ import (
 func main() {
 	cfg := loadConfig()
 
+	var logger *zap.Logger
+	env := strings.ToUpper(cfg.GetString("env"))
+	if env == "DEV" || env == "DEVELOPMENT" {
+		logger = zap.Must(zap.NewDevelopment())
+	} else {
+		logger = zap.Must(zap.NewProduction())
+	}
+	defer logger.Sync()
+
 	manager, err := wifi.NewAnovaManager(
 		context.Background(),
 		cfg.GetString("server_host"),
 		cfg.GetInt("anova_server_port"),
+		logger,
 	)
 	if err != nil {
-		log.Fatalf("Failed to create AnovaManager: %v", err)
+		logger.Sugar().With("error", err).Error("Failed to create AnovaManager")
 	}
 	{
 		host, port := manager.Server().HostPort()
-		log.Printf("Anova Server started on %s:%d", host, port)
+		logger.Sugar().Infof("Anova Server started on %s:%d", host, port)
 	}
 
 	service, err := rest.NewService(
@@ -37,9 +48,10 @@ func main() {
 		cfg.GetString("admin_username"),
 		cfg.GetString("admin_password"),
 		cfg.GetString("frontend_dist_dir"),
+		logger,
 	)
 	if err != nil {
-		log.Fatalf("Failed to create service: %v", err)
+		logger.Sugar().With("error", err).Error("Failed to create service")
 	}
 
 	srv := &http.Server{
@@ -48,28 +60,30 @@ func main() {
 	}
 
 	go func() {
+		logger.Sugar().Infof("REST Server started on http://localhost:%d", cfg.GetInt("rest_server_port"))
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("listen: %s\n", err)
+			logger.Sugar().With("error", err).Fatal("Failed to start server")
 		}
 	}()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Println("Shutting down server...")
+	logger.Sugar().Info("Shutting down server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatal("Server forced to shutdown:", err)
+		logger.Sugar().With("error", err).Fatal("Server forced to shutdown")
 	}
 
-	log.Println("Server exiting")
+	logger.Sugar().Info("Server closed")
 }
 
 func loadConfig() *viper.Viper {
 	v := viper.New()
 	v.AutomaticEnv()
+	v.SetDefault("env", "prod")
 	v.SetDefault("server_host", "")
 	v.SetDefault("anova_server_port", 8080)
 	v.SetDefault("rest_server_port", 8000)
@@ -81,7 +95,7 @@ func loadConfig() *viper.Viper {
 	if err := v.ReadInConfig(); err != nil {
 		var configFileNotFoundError viper.ConfigFileNotFoundError
 		if !errors.As(err, &configFileNotFoundError) {
-			log.Fatalf("Error reading config file: %v", err)
+			panic(fmt.Errorf("failed to read config file: %w", err))
 		}
 	}
 

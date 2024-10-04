@@ -5,9 +5,8 @@ package wifi
 import (
 	"context"
 	"fmt"
-	"log"
-
 	"github.com/puzpuzpuz/xsync"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -31,10 +30,16 @@ type manager struct {
 	deviceDisconnectedCallbacks *xsync.MapOf[string, DisconnectedCallback]
 	deviceStateChangeCallbacks  *xsync.MapOf[string, StateChangeCallback]
 	deviceEventCallbacks        *xsync.MapOf[string, DeviceEventCallback]
+	logger                      *zap.SugaredLogger
 }
 
-func NewAnovaManager(ctx context.Context, host string, port int) (AnovaManager, error) {
-	srv, err := NewAnovaServer(ctx, host, port)
+func NewAnovaManager(ctx context.Context, host string, port int, logger *zap.Logger) (AnovaManager, error) {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	logger = logger.Named("wifi_manager")
+
+	srv, err := NewAnovaServer(ctx, host, port, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create AnovaServer: %w", err)
 	}
@@ -45,6 +50,7 @@ func NewAnovaManager(ctx context.Context, host string, port int) (AnovaManager, 
 		deviceDisconnectedCallbacks: xsync.NewMapOf[DisconnectedCallback](),
 		deviceStateChangeCallbacks:  xsync.NewMapOf[StateChangeCallback](),
 		deviceEventCallbacks:        xsync.NewMapOf[DeviceEventCallback](),
+		logger:                      logger.Sugar(),
 	}
 	mgr.server.OnConnection(mgr.handleNewConnection)
 	return mgr, nil
@@ -106,7 +112,7 @@ func (m *manager) OnDeviceEvent(deviceID string, callback DeviceEventCallback) {
 }
 
 func (m *manager) handleNewConnection(ctx context.Context, conn AnovaConnection) error {
-	dev, err := NewAnovaDevice(ctx, conn)
+	dev, err := NewAnovaDevice(ctx, conn, m.logger.Desugar())
 	if err != nil {
 		return fmt.Errorf("failed to create AnovaDevice: %w", err)
 	}
@@ -116,9 +122,9 @@ func (m *manager) handleNewConnection(ctx context.Context, conn AnovaConnection)
 	}
 
 	if oldDevice, loaded := m.devices.LoadAndStore(deviceID, dev); loaded {
-		log.Printf("Device with ID %s is already connected. Closing old connection.", deviceID)
+		m.logger.With("device", deviceID).Debug("Device is already connected. Closing old connection.")
 		if err := oldDevice.Close(); err != nil {
-			log.Printf("Error closing old device connection: %v", err)
+			m.logger.With("device", deviceID).With("error", err).Error("Error closing old device connection")
 		}
 	}
 
@@ -126,7 +132,7 @@ func (m *manager) handleNewConnection(ctx context.Context, conn AnovaConnection)
 	dev.SetEventCallback(m.handleDeviceEvent)
 	dev.SetHandleDisconnectCallback(m.handleDeviceDisconnection)
 
-	log.Printf("New device connected: %v", dev)
+	m.logger.With("device", deviceID).Info("New device connected")
 
 	for _, callback := range m.deviceConnectedCallbacks {
 		callback(ctx, dev)
@@ -137,9 +143,9 @@ func (m *manager) handleNewConnection(ctx context.Context, conn AnovaConnection)
 
 func (m *manager) handleDeviceDisconnection(ctx context.Context, deviceID string) {
 	if dev, loaded := m.devices.LoadAndDelete(deviceID); loaded {
-		log.Printf("Device disconnected: %v", dev)
+		m.logger.With("device", deviceID).Info("Device disconnected")
 		if err := dev.Close(); err != nil {
-			log.Printf("Error closing device: %v", err)
+			m.logger.With("device", deviceID).With("error", err).Error("Error closing device")
 		}
 
 		if callback, ok := m.deviceDisconnectedCallbacks.Load(deviceID); ok {
