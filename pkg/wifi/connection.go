@@ -21,6 +21,7 @@ type AnovaConnection interface {
 	SendCommand(ctx context.Context, message string) (string, error)
 	SetEventCallback(callback EventCallback)
 	Close() error
+	Name(deviceID string)
 }
 type connection struct {
 	conn          net.Conn
@@ -60,6 +61,12 @@ func NewAnovaConnection(ctx context.Context, conn net.Conn, logger *zap.Logger) 
 		}
 	}()
 	return c
+}
+
+func (ac *connection) Name(deviceID string) {
+	if ac.logger != nil {
+		ac.logger = ac.logger.With("device", deviceID)
+	}
 }
 
 func (ac *connection) SendCommand(ctx context.Context, message string) (string, error) {

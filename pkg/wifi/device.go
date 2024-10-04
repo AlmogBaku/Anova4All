@@ -109,7 +109,8 @@ func (d *device) handshake(ctx context.Context) error {
 		return fmt.Errorf("failed to get ID card: %w", err)
 	}
 	d.idCard = idCard.(string)
-	d.logger.Named(d.idCard)
+	d.logger = d.logger.Named(d.idCard)
+	d.connection.Name(d.idCard)
 
 	version, err := d.SendCommand(ctx, &commands.GetVersion{})
 	if err != nil {
