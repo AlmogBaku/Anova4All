@@ -97,7 +97,7 @@ export class BluetoothClient {
         try {
             const encoder = new TextEncoder();
             const commandString = `${command.encode()}\r`;
-            await this.characteristic.writeValue(encoder.encode(commandString));
+            await this.characteristic.writeValueWithResponse(encoder.encode(commandString));
 
             const response = await this.readResponseWithTimeout(timeout);
             return command.decode(response) as T;

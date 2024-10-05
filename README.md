@@ -68,7 +68,7 @@ You can also use the web interface to change the server address. This is usually
 
 Notice: this require Web Bluetooth API support. Currently, it's not supported natively in iOS, but it's supported in
 Android and desktop browsers. You can use an iOS app
-like [Bluefy](https://apps.apple.com/us/app/bluefy-web-ble-browser/id1492822055) to connect to the device.
+like [BLE Link](https://apps.apple.com/us/app/ble-link-web-ble-browser/id6468414672) to connect to the device.
 
 Notice that you must have an encrypted connection(tls - https) to the server to use the Web Bluetooth API. You can use
 the server-less version of the UI over https://almogbaku.com/Anova4All/ .
