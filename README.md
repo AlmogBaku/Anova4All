@@ -36,7 +36,7 @@ It uses the Anova Wi-Fi protocol to communicate with the device directly over th
 1. git clone
 2. install dependencies: `go mod tidy`
 3. build the project: `go build ./cmd/anova4all` (to build for raspberry pi without the BLE, use
-   `GOOS=linux GOARCH=arm GOARM=6 go build ./cmd/anova4all --tags no_ble`)
+   `GOOS=linux GOARCH=arm GOARM=6 go build --tags no_ble ./cmd/anova4all`)
 
 ### Building the UI
 
