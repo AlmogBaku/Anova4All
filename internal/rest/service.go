@@ -42,7 +42,12 @@ func NewService(manager wifi.AnovaManager, adminUsername, adminPassword, frontEn
 
 	s.Use(ginzap.Ginzap(logger, time.RFC3339, true))
 	s.Use(ginzap.RecoveryWithZap(logger, true))
-	s.Use(cors.Default())
+
+	corsCfg := cors.DefaultConfig()
+	corsCfg.AllowCredentials = true
+	corsCfg.AllowAllOrigins = true
+	corsCfg.AllowHeaders = append(corsCfg.AllowHeaders, "Authorization")
+	s.Use(cors.New(corsCfg))
 
 	s.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})

@@ -26,7 +26,15 @@ func (c SetTimer) SupportsBLE() bool  { return true }
 func (c SetTimer) SupportsWiFi() bool { return true }
 func (c SetTimer) Encode() string     { return fmt.Sprintf("set timer %d", c.Minutes) }
 func (c SetTimer) Decode(response string) (any, error) {
-	return strings.TrimSpace(response) == "ok", nil
+	if strings.TrimSpace(response) == "ok" {
+		return c.Minutes, nil
+	}
+	// convert to int
+	minutes, err := strconv.Atoi(strings.TrimSpace(response))
+	if err != nil {
+		return 0, err
+	}
+	return minutes, nil
 }
 
 type SetTemperatureUnit struct {

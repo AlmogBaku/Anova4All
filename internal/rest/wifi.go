@@ -120,7 +120,7 @@ func (s *svc) stopCooking(c *gin.Context) {
 func (s *svc) setTimer(c *gin.Context) {
 	device := c.MustGet("device").(wifi.AnovaDevice)
 	var req struct {
-		Minutes int `json:"minutes" binding:"required"`
+		Minutes int `json:"minutes"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

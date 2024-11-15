@@ -24,6 +24,7 @@ const TimerControl: React.FC = () => {
         await device!.setTimer(value);
         if (value === 0) {
             await device!.stopTimer();
+            await device!.clearAlarm();
         } else {
             await device!.startTimer();
         }

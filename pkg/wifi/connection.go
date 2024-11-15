@@ -57,7 +57,9 @@ func NewAnovaConnection(ctx context.Context, conn net.Conn, logger *zap.Logger) 
 	go func() {
 		select {
 		case <-ctx.Done():
-			close(c.responseQueue)
+			if c.responseQueue != nil {
+				close(c.responseQueue)
+			}
 			if err := c.conn.Close(); err != nil {
 				c.logger.With("error", err).Error("Error closing connection")
 			}

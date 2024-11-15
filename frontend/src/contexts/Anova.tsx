@@ -32,7 +32,7 @@ interface DeviceCredentials {
     secretKey: string;
 }
 
-const AnovaContext = createContext<AnovaContextType | undefined>(undefined);
+const AnovaContext = createContext<AnovaContextType>({} as AnovaContextType);
 
 // Provider component
 export const AnovaProvider: React.FC<React.PropsWithChildren> = ({children}) => {
@@ -107,8 +107,8 @@ export const AnovaProvider: React.FC<React.PropsWithChildren> = ({children}) => 
 };
 
 // Hook to use the Anova context
-export const useAnova = () => {
-    const context = useContext(AnovaContext);
+export const useAnova = (): AnovaContextType => {
+    const context: AnovaContextType = useContext<AnovaContextType>(AnovaContext);
     if (context === undefined) {
         throw new Error('useAnova must be used within an AnovaProvider');
     }

@@ -81,7 +81,7 @@ export class BluetoothClient {
         }
     }
 
-    async sendCommand<T>(command: AnovaCommand, timeout: number = 5000): Promise<T> {
+    async sendCommand<T>(command: AnovaCommand, timeout: number = 8000): Promise<T> {
         if (!this.characteristic) {
             throw new Error('Not connected to Anova device');
         }
@@ -97,8 +97,7 @@ export class BluetoothClient {
         try {
             const encoder = new TextEncoder();
             const commandString = `${command.encode()}\r`;
-            await this.characteristic.writeValueWithResponse(encoder.encode(commandString));
-
+            await this.characteristic.writeValueWithoutResponse(encoder.encode(commandString));
             const response = await this.readResponseWithTimeout(timeout);
             return command.decode(response) as T;
         } finally {
@@ -179,7 +178,6 @@ export class BluetoothClient {
         if (!this._idCard) {
             this._idCard = await this.sendCommand(new GetIDCard());
         }
-        this._idCard = await this.sendCommand(new GetIDCard());
         return this._idCard;
     }
 

@@ -45,8 +45,8 @@ To build the UI:
 1. navigate to the `frontend` directory
 2. install the dependencies using `yarn install`
 3. build the UI using `yarn build --outDir ../dist`
-4. To serve the UI using the FastAPI server, configure the environment variable `FRONTEND_DIST_DIR`
-   to `dist/` and run the server.
+4. To serve the UI using the server, configure the environment variable `FRONTEND_DIST_DIR`
+   to `./dist/` and run the server or use the `--frontend-dist-dir` flag (this is the default value).
 
 ## Configuration
 

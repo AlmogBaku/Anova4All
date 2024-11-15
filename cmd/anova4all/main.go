@@ -87,10 +87,9 @@ func loadConfig() *viper.Viper {
 	v.SetDefault("server_host", "")
 	v.SetDefault("anova_server_port", 8080)
 	v.SetDefault("rest_server_port", 8000)
-	v.SetDefault("frontend_dist_dir", "")
+	v.SetDefault("frontend_dist_dir", "./dist")
 	v.SetDefault("admin_username", "")
 	v.SetDefault("admin_password", "")
-	v.SetDefault("frontend_dist_dir", "")
 
 	if err := v.ReadInConfig(); err != nil {
 		var configFileNotFoundError viper.ConfigFileNotFoundError
