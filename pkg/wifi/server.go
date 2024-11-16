@@ -71,7 +71,7 @@ func localIP() (string, error) {
 }
 
 func (s *server) start() error {
-	addr := fmt.Sprintf("%s:%d", s.host, s.port)
+	addr := fmt.Sprintf(":%d", s.port)
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("failed to start server: %w", err)

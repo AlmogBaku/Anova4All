@@ -66,6 +66,16 @@ func main() {
 		}
 	}()
 
+	if cfg.GetInt("rest_server_tls_port") > 0 {
+		if cfg.GetString("server_host") == "" || cfg.GetString("rest_server_tls_cert") == "" || cfg.GetString("rest_server_tls_key") == "" {
+			logger.Sugar().Fatal("Missing required config for TLS server to start")
+		}
+		logger.Sugar().Infof("REST TLS Server started on https://localhost:%d", cfg.GetInt("rest_server_tls_port"))
+		if err := http.ListenAndServeTLS(fmt.Sprintf(":%d", cfg.GetInt("rest_server_tls_port")), cfg.GetString("rest_server_tls_cert"), cfg.GetString("rest_server_tls_key"), service); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Sugar().With("error", err).Fatal("Failed to start server")
+		}
+	}
+
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -90,6 +100,10 @@ func loadConfig() *viper.Viper {
 	v.SetDefault("frontend_dist_dir", "./dist")
 	v.SetDefault("admin_username", "")
 	v.SetDefault("admin_password", "")
+
+	v.SetDefault("rest_server_tls_port", -1)
+	v.SetDefault("rest_server_tls_cert", "")
+	v.SetDefault("rest_server_tls_key", "")
 
 	if err := v.ReadInConfig(); err != nil {
 		var configFileNotFoundError viper.ConfigFileNotFoundError
