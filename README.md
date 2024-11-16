@@ -77,7 +77,23 @@ the server-less version of the UI over https://almogbaku.com/Anova4All/ .
 
 OpenAPI documentation is available at `http://localhost:8000/docs`.
 
-When configuring the `FRONTEND_DIST_DIR` environment variable, the UI will be available at `http://localhost:8000/`.
+### Configuration
+
+The following environment variables can be used to configure the server:
+
+- `ENV`: Set the environment and reflect the logs behavior. Valid options are `DEV` or `PROD` (default: `PROD`).
+- `SERVER_HOST`: The server host (default: empty).
+- `ANOVA_SERVER_PORT`: The Anova server port (default: 8080).
+- `REST_SERVER_PORT`: The REST server port (default: 8000).
+- `FRONTEND_DIST_DIR`: The directory for the frontend distribution (default: `./dist`). If empty, the frontend is not
+  served.
+- `ADMIN_USERNAME`: The admin username (default: empty).
+- `ADMIN_PASSWORD`: The admin password (default: empty).
+
+To use TLS, set the following environment variables:
+- `REST_SERVER_TLS_PORT`: The REST server TLS port (default: `-1` - which means disabled).
+- `REST_SERVER_TLS_CERT`: The REST server TLS certificate file path (default: empty).
+- `REST_SERVER_TLS_KEY`: The REST server TLS key file path (default: empty).
 
 ### Using the deployed UI
 
