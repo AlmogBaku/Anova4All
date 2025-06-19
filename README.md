@@ -71,7 +71,7 @@ Android and desktop browsers. You can use an iOS app
 like [BLE Link](https://apps.apple.com/us/app/ble-link-web-ble-browser/id6468414672) to connect to the device.
 
 Notice that you must have an encrypted connection(tls - https) to the server to use the Web Bluetooth API. You can use
-the server-less version of the UI over https://almogbaku.com/Anova4All/ .
+the server-less version of the UI over https://almogbaku.github.io/Anova4All/ .
 
 ## Usage
 
@@ -97,7 +97,7 @@ To use TLS, set the following environment variables:
 
 ### Using the deployed UI
 
-You can use the deployed UI, and set your own server address in the Settings page: https://AlmogBaku.com/Anova4All/
+You can use the deployed UI, and set your own server address in the Settings page: https://almogbaku.github.io/Anova4All/
 This saves the configuration in the browser's local storage.
 
 This can be quite useful if you deploy the server on a Raspberry Pi or similar device, expose it externally, and use the
