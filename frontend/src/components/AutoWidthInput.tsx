@@ -1,4 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
+import {cn} from "@/lib/utils.ts";
 
 export type AutoWidthInputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> & {
     onChange?: (value: string) => void;
@@ -17,9 +18,9 @@ const AutoWidthInput: React.FC<AutoWidthInputProps> = ({
 
     useEffect(() => {
         if (measureRef.current) {
-            setInputWidth(measureRef.current.offsetWidth);
+            setInputWidth(measureRef.current.offsetWidth + 2);
         }
-    }, [inputValue]);
+    }, [inputValue, className]);
 
     useEffect(() => {
         if (propValue !== undefined) {
@@ -38,16 +39,19 @@ const AutoWidthInput: React.FC<AutoWidthInputProps> = ({
             type={props.type || 'text'}
             value={inputValue}
             onChange={handleInputChange}
-            className={`py-1 px-0 focus:outline-none focus:ring-blue-500 ${className}`}
+            className={cn(
+                "h-auto border-0 bg-transparent p-0 shadow-none focus:outline-none",
+                className
+            )}
             style={{width: `${inputWidth}px`}}
             placeholder={props.placeholder}
             {...props}
         />
         <span
             ref={measureRef}
-            className="absolute invisible whitespace-pre py-1"
+            className={cn("absolute invisible whitespace-pre", className)}
         >
-        {inputValue || props.placeholder || ''}
+        {inputValue || props.placeholder || ' '}
       </span>
     </div>;
 };

@@ -1,4 +1,5 @@
 import React, {useEffect, useState} from 'react';
+import {cn} from "@/lib/utils.ts";
 
 interface DurationInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
     onChange?: (minutes: number) => void;
@@ -60,7 +61,10 @@ const DurationInput: React.FC<DurationInputProps> = ({
         value={displayedValue}
         onChange={handleInputChange}
         inputMode="numeric"
-        className={`py-1 px-0 focus:outline-none focus:ring-blue-500 ${className}`}
+        className={cn(
+            "h-auto border-0 bg-transparent p-0 shadow-none focus:outline-none",
+            className
+        )}
         {...props}
     />;
 }

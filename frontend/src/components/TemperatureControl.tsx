@@ -53,13 +53,15 @@ const TemperatureControl: React.FC = () => {
             title="Set"
             icon={<TbTargetArrow className="text-6xl text-primary"/>}
             error={error}
+            htmlFor="temperature-input"
         >
             <AutoWidthInput
+                id="temperature-input"
                 value={localTemp}
                 className="text-4xl"
                 onChange={handleTempChange}
             />
-            <span className="input-hint">{unitSymbol}</span>
+            <span className="text-4xl text-muted-foreground">{unitSymbol}</span>
         </InputControl>
     );
 };
