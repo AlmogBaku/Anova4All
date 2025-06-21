@@ -17,7 +17,7 @@ const TimerControl: React.FC = () => {
 
     const debouncedSetTimer = useDebounce(async (value: number) => {
         if (value < 0 || value > 6000) {
-            setError("Timer must be between 0 and 6000 seconds");
+            setError("Timer must be between 0 and 6000 minutes");
             return;
         }
         setError(undefined);
@@ -41,8 +41,10 @@ const TimerControl: React.FC = () => {
             title="Timer"
             icon={<TbClock className="text-6xl text-primary"/>}
             error={error}
+            htmlFor="timer-input"
         >
             <DurationInput
+                id="timer-input"
                 value={localTimer}
                 className="text-4xl w-32"
                 onChange={handleTimerChange}

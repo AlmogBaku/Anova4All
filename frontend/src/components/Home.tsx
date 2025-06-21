@@ -4,6 +4,9 @@ import {useAnova} from "../contexts/Anova.tsx";
 import {DeviceStatus, TemperatureUnit} from "../client";
 import TemperatureControl from './TemperatureControl';
 import TimerControl from './TimerControl';
+import {Alert, AlertDescription, AlertTitle} from "@/components/ui/alert.tsx";
+import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card.tsx";
+import {Button} from "@/components/ui/button.tsx";
 
 const Home: React.FC = () => {
     const {device, state: anovaState} = useAnova();
@@ -27,33 +30,42 @@ const Home: React.FC = () => {
         <TbTemperatureFahrenheit/>;
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center justify-center p-4">
             {stateError && (
-                <div className="alert alert-warning mb-2">
-                    <TbAlertCircle className="text-2xl mr-2"/>
-                    {`Device is in ${anovaState?.status} state`}
-                </div>
+                <Alert variant="destructive" className="mb-4 max-w-md w-full">
+                    <TbAlertCircle className="h-4 w-4"/>
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>
+                        {`Device is in ${anovaState?.status} state`}
+                    </AlertDescription>
+                </Alert>
             )}
-            <div className="bg-base-100 shadow-xl rounded-lg p-8 m-4 w-full max-w-md">
-                <div className="flex justify-between items-center mb-6">
-                    <div>
-                        <h2 className="text-2xl font-bold">Current</h2>
-                        <p className="text-4xl">
-                            {anovaState?.current_temperature?.toFixed(1)}
-                            <span className="inline-block">{unitSymbol}</span>
-                        </p>
+            <Card className="w-full max-w-md">
+                <CardHeader>
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <CardTitle>Current</CardTitle>
+                            <p className="text-4xl font-bold">
+                                {anovaState?.current_temperature?.toFixed(1)}
+                                <span className="inline-block ml-1">{unitSymbol}</span>
+                            </p>
+                        </div>
+                        <TbTemperature className="text-6xl text-primary"/>
                     </div>
-                    <TbTemperature className="text-6xl text-primary"/>
-                </div>
-                <TemperatureControl/>
-                <TimerControl/>
-                <button
-                    className={`btn btn-lg w-full ${running ? 'btn-error' : 'btn-success'}`}
-                    onClick={handleStartStop}
-                >
-                    {running ? 'Stop Cooking' : 'Start Cooking'}
-                </button>
-            </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <TemperatureControl/>
+                    <TimerControl/>
+                    <Button
+                        size="lg"
+                        className="w-full"
+                        variant={running ? 'destructive' : 'default'}
+                        onClick={handleStartStop}
+                    >
+                        {running ? 'Stop Cooking' : 'Start Cooking'}
+                    </Button>
+                </CardContent>
+            </Card>
         </div>
     );
 };
