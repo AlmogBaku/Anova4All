@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"anova4all/internal/store"
 	"anova4all/pkg/wifi"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/static"
@@ -20,11 +21,13 @@ type svc struct {
 	manager       wifi.AnovaManager
 	adminUsername string
 	adminPassword string
+	jwtSecret     string
+	store         store.Store
 	sse           *SSEManager
 	logger        *zap.SugaredLogger
 }
 
-func NewService(manager wifi.AnovaManager, adminUsername, adminPassword, frontEndDistDir string, logger *zap.Logger) (Service, error) {
+func NewService(manager wifi.AnovaManager, adminUsername, adminPassword, jwtSecret string, storeInstance store.Store, frontEndDistDir string, logger *zap.Logger) (Service, error) {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
@@ -37,6 +40,8 @@ func NewService(manager wifi.AnovaManager, adminUsername, adminPassword, frontEn
 		sse:           NewSSEManager(manager),
 		adminUsername: adminUsername,
 		adminPassword: adminPassword,
+		jwtSecret:     jwtSecret,
+		store:         storeInstance,
 		logger:        logger.Sugar(),
 	}
 
@@ -57,6 +62,8 @@ func NewService(manager wifi.AnovaManager, adminUsername, adminPassword, frontEn
 	s.setupWifiRoutes()
 	// BLE routes
 	s.setupBLERoutes()
+	// Device management routes (Supabase integration)
+	s.setupDeviceRoutes()
 
 	if frontEndDistDir != "" {
 		s.Use(static.Serve("/", static.LocalFile(frontEndDistDir, true)))

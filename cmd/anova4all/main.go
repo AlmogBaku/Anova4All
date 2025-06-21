@@ -1,6 +1,7 @@
 package main
 
 import (
+	"anova4all/internal/store"
 	"anova4all/pkg/wifi"
 	"context"
 	"errors"
@@ -43,10 +44,29 @@ func main() {
 		logger.Sugar().Infof("Anova Server started on %s:%d", host, port)
 	}
 
+	databaseURL := cfg.GetString("database_url")
+	if databaseURL == "" {
+		logger.Sugar().Fatal("DATABASE_URL environment variable / config not set")
+	}
+	storeInstance, err := store.NewStore(databaseURL, manager)
+	if err != nil {
+		logger.Sugar().With("error", err).Fatal("Failed to create store")
+	}
+	logger.Sugar().Info("Store initialized successfully")
+
+	jwtSecret := cfg.GetString("jwt_secret")
+	if jwtSecret == "" {
+		// Depending on policy, you might want to make this a Fatal error.
+		// For now, a warning, as some functionalities might work without JWT if not protected.
+		logger.Sugar().Warn("JWT_SECRET environment variable / config not set. JWT-protected endpoints will fail.")
+	}
+
 	service, err := rest.NewService(
 		manager,
 		cfg.GetString("admin_username"),
 		cfg.GetString("admin_password"),
+		jwtSecret,     // Pass JWT secret
+		storeInstance, // Pass store instance
 		cfg.GetString("frontend_dist_dir"),
 		logger,
 	)
@@ -104,7 +124,12 @@ func loadConfig() *viper.Viper {
 	v.SetDefault("rest_server_tls_port", -1)
 	v.SetDefault("rest_server_tls_cert", "")
 	v.SetDefault("rest_server_tls_key", "")
+	// Add new config defaults for the database and JWT
+	v.SetDefault("database_url", "") // e.g., "postgresql://user:password@host:port/database"
+	v.SetDefault("jwt_secret", "")   // Your JWT secret for token validation
 
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.SetConfigName("config")
 	if err := v.ReadInConfig(); err != nil {
 		var configFileNotFoundError viper.ConfigFileNotFoundError
 		if !errors.As(err, &configFileNotFoundError) {

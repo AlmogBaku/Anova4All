@@ -14,7 +14,8 @@ func (s *svc) setupWifiRoutes() {
 	s.GET("/api/server_info", s.getServerInfo)
 
 	deviceRoutes := s.Group("/api/devices/:device_id")
-	deviceRoutes.Use(s.getAuthenticatedDevice)
+	// All device-specific routes require a valid JWT and for the user to be paired with the device.
+	deviceRoutes.Use(s.jwtAuthMiddleware(), s.getAuthenticatedDevice)
 	{
 		deviceRoutes.GET("/state", s.getDeviceState)
 		deviceRoutes.POST("/target_temperature", s.setTemperature)

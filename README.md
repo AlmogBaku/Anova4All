@@ -75,8 +75,6 @@ the server-less version of the UI over https://almogbaku.github.io/Anova4All/ .
 
 ## Usage
 
-OpenAPI documentation is available at `http://localhost:8000/docs`.
-
 ### Configuration
 
 The following environment variables can be used to configure the server:
