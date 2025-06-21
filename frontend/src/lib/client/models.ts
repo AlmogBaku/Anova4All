@@ -6,6 +6,14 @@ export interface DeviceInfo {
     device_number: string | null;
 }
 
+export interface DeviceResponse {
+    id: string;
+    id_card: string;
+    name: string | null;
+    online: boolean;
+    created_at: string;
+}
+
 export interface DeviceState {
     status: DeviceStatus;
     current_temperature: number;

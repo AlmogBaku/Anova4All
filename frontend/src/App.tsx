@@ -1,39 +1,38 @@
 // src/App.tsx
-import React from 'react';
 import {BrowserRouter as Router, Route, Routes} from 'react-router-dom';
-import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 
 import Layout from './components/Layout';
-import Welcome from './components/Welcome';
-import Settings from './components/Settings';
 import DeviceSetup from './components/DeviceSetup';
-import {AnovaProvider, useAnova} from "./contexts/Anova.tsx";
+import {AnovaProvider} from "./contexts/Anova.tsx";
 import Home from "./components/Home.tsx";
-
-const queryClient = new QueryClient();
+import ProtectedRoute from "./components/ProtectedRoute.tsx";
+import {AuthProvider} from "./contexts/Auth.tsx";
+import {LoginForm} from './components/login-form.tsx';
+import {ForgotPasswordForm} from "@/components/forgot-password-form.tsx";
+import {UpdatePasswordForm} from "@/components/update-password-form.tsx";
+import {SignUpForm} from "@/components/sign-up-form.tsx";
 
 function App() {
     return (
-        <QueryClientProvider client={queryClient}>
-            <AnovaProvider>
-                <Router basename={import.meta.env.VITE_BASE_ROUTE}>
+        <Router basename={import.meta.env.VITE_BASE_ROUTE}>
+            <AuthProvider>
+                <AnovaProvider>
                     <Layout>
                         <Routes>
-                            <Route path="/" element={<WelcomeOrHome/>}/>
-                            <Route path="/setup" element={<DeviceSetup/>}/>
-                            <Route path="/settings" element={<Settings/>}/>
+                            <Route path="/login" element={<LoginForm/>}/>
+                            <Route path="/sign-up" element={<SignUpForm/>}/>
+                            <Route path="/forgot-password" element={<ForgotPasswordForm/>}/>
+                            <Route path="/update-password'" element={<UpdatePasswordForm/>}/>
+                            <Route element={<ProtectedRoute/>}>
+                                <Route path="/" element={<Home/>}/>
+                                <Route path="/setup" element={<DeviceSetup/>}/>
+                            </Route>
                         </Routes>
                     </Layout>
-                </Router>
-            </AnovaProvider>
-        </QueryClientProvider>
+                </AnovaProvider>
+            </AuthProvider>
+        </Router>
     );
-}
-
-const WelcomeOrHome: React.FC = () => {
-    const {isConfigured} = useAnova();
-
-    return isConfigured ? <Home/> : <Welcome/>;
 }
 
 export default App;

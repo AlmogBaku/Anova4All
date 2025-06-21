@@ -1,6 +1,8 @@
 import React from 'react';
 import {useNavigate} from 'react-router-dom';
-import {TbCoffee} from 'react-icons/tb';
+import {TbChefHat} from 'react-icons/tb';
+import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card.tsx";
+import {Button} from "@/components/ui/button.tsx";
 
 const Welcome: React.FC = () => {
     const navigate = useNavigate();
@@ -10,16 +12,22 @@ const Welcome: React.FC = () => {
     };
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen">
-            <TbCoffee className="text-6xl text-primary mb-4"/>
-            <h1 className="text-4xl font-bold mb-4 text-center">Welcome to Anova4All</h1>
-            <p className="text-xl mb-8">Your personal sous vide assistant</p>
-            <button
-                className="btn btn-primary btn-lg"
-                onClick={handleSetupDevice}
-            >
-                Set Up New Device
-            </button>
+        <div className="flex flex-col items-center justify-center min-h-screen p-4">
+            <Card className="w-full max-w-lg text-center">
+                <CardHeader>
+                    <div className="flex justify-center mb-4">
+                        <TbChefHat className="text-6xl text-primary"/>
+                    </div>
+                    <CardTitle className="text-4xl font-bold">Welcome to Anova4All</CardTitle>
+                    <CardDescription className="text-xl">Your personal sous vide assistant</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <p className="mb-6">It looks like you don't have any devices paired yet. Let's add one!</p>
+                    <Button size="lg" onClick={handleSetupDevice}>
+                        Add Your First Device
+                    </Button>
+                </CardContent>
+            </Card>
         </div>
     );
 };

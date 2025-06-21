@@ -1,13 +1,13 @@
 import React, {useEffect, useState} from 'react';
 import {TbTargetArrow, TbTemperatureCelsius, TbTemperatureFahrenheit} from 'react-icons/tb';
-import {TemperatureUnit} from "../client";
+import {TemperatureUnit} from "@/lib/client";
 import {InputControl} from './InputControl';
 import AutoWidthInput from "./AutoWidthInput.tsx";
 import {useDebounce} from "../hooks/useDebounce.ts";
 import {useAnova} from "../contexts/Anova.tsx";
 
 const TemperatureControl: React.FC = () => {
-    const {device, state: anovaState} = useAnova();
+    const {selectedDevice, state: anovaState} = useAnova();
     const unit = anovaState?.unit;
 
     const [localTemp, setLocalTemp] = useState<string>("");
@@ -23,7 +23,7 @@ const TemperatureControl: React.FC = () => {
             setError(error);
             return;
         }
-        await device!.setTargetTemperature(value);
+        await selectedDevice!.setTargetTemperature(value);
     }, 500);
 
     const handleTempChange = (value: string) => {

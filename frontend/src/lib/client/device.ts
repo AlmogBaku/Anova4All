@@ -12,7 +12,7 @@ export class Device {
     private _onStateChange: (state: State) => void = () => {
     }
 
-    constructor(public readonly deviceId: string, private readonly secretKey: string) {
+    constructor(public readonly deviceId: string, private readonly token: string) {
         this.getDeviceState().then(() => {
         });
         this.subscribeToEvents().then(() => {
@@ -50,7 +50,7 @@ export class Device {
     private async subscribeToEvents(): Promise<void> {
         const eventStream = Client.SubscribeToSSE(
             this.deviceId,
-            this.secretKey,
+            this.token,
         );
         for await (const event of eventStream) {
             switch (event.event_type) {
@@ -83,68 +83,68 @@ export class Device {
 
     // implement methods to interact with the device
     public async getDeviceState() {
-        const resp = await Client.getDeviceState(this.deviceId, this.secretKey);
+        const resp = await Client.getDeviceState(this.deviceId, this.token);
         this.state = {...this._state, ...resp};
         return resp;
     }
 
     public async setTargetTemperature(temperature: number) {
-        const resp = await Client.setTargetTemperature(this.deviceId, this.secretKey, temperature);
+        const resp = await Client.setTargetTemperature(this.deviceId, this.token, temperature);
         this.state = {...this._state, target_temperature: resp.changed_to};
         return resp;
     }
 
     public async setTimer(minutes: number) {
-        const resp = await Client.setTimer(this.deviceId, this.secretKey, minutes);
+        const resp = await Client.setTimer(this.deviceId, this.token, minutes);
         this.state = {...this._state, timer_value: resp.minutes};
     }
 
     public async setUnit(unit: 'c' | 'f') {
         const tu = unit === 'c' ? TemperatureUnit.Celsius : TemperatureUnit.Fahrenheit;
-        const resp = await Client.setUnit(this.deviceId, this.secretKey, tu);
+        const resp = await Client.setUnit(this.deviceId, this.token, tu);
         this.state = {...this._state, unit: tu};
         return resp;
     }
 
     public async getTemperature(fromState: boolean = false) {
-        const resp = await Client.getTemperature(this.deviceId, this.secretKey, fromState);
+        const resp = await Client.getTemperature(this.deviceId, this.token, fromState);
         this.state = {...this._state, current_temperature: resp.temperature};
         return resp;
     }
 
     public async getTargetTemperature(fromState: boolean = false) {
-        return await Client.getTargetTemperature(this.deviceId, this.secretKey, fromState);
+        return await Client.getTargetTemperature(this.deviceId, this.token, fromState);
     }
 
     public async startCooking() {
-        const resp = await Client.startCooking(this.deviceId, this.secretKey);
+        const resp = await Client.startCooking(this.deviceId, this.token);
         this.state = {...this._state, status: DeviceStatus.Running};
         return resp
     }
 
     public async stopCooking() {
-        const resp = await Client.stopCooking(this.deviceId, this.secretKey);
+        const resp = await Client.stopCooking(this.deviceId, this.token);
         this.state = {...this._state, status: DeviceStatus.Stopped};
         return resp
     }
 
     public async startTimer() {
-        const resp = await Client.startTimer(this.deviceId, this.secretKey);
+        const resp = await Client.startTimer(this.deviceId, this.token);
         this.state = {...this._state, timer_running: true};
         return resp;
     }
 
     public async stopTimer() {
-        const resp = await Client.stopTimer(this.deviceId, this.secretKey);
-        this.state = {...this._state, timer_running: true};
+        const resp = await Client.stopTimer(this.deviceId, this.token);
+        this.state = {...this._state, timer_running: false};
         return resp;
     }
 
     public async clearAlarm() {
-        return await Client.clearAlarm(this.deviceId, this.secretKey);
+        return await Client.clearAlarm(this.deviceId, this.token);
     }
 
     public async getSpeakerStatus() {
-        return await Client.getSpeakerStatus(this.deviceId, this.secretKey);
+        return await Client.getSpeakerStatus(this.deviceId, this.token);
     }
 }

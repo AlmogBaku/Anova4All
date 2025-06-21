@@ -1,114 +1,142 @@
-import React, {
-    createContext,
-    Dispatch,
-    SetStateAction,
-    useCallback,
-    useContext,
-    useEffect,
-    useMemo,
-    useState
-} from 'react';
-import {Client, Device, ServerInfo} from '../client';
-
-import {State} from "../client/device.ts";
+import React, {createContext, useCallback, useContext, useEffect, useMemo, useState} from 'react';
+import {Client, Device, ServerInfo, DeviceResponse} from '@/lib/client';
+import {State} from "@/lib/client/device.ts";
+import {useAuth} from "./Auth.tsx";
 import {useLocalStorage} from "../hooks/LocalStorage.ts";
-
 
 // Context for the Anova device
 interface AnovaContextType {
-    device: Device | null;
-    deviceCreds: DeviceCredentials;
-    configureDevice: Dispatch<SetStateAction<DeviceCredentials>>
-    remoteServer: ServerInfo;
-    configureRemoteServer: Dispatch<SetStateAction<ServerInfo>>
+    devices: DeviceResponse[];
+    selectedDevice: Device | null;
+    selectDevice: (deviceId: string) => void;
+    isLoading: boolean;
     state: State | null;
-    apiURL: string;
-    setApiURL: Dispatch<SetStateAction<string>>;
-    isConfigured: boolean;
-}
-
-interface DeviceCredentials {
-    id: string;
-    secretKey: string;
+    remoteServer: ServerInfo;
+    refreshDevices: () => Promise<void>;
+    unpairDevice: (deviceId: string) => Promise<void>;
 }
 
 const AnovaContext = createContext<AnovaContextType>({} as AnovaContextType);
 
 // Provider component
 export const AnovaProvider: React.FC<React.PropsWithChildren> = ({children}) => {
-    const [deviceCreds, setDeviceCreds] = useLocalStorage<DeviceCredentials>("AnovaDevice", {id: "", secretKey: ""});
-    const [device, setDevice] = useState<Device | null>(null);
-    const [apiURL, setApiURL] = useLocalStorage<string>("API_URL", "/api");
+    const {session} = useAuth();
+    const [devices, setDevices] = useState<DeviceResponse[]>([]);
+    const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [state, setState] = useState<State | null>(null);
     const [remoteServer, setRemoteServer] = useLocalStorage<ServerInfo>("RemoteServer", {
         host: "",
         port: 0
     });
 
     useEffect(() => {
-        if (!apiURL) {
-            return
+        if (selectedDevice) {
+            localStorage.setItem('AnovaSelectedDevice', selectedDevice.deviceId);
         }
-        Client.setBaseUrl(apiURL);
-    }, [apiURL]);
+    }, [selectedDevice]);
+
+    const refreshDevices = useCallback((): Promise<void> => {
+        return new Promise((resolve, reject) => {
+            if (!session?.access_token) {
+                setDevices([]);
+                setIsLoading(false);
+                resolve();
+                return;
+            }
+            setIsLoading(true);
+            Client.getUserDevices(session.access_token)
+                .then(userDevices => {
+                    setDevices(userDevices);
+                    setSelectedDevice(currentDevice => {
+                        const currentSelectedId = currentDevice?.deviceId;
+                        const newSelectionExists = userDevices.some(d => d.id === currentSelectedId);
+
+                        if (userDevices.length > 0) {
+                            if (!newSelectionExists) {
+                                const storedId = localStorage.getItem('AnovaSelectedDevice');
+                                const deviceToSelect = userDevices.find(d => d.id === storedId) || userDevices[0];
+                                currentDevice?.stop();
+                                return new Device(deviceToSelect.id, session!.access_token);
+                            }
+                            return currentDevice; // No change
+                        }
+                        // No devices left
+                        currentDevice?.stop();
+                        return null;
+                    });
+                    resolve();
+                })
+                .catch(err => {
+                    console.error(err);
+                    reject(err);
+                })
+                .finally(() => setIsLoading(false));
+        });
+    }, [session]);
+
+    const unpairDevice = useCallback(async (deviceId: string) => {
+        if (!session?.access_token) {
+            throw new Error("Not authenticated");
+        }
+        await Client.unpairDevice(session.access_token, deviceId);
+        await refreshDevices();
+    }, [session, refreshDevices]);
 
     useEffect(() => {
-
-        if (!remoteServer.host || remoteServer.port === 0 || !remoteServer.port) {
-            Client.getServerInfo().then((serverInfo) => {
-                setRemoteServer(serverInfo);
-            })
+        if (!remoteServer.host || !remoteServer.port) {
+            Client.getServerInfo().then(setRemoteServer).catch(console.error);
         }
     }, [remoteServer, setRemoteServer]);
 
-
-    const [state, setState] = useState<State | null>(device?.state || null);
+    useEffect(() => {
+        Client.setBaseUrl("/api");
+        refreshDevices();
+    }, [session]);
 
     useEffect(() => {
-        if (!device) return;
-        device.onStateChange((newState) => {
+        if (!selectedDevice) {
+            setState(null);
+            return;
+        }
+        selectedDevice.onStateChange(newState => {
             setState(newState);
         });
+        setState(selectedDevice.state);
 
-    }, [device, setState]);
+        // No need to return stop, it's handled when the device is changed
 
-    useEffect(() => {
-        if (!deviceCreds) {
-            return
-        }
-        if (deviceCreds.id === "" || deviceCreds.secretKey === "") {
-            return
-        }
-        const dev = new Device(deviceCreds.id, deviceCreds.secretKey);
-        setDevice((prev) => {
-            if (prev) {
-                prev.stop();
-            }
-            return dev
-        });
+    }, [selectedDevice]);
 
-        return () => {
-            dev.stop();
+    const selectDevice = useCallback((deviceId: string) => {
+        if (session?.access_token) {
+            setSelectedDevice(currentDevice => {
+                if (currentDevice?.deviceId === deviceId) {
+                    return currentDevice;
+                }
+                currentDevice?.stop();
+                return new Device(deviceId, session.access_token);
+            });
         }
-    }, [deviceCreds, setDevice]);
+    }, [session]);
 
     const value = useMemo(() => ({
-        device,
-        deviceCreds: deviceCreds,
-        configureDevice: setDeviceCreds,
-        isConfigured: !!device,
+        devices,
+        selectedDevice,
+        selectDevice,
+        isLoading,
+        state,
         remoteServer,
-        apiURL,
-        setApiURL,
-        configureRemoteServer: setRemoteServer,
-        state
-    }), [apiURL, setApiURL, state, device, deviceCreds, setDeviceCreds, remoteServer, setRemoteServer]);
+        refreshDevices,
+        unpairDevice
+    }), [devices, selectedDevice, selectDevice, isLoading, state, remoteServer, refreshDevices, unpairDevice]);
 
     return <AnovaContext.Provider value={value}>{children}</AnovaContext.Provider>;
 };
 
 // Hook to use the Anova context
 export const useAnova = (): AnovaContextType => {
-    const context: AnovaContextType = useContext<AnovaContextType>(AnovaContext);
+    const context = useContext(AnovaContext);
     if (context === undefined) {
         throw new Error('useAnova must be used within an AnovaProvider');
     }
@@ -118,123 +146,69 @@ export const useAnova = (): AnovaContextType => {
 
 // Hook to control cooking
 export const useCookingControl = () => {
-    const {device} = useAnova();
+    const {selectedDevice} = useAnova();
 
     const startCooking = useCallback(async () => {
-        if (device) {
-            await device.startCooking();
+        if (selectedDevice) {
+            await selectedDevice.startCooking();
         }
-    }, [device]);
+    }, [selectedDevice]);
 
     const stopCooking = useCallback(async () => {
-        if (device) {
-            await device.stopCooking();
+        if (selectedDevice) {
+            await selectedDevice.stopCooking();
         }
-    }, [device]);
+    }, [selectedDevice]);
 
     return {startCooking, stopCooking};
 };
 
 // Hook to control temperature
 export const useTemperatureControl = () => {
-    const {device} = useAnova();
+    const {selectedDevice} = useAnova();
 
     const setTargetTemperature = useCallback(async (temperature: number) => {
-        if (device) {
-            await device.setTargetTemperature(temperature);
+        if (selectedDevice) {
+            await selectedDevice.setTargetTemperature(temperature);
         }
-    }, [device]);
+    }, [selectedDevice]);
 
     const setUnit = useCallback(async (unit: 'c' | 'f') => {
-        if (device) {
-            await device.setUnit(unit);
+        if (selectedDevice) {
+            await selectedDevice.setUnit(unit);
         }
-    }, [device]);
+    }, [selectedDevice]);
 
     return {setTargetTemperature, setUnit};
 };
 
 // Hook to control timer
 export const useTimerControl = () => {
-    const {device} = useAnova();
+    const {selectedDevice} = useAnova();
 
     const setTimer = useCallback(async (minutes: number) => {
-        if (device) {
-            await device.setTimer(minutes);
+        if (selectedDevice) {
+            await selectedDevice.setTimer(minutes);
         }
-    }, [device]);
+    }, [selectedDevice]);
 
     const startTimer = useCallback(async () => {
-        if (device) {
-            await device.startTimer();
+        if (selectedDevice) {
+            await selectedDevice.startTimer();
         }
-    }, [device]);
+    }, [selectedDevice]);
 
     const stopTimer = useCallback(async () => {
-        if (device) {
-            await device.stopTimer();
+        if (selectedDevice) {
+            await selectedDevice.stopTimer();
         }
-    }, [device]);
+    }, [selectedDevice]);
 
     const clearAlarm = useCallback(async () => {
-        if (device) {
-            await device.clearAlarm();
+        if (selectedDevice) {
+            await selectedDevice.clearAlarm();
         }
-    }, [device]);
+    }, [selectedDevice]);
 
     return {setTimer, startTimer, stopTimer, clearAlarm};
 };
-
-
-// // Example usage:
-// const ExampleComponent: React.FC = () => {
-//   const { device, configureDevice, isConfigured } = useAnova();
-//   const state = useAnovaState();
-//   const { startCooking, stopCooking } = useCookingControl();
-//   const { setTargetTemperature, setUnit } = useTemperatureControl();
-//   const { setTimer, startTimer, stopTimer } = useTimerControl();
-//   const availableDevices = useAvailableDevices();
-//
-//   if (!isConfigured) {
-//     return (
-//       <div>
-//         <h2>Available Devices:</h2>
-//         <ul>
-//           {availableDevices.map((device) => (
-//             <li key={device.id}>
-//               {device.id} - {device.version}
-//               <button onClick={() => configureDevice(device.id, 'your-secret-key')}>
-//                 Configure
-//               </button>
-//             </li>
-//           ))}
-//         </ul>
-//       </div>
-//     );
-//   }
-//
-//   return (
-//     <div>
-//       <h2>Device State:</h2>
-//       <pre>{JSON.stringify(state, null, 2)}</pre>
-//       <button onClick={startCooking}>Start Cooking</button>
-//       <button onClick={stopCooking}>Stop Cooking</button>
-//       <input
-//         type="number"
-//         onChange={(e) => setTargetTemperature(Number(e.target.value))}
-//         placeholder="Set target temperature"
-//       />
-//       <select onChange={(e) => setUnit(e.target.value as 'c' | 'f')}>
-//         <option value="c">Celsius</option>
-//         <option value="f">Fahrenheit</option>
-//       </select>
-//       <input
-//         type="number"
-//         onChange={(e) => setTimer(Number(e.target.value))}
-//         placeholder="Set timer (minutes)"
-//       />
-//       <button onClick={startTimer}>Start Timer</button>
-//       <button onClick={stopTimer}>Stop Timer</button>
-//     </div>
-//   );
-// };

@@ -1,8 +1,9 @@
 import React, {useState} from 'react';
-import {TbMoon, TbSettings, TbSun, TbSunMoon} from "react-icons/tb";
+import {TbLogout, TbMoon, TbSun, TbSunMoon} from "react-icons/tb";
 import {Link} from "react-router-dom";
 import {useTheme} from "@/contexts/Theme";
 import {Button} from "@/components/ui/button.tsx";
+import {useAuth} from "@/contexts/Auth.tsx";
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -13,6 +14,7 @@ const Layout: React.FC<LayoutProps> = ({children}) => {
     const [lastMajorTheme, setLastMajorTheme] = useState<"dark" | "light">(
         theme === 'light' ? 'light' : 'dark'
     );
+    const {user, signOut} = useAuth();
 
     const handleThemeChange = () => {
         if (theme === 'system') {
@@ -32,11 +34,11 @@ const Layout: React.FC<LayoutProps> = ({children}) => {
                 Anova 4 All
             </Link>
             <nav className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" asChild>
-                    <Link to="/settings">
-                        <TbSettings className="h-7 w-7"/>
-                    </Link>
-                </Button>
+                {user && (
+                    <Button variant="ghost" size="icon" asChild onClick={signOut}>
+                        <TbLogout className="h-7 w-7"/>
+                    </Button>
+                )}
 
                 <Button variant="ghost" size="icon" onClick={handleThemeChange}>
                     {theme === 'light' && <TbSun className="h-7 w-7"/>}

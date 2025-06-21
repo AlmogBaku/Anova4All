@@ -4,10 +4,10 @@ import DurationInput from "./DurationInput.tsx";
 import {InputControl} from './InputControl';
 import {useDebounce} from "../hooks/useDebounce.ts";
 import {useAnova} from "../contexts/Anova.tsx";
-import {DeviceStatus} from "../client";
+import {DeviceStatus} from "@/lib/client";
 
 const TimerControl: React.FC = () => {
-    const {device, state: state} = useAnova();
+    const {selectedDevice, state: state} = useAnova();
     const [localTimer, setLocalTimer] = useState<number>(0);
     const [error, setError] = useState<string | undefined>(undefined);
 
@@ -21,12 +21,12 @@ const TimerControl: React.FC = () => {
             return;
         }
         setError(undefined);
-        await device!.setTimer(value);
+        await selectedDevice!.setTimer(value);
         if (value === 0) {
-            await device!.stopTimer();
-            await device!.clearAlarm();
+            await selectedDevice!.stopTimer();
+            await selectedDevice!.clearAlarm();
         } else {
-            await device!.startTimer();
+            await selectedDevice!.startTimer();
         }
     }, 500);
 

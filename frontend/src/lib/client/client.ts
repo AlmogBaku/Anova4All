@@ -1,7 +1,7 @@
 import {
     BLEDevice,
     BLEDeviceInfo,
-    DeviceInfo,
+    DeviceResponse,
     DeviceState,
     NewSecretResponse,
     ServerInfo,
@@ -29,7 +29,7 @@ export class Client {
     private static async request<T>(
         endpoint: string,
         method: string = 'GET',
-        options: { headers?: Record<string, string>, secretKey?: string, body?: unknown } = {},
+        options: { headers?: Record<string, string>, token?: string, body?: unknown } = {},
     ): Promise<T> {
         // remove last / if present
         const baseUrl = this.baseUrl.endsWith('/') ? this.baseUrl.slice(0, -1) : this.baseUrl;
@@ -39,8 +39,8 @@ export class Client {
         const headers: HeadersInit = options.headers || {
             'Content-Type': 'application/json',
         };
-        if (options?.secretKey) {
-            headers['Authorization'] = `Bearer ${options.secretKey}`;
+        if (options?.token) {
+            headers['Authorization'] = `Bearer ${options.token}`;
         }
 
         const response = await fetch(url, {
@@ -61,107 +61,99 @@ export class Client {
     }
 
     // Device Management
-    public static async getDevices(): Promise<DeviceInfo[]> {
-        return this.request<DeviceInfo[]>('/devices');
+    public static async getUserDevices(token: string): Promise<DeviceResponse[]> {
+        return this.request<DeviceResponse[]>('/devices', 'GET', {token});
     }
 
-    public static async getDeviceState(deviceId: string, secretKey: string): Promise<DeviceState> {
-        return this.request<DeviceState>(`/devices/${deviceId}/state`, 'GET', {secretKey});
+    public static async pairDevice(token: string, idCard: string, secretKey: string): Promise<DeviceResponse> {
+        return this.request<DeviceResponse>(
+            `/devices/pair`,
+            'POST',
+            {body: {id_card: idCard, secret_key: secretKey}, token}
+        );
     }
 
+    public static async unpairDevice(token: string, deviceId: string): Promise<void> {
+        return this.request<void>(`/devices/${deviceId}/unpair`, 'DELETE', {token});
+    }
 
-    public static async setTargetTemperature(deviceId: string, secretKey: string, temperature: number): Promise<{
-        changed_to: number
-    }> {
+    public static async getDeviceState(deviceId: string, token: string): Promise<DeviceState> {
+        return this.request<DeviceState>(`/devices/${deviceId}/state`, 'GET', {token});
+    }
+
+    public static async setTargetTemperature(deviceId: string, token: string, temperature: number): Promise<{ changed_to: number }> {
         return this.request<{ changed_to: number }>(
             `/devices/${deviceId}/target_temperature`,
             'POST',
-            {body: {temperature}, secretKey}
+            {body: {temperature}, token}
         );
     }
 
-    public static async setTimer(deviceId: string, secretKey: string, minutes: number): Promise<{
-        message: string;
-        minutes: number
-    }> {
+    public static async setTimer(deviceId: string, token: string, minutes: number): Promise<{ message: string; minutes: number }> {
         return this.request<{ message: string; minutes: number }>(
             `/devices/${deviceId}/timer`,
             'POST',
-            {body: {minutes}, secretKey}
+            {body: {minutes}, token}
         );
     }
 
-    public static async setUnit(deviceId: string, secretKey: string, unit: TemperatureUnit): Promise<string> {
+    public static async setUnit(deviceId: string, token: string, unit: TemperatureUnit): Promise<string> {
         return this.request<string>(
             `/devices/${deviceId}/unit`,
             'POST',
-            {body: {unit}, secretKey}
+            {body: {unit}, token}
         );
     }
 
-    public static async getTemperature(deviceId: string, secretKey: string, fromState: boolean = false): Promise<{
-        temperature: number
-    }> {
+    public static async getTemperature(deviceId: string, token: string, fromState: boolean = false): Promise<{ temperature: number }> {
         return this.request<{ temperature: number }>(`/devices/${deviceId}/temperature?from_state=${fromState}`,
-            'GET', {secretKey});
+            'GET', {token});
     }
 
-    public static async getTargetTemperature(deviceId: string, secretKey: string, fromState: boolean = false): Promise<{
-        temperature: number
-    }> {
-        return this.request<{
-            temperature: number
-        }>(`/devices/${deviceId}/target_temperature?from_state=${fromState}`
-            , 'GET', {secretKey});
+    public static async getTargetTemperature(deviceId: string, token: string, fromState: boolean = false): Promise<{ temperature: number }> {
+        return this.request<{ temperature: number }>(
+            `/devices/${deviceId}/target_temperature?from_state=${fromState}`
+            , 'GET', {token});
     }
 
     // Cooking Control
-    public static async startCooking(deviceId: string, secretKey: string): Promise<string> {
-        return this.request<string>(`/devices/${deviceId}/start`, 'POST', {secretKey});
+    public static async startCooking(deviceId: string, token: string): Promise<string> {
+        return this.request<string>(`/devices/${deviceId}/start`, 'POST', {token});
     }
 
-    public static async stopCooking(deviceId: string, secretKey: string): Promise<string> {
-        return this.request<string>(`/devices/${deviceId}/stop`, 'POST', {secretKey});
+    public static async stopCooking(deviceId: string, token: string): Promise<string> {
+        return this.request<string>(`/devices/${deviceId}/stop`, 'POST', {token});
     }
 
-    public static async getTimer(deviceId: string, secretKey: string, fromState: boolean = false): Promise<{
-        timer: number
-    }> {
+    public static async getTimer(deviceId: string, token: string, fromState: boolean = false): Promise<{ timer: number }> {
         return this.request<{ timer: number }>(`/devices/${deviceId}/timer?from_state=${fromState}`,
-            'GET', {secretKey});
+            'GET', {token});
     }
 
-    public static async startTimer(deviceId: string, secretKey: string): Promise<string> {
-        return this.request<string>(`/devices/${deviceId}/timer/start`, 'POST', {secretKey});
+    public static async startTimer(deviceId: string, token: string): Promise<string> {
+        return this.request<string>(`/devices/${deviceId}/timer/start`, 'POST', {token});
     }
 
-    public static async stopTimer(deviceId: string, secretKey: string): Promise<string> {
-        return this.request<string>(`/devices/${deviceId}/timer/stop`, 'POST', {secretKey});
+    public static async stopTimer(deviceId: string, token: string): Promise<string> {
+        return this.request<string>(`/devices/${deviceId}/timer/stop`, 'POST', {token});
     }
 
     // Alarm Control
-    public static async clearAlarm(deviceId: string, secretKey: string): Promise<string> {
-        return this.request<string>(`/devices/${deviceId}/alarm/clear`, 'POST', {secretKey});
+    public static async clearAlarm(deviceId: string, token: string): Promise<string> {
+        return this.request<string>(`/devices/${deviceId}/alarm/clear`, 'POST', {token});
     }
 
     // Unit Control
-    public static async getUnit(deviceId: string, secretKey: string, fromState: boolean = false): Promise<{
-        unit: TemperatureUnit
-    }> {
-        return this.request<{
-            unit: TemperatureUnit
-        }>(`/devices/${deviceId}/unit?from_state=${fromState}`, 'GET', {secretKey});
+    public static async getUnit(deviceId: string, token: string, fromState: boolean = false): Promise<{ unit: TemperatureUnit }> {
+        return this.request<{ unit: TemperatureUnit }>(
+            `/devices/${deviceId}/unit?from_state=${fromState}`, 'GET', {token});
     }
 
     // Speaker Status
-    public static async getSpeakerStatus(deviceId: string, secretKey: string, fromState: boolean = false): Promise<{
-        speaker_status: boolean
-    }> {
-        return this.request<{
-            speaker_status: boolean
-        }>(`/devices/${deviceId}/speaker_status?from_state=${fromState}`, 'GET', {secretKey});
+    public static async getSpeakerStatus(deviceId: string, token: string, fromState: boolean = false): Promise<{ speaker_status: boolean }> {
+        return this.request<{ speaker_status: boolean }>(
+            `/devices/${deviceId}/speaker_status?from_state=${fromState}`, 'GET', {token});
     }
-
 
     // BLE
 
@@ -195,21 +187,21 @@ export class Client {
     /**
      * Subscribe to SSE events for a device
      * @param device_id
-     * @param secretKey
+     * @param token
      * @returns AsyncGenerator<SSEEvent>
      *
      * @example
      * ```typescript
-     * for await (const event of Client.SubscribeToSSE(deviceId, secretKey)) {
+     * for await (const event of Client.SubscribeToSSE(deviceId, token)) {
      *    console.log('Received SSE event:', event);
      * }
      * ```
      */
-    public static SubscribeToSSE(device_id: string, secretKey: string): AsyncGenerator<SSEEvent> {
+    public static SubscribeToSSE(device_id: string, token: string): AsyncGenerator<SSEEvent> {
         const baseUrl = this.baseUrl.endsWith('/') ? this.baseUrl.slice(0, -1) : this.baseUrl;
         const url = `${baseUrl}/devices/${device_id}/sse`;
         const headers: HeadersInit = {
-            'Authorization': `Bearer ${secretKey}`,
+            'Authorization': `Bearer ${token}`,
             'Accept': 'text/event-stream'
         };
 

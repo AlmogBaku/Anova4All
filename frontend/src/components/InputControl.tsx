@@ -12,12 +12,12 @@ interface InputControlProps {
 }
 
 export const InputControl: React.FC<InputControlProps> = ({
-                                                               title,
-                                                               icon,
-                                                               children,
-                                                               error,
-                                                               htmlFor
-                                                           }) => {
+                                                              title,
+                                                              icon,
+                                                              children,
+                                                              error,
+                                                              htmlFor
+                                                          }) => {
     return (
         <div className="space-y-2">
             <div className="flex justify-between items-center">
