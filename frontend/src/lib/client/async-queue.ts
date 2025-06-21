@@ -6,6 +6,11 @@
  */
 export interface AsyncQueue<T> {
     /**
+     * Returns true if the queue is closed.
+     */
+    closed: boolean;
+
+    /**
      * Pushes an item to the queue.
      * @param item
      */
@@ -22,11 +27,6 @@ export interface AsyncQueue<T> {
      * This will cause the async iterator returned by consume() to stop iterating.
      */
     close(): void;
-
-    /**
-     * Returns true if the queue is closed.
-     */
-    closed: boolean;
 }
 
 type Resolver<T> = (value: T) => void;

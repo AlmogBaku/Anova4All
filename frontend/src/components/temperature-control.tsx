@@ -1,10 +1,10 @@
 import React, {useEffect, useState} from 'react';
 import {TbTargetArrow, TbTemperatureCelsius, TbTemperatureFahrenheit} from 'react-icons/tb';
 import {TemperatureUnit} from "@/lib/client";
-import {InputControl} from './InputControl';
-import AutoWidthInput from "./AutoWidthInput.tsx";
-import {useDebounce} from "../hooks/useDebounce.ts";
-import {useAnova} from "../contexts/Anova.tsx";
+import {InputControl} from "@/components/input-control.tsx";
+import AutoWidthInput from "@/components/auto-width-input.tsx";
+import {useDebounce} from "@/hooks/use-debounce.ts";
+import {useAnova} from "@/contexts/anova.tsx";
 
 const TemperatureControl: React.FC = () => {
     const {selectedDevice, state: anovaState} = useAnova();

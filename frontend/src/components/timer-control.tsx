@@ -1,19 +1,19 @@
 import React, {useEffect, useState} from 'react';
 import {TbClock} from 'react-icons/tb';
-import DurationInput from "./DurationInput.tsx";
-import {InputControl} from './InputControl';
-import {useDebounce} from "../hooks/useDebounce.ts";
-import {useAnova} from "../contexts/Anova.tsx";
+import DurationInput from "@/components/duration-input.tsx";
+import {InputControl} from "@/components/input-control.tsx";
+import {useDebounce} from "@/hooks/use-debounce.ts";
+import {useAnova} from "@/contexts/anova.tsx";
 import {DeviceStatus} from "@/lib/client";
 
 const TimerControl: React.FC = () => {
-    const {selectedDevice, state: state} = useAnova();
+    const {selectedDevice, state: anovaState} = useAnova();
     const [localTimer, setLocalTimer] = useState<number>(0);
     const [error, setError] = useState<string | undefined>(undefined);
 
     useEffect(() => {
-        setLocalTimer(state?.timer_value || 0);
-    }, [state?.timer_value]);
+        setLocalTimer(anovaState?.timer_value || 0);
+    }, [anovaState?.timer_value]);
 
     const debouncedSetTimer = useDebounce(async (value: number) => {
         if (value < 0 || value > 6000) {
@@ -48,7 +48,7 @@ const TimerControl: React.FC = () => {
                 value={localTimer}
                 className="text-4xl w-32"
                 onChange={handleTimerChange}
-                readOnly={state?.status !== DeviceStatus.Running}
+                readOnly={anovaState?.status !== DeviceStatus.Running}
             />
         </InputControl>
     );

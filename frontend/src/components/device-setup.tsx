@@ -1,13 +1,13 @@
 import React, {useState} from 'react';
 import {useNavigate} from "react-router-dom";
-import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card.tsx";
-import {Alert, AlertDescription, AlertTitle} from "@/components/ui/alert.tsx";
-import {Button} from "@/components/ui/button.tsx";
-import {Label} from "@/components/ui/label.tsx";
-import {Input} from "@/components/ui/input.tsx";
-import {useAuth} from "@/contexts/Auth.tsx";
+import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card";
+import {Alert, AlertDescription, AlertTitle} from "@/components/ui/alert";
+import {Button} from "@/components/ui/button";
+import {Label} from "@/components/ui/label";
+import {Input} from "@/components/ui/input";
+import {useAuth} from "@/contexts/auth";
 import {Client} from "@/lib/client";
-import {useAnova} from "../contexts/Anova.tsx";
+import {useAnova} from "@/contexts/anova";
 
 const DeviceSetup: React.FC = () => {
     const [deviceId, setDeviceId] = useState('');

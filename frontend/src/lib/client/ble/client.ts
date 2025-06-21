@@ -20,7 +20,19 @@ export class BluetoothClient {
     private server?: BluetoothRemoteGATTServer;
     private characteristic?: BluetoothRemoteGATTCharacteristic;
     private commandLock: Promise<void> = Promise.resolve();
+
+    constructor(private device: BluetoothDevice) {
+    }
+
     private _idCard?: string;
+
+    get idCard(): string {
+        if (!this._idCard) {
+            this.getIDCard().then(() => {
+            });
+        }
+        return this._idCard!;
+    }
 
     static async scan(): Promise<BluetoothDevice> {
         const options: RequestDeviceOptions = {
@@ -32,17 +44,6 @@ export class BluetoothClient {
         };
 
         return await navigator.bluetooth.requestDevice(options);
-    }
-
-    get idCard(): string {
-        if (!this._idCard) {
-            this.getIDCard().then(() => {
-            });
-        }
-        return this._idCard!;
-    }
-
-    constructor(private device: BluetoothDevice) {
     }
 
     async connect(): Promise<void> {
@@ -105,6 +106,45 @@ export class BluetoothClient {
         }
     }
 
+    async startDevice(): Promise<boolean> {
+        return this.sendCommand<boolean>(new StartDevice());
+    }
+
+    async stopDevice(): Promise<boolean> {
+        return this.sendCommand<boolean>(new StopDevice());
+    }
+
+    async getDeviceStatus(): Promise<string> {
+        return this.sendCommand<string>(new GetDeviceStatus());
+    }
+
+    async setServerInfo(serverIp: string, port: number = 8080): Promise<boolean> {
+        return this.sendCommand(new SetServerInfo(serverIp, port));
+    }
+
+    async setSecretKey(key: string): Promise<void> {
+        await this.sendCommand(new SetSecretKey(key));
+    }
+
+    async setWifiCredentials(ssid: string, password: string): Promise<void> {
+        await this.sendCommand(new SetWifiCredentials(ssid, password));
+    }
+
+    async setDeviceName(name: string): Promise<void> {
+        await this.sendCommand(new SetDeviceName(name));
+    }
+
+    async getIDCard(): Promise<string> {
+        if (!this._idCard) {
+            this._idCard = await this.sendCommand(new GetIDCard());
+        }
+        return this._idCard;
+    }
+
+    async getVersion(): Promise<string> {
+        return this.sendCommand(new GetVersion());
+    }
+
     private readResponseWithTimeout(timeout: number): Promise<string> {
         return Promise.race([
             this.readResponse(),
@@ -144,44 +184,5 @@ export class BluetoothClient {
                 reject(error);
             });
         });
-    }
-
-    async startDevice(): Promise<boolean> {
-        return this.sendCommand<boolean>(new StartDevice());
-    }
-
-    async stopDevice(): Promise<boolean> {
-        return this.sendCommand<boolean>(new StopDevice());
-    }
-
-    async getDeviceStatus(): Promise<string> {
-        return this.sendCommand<string>(new GetDeviceStatus());
-    }
-
-    async setServerInfo(serverIp: string, port: number = 8080): Promise<boolean> {
-        return this.sendCommand(new SetServerInfo(serverIp, port));
-    }
-
-    async setSecretKey(key: string): Promise<void> {
-        await this.sendCommand(new SetSecretKey(key));
-    }
-
-    async setWifiCredentials(ssid: string, password: string): Promise<void> {
-        await this.sendCommand(new SetWifiCredentials(ssid, password));
-    }
-
-    async setDeviceName(name: string): Promise<void> {
-        await this.sendCommand(new SetDeviceName(name));
-    }
-
-    async getIDCard(): Promise<string> {
-        if (!this._idCard) {
-            this._idCard = await this.sendCommand(new GetIDCard());
-        }
-        return this._idCard;
-    }
-
-    async getVersion(): Promise<string> {
-        return this.sendCommand(new GetVersion());
     }
 }

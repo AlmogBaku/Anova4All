@@ -1,9 +1,9 @@
 import React, {useState} from 'react';
 import {TbLogout, TbMoon, TbSun, TbSunMoon} from "react-icons/tb";
 import {Link} from "react-router-dom";
-import {useTheme} from "@/contexts/Theme";
+import {useTheme} from "@/contexts/theme.tsx";
 import {Button} from "@/components/ui/button.tsx";
-import {useAuth} from "@/contexts/Auth.tsx";
+import {useAuth} from "@/contexts/auth.tsx";
 
 interface LayoutProps {
     children: React.ReactNode;

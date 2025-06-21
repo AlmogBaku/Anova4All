@@ -7,10 +7,10 @@ import {
     TbTemperatureFahrenheit,
     TbTrash
 } from 'react-icons/tb';
-import {useAnova} from "../contexts/Anova.tsx";
+import {useAnova} from "@/contexts/anova.tsx";
 import {DeviceStatus, TemperatureUnit} from "@/lib/client";
-import TemperatureControl from './TemperatureControl';
-import TimerControl from './TimerControl';
+import TemperatureControl from '@/components/temperature-control.tsx';
+import TimerControl from '@/components/timer-control.tsx';
 import {Alert, AlertDescription, AlertTitle} from "@/components/ui/alert.tsx";
 import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card.tsx";
 import {Button} from "@/components/ui/button.tsx";
@@ -23,7 +23,7 @@ import {
     SelectValue
 } from "@/components/ui/select.tsx";
 import {useNavigate} from "react-router-dom";
-import Welcome from "./Welcome.tsx";
+import Welcome from "@/components/welcome.tsx";
 
 const Home: React.FC = () => {
     const {selectedDevice, state: anovaState, devices, selectDevice, isLoading, unpairDevice} = useAnova();

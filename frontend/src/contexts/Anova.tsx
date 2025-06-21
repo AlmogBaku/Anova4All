@@ -1,8 +1,8 @@
 import React, {createContext, useCallback, useContext, useEffect, useMemo, useState} from 'react';
-import {Client, Device, ServerInfo, DeviceResponse} from '@/lib/client';
-import {State} from "@/lib/client/device.ts";
-import {useAuth} from "./Auth.tsx";
-import {useLocalStorage} from "../hooks/LocalStorage.ts";
+import {Client, Device, DeviceResponse, ServerInfo} from '@/lib/client';
+import {State} from "@/lib/client/device";
+import {useAuth} from "@/contexts/auth";
+import {useLocalStorage} from "@/hooks/use-local-storage";
 
 // Context for the Anova device
 interface AnovaContextType {

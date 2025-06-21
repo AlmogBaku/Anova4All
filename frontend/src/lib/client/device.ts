@@ -7,10 +7,7 @@ export interface State extends DeviceState {
 
 // noinspection JSUnusedGlobalSymbols
 export class Device {
-    private _state: State = {} as State;
     private _stop: boolean = false;
-    private _onStateChange: (state: State) => void = () => {
-    }
 
     constructor(public readonly deviceId: string, private readonly token: string) {
         this.getDeviceState().then(() => {
@@ -18,6 +15,8 @@ export class Device {
         this.subscribeToEvents().then(() => {
         });
     }
+
+    private _state: State = {} as State;
 
     public get state() {
         return this._state;
@@ -44,41 +43,6 @@ export class Device {
 
     public onStateChange(callback: (state: State) => void) {
         this._onStateChange = callback;
-    }
-
-
-    private async subscribeToEvents(): Promise<void> {
-        const eventStream = Client.SubscribeToSSE(
-            this.deviceId,
-            this.token,
-        );
-        for await (const event of eventStream) {
-            switch (event.event_type) {
-                case SSEEventType.StateChanged:
-                    this.state = {...this._state, ...(event.payload as DeviceState)};
-                    break;
-                case SSEEventType.DeviceDisconnected:
-                    this._state.connected = false;
-                    break;
-                case SSEEventType.DeviceConnected:
-                    this._state.connected = true;
-                    break;
-                case SSEEventType.Event:
-                    console.log('Anova event:', event.payload);
-                    break;
-                case SSEEventType.Ping:
-                    break
-            }
-
-            if (this._stop) {
-                break;
-            }
-        }
-        if (this._stop) {
-            return;
-        }
-
-        return await this.subscribeToEvents()
     }
 
     // implement methods to interact with the device
@@ -146,5 +110,42 @@ export class Device {
 
     public async getSpeakerStatus() {
         return await Client.getSpeakerStatus(this.deviceId, this.token);
+    }
+
+    private _onStateChange: (state: State) => void = () => {
+    }
+
+    private async subscribeToEvents(): Promise<void> {
+        const eventStream = Client.SubscribeToSSE(
+            this.deviceId,
+            this.token,
+        );
+        for await (const event of eventStream) {
+            switch (event.event_type) {
+                case SSEEventType.StateChanged:
+                    this.state = {...this._state, ...(event.payload as DeviceState)};
+                    break;
+                case SSEEventType.DeviceDisconnected:
+                    this._state.connected = false;
+                    break;
+                case SSEEventType.DeviceConnected:
+                    this._state.connected = true;
+                    break;
+                case SSEEventType.Event:
+                    console.log('Anova event:', event.payload);
+                    break;
+                case SSEEventType.Ping:
+                    break
+            }
+
+            if (this._stop) {
+                break;
+            }
+        }
+        if (this._stop) {
+            return;
+        }
+
+        return await this.subscribeToEvents()
     }
 }

@@ -26,36 +26,6 @@ export class Client {
         this.baseUrl = url;
     }
 
-    private static async request<T>(
-        endpoint: string,
-        method: string = 'GET',
-        options: { headers?: Record<string, string>, token?: string, body?: unknown } = {},
-    ): Promise<T> {
-        // remove last / if present
-        const baseUrl = this.baseUrl.endsWith('/') ? this.baseUrl.slice(0, -1) : this.baseUrl;
-        const ep = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
-        const url = `${baseUrl}/${ep}`;
-
-        const headers: HeadersInit = options.headers || {
-            'Content-Type': 'application/json',
-        };
-        if (options?.token) {
-            headers['Authorization'] = `Bearer ${options.token}`;
-        }
-
-        const response = await fetch(url, {
-            method,
-            headers: headers,
-            body: options?.body ? JSON.stringify(options.body) : undefined,
-        });
-
-        if (!response.ok) {
-            throw new Anova4AllError(response.status, await response.text());
-        }
-
-        return response.json();
-    }
-
     public static async getServerInfo(): Promise<ServerInfo> {
         return this.request<ServerInfo>('/server_info');
     }
@@ -81,7 +51,9 @@ export class Client {
         return this.request<DeviceState>(`/devices/${deviceId}/state`, 'GET', {token});
     }
 
-    public static async setTargetTemperature(deviceId: string, token: string, temperature: number): Promise<{ changed_to: number }> {
+    public static async setTargetTemperature(deviceId: string, token: string, temperature: number): Promise<{
+        changed_to: number
+    }> {
         return this.request<{ changed_to: number }>(
             `/devices/${deviceId}/target_temperature`,
             'POST',
@@ -89,7 +61,10 @@ export class Client {
         );
     }
 
-    public static async setTimer(deviceId: string, token: string, minutes: number): Promise<{ message: string; minutes: number }> {
+    public static async setTimer(deviceId: string, token: string, minutes: number): Promise<{
+        message: string;
+        minutes: number
+    }> {
         return this.request<{ message: string; minutes: number }>(
             `/devices/${deviceId}/timer`,
             'POST',
@@ -105,12 +80,16 @@ export class Client {
         );
     }
 
-    public static async getTemperature(deviceId: string, token: string, fromState: boolean = false): Promise<{ temperature: number }> {
+    public static async getTemperature(deviceId: string, token: string, fromState: boolean = false): Promise<{
+        temperature: number
+    }> {
         return this.request<{ temperature: number }>(`/devices/${deviceId}/temperature?from_state=${fromState}`,
             'GET', {token});
     }
 
-    public static async getTargetTemperature(deviceId: string, token: string, fromState: boolean = false): Promise<{ temperature: number }> {
+    public static async getTargetTemperature(deviceId: string, token: string, fromState: boolean = false): Promise<{
+        temperature: number
+    }> {
         return this.request<{ temperature: number }>(
             `/devices/${deviceId}/target_temperature?from_state=${fromState}`
             , 'GET', {token});
@@ -125,7 +104,9 @@ export class Client {
         return this.request<string>(`/devices/${deviceId}/stop`, 'POST', {token});
     }
 
-    public static async getTimer(deviceId: string, token: string, fromState: boolean = false): Promise<{ timer: number }> {
+    public static async getTimer(deviceId: string, token: string, fromState: boolean = false): Promise<{
+        timer: number
+    }> {
         return this.request<{ timer: number }>(`/devices/${deviceId}/timer?from_state=${fromState}`,
             'GET', {token});
     }
@@ -144,22 +125,26 @@ export class Client {
     }
 
     // Unit Control
-    public static async getUnit(deviceId: string, token: string, fromState: boolean = false): Promise<{ unit: TemperatureUnit }> {
+    public static async getUnit(deviceId: string, token: string, fromState: boolean = false): Promise<{
+        unit: TemperatureUnit
+    }> {
         return this.request<{ unit: TemperatureUnit }>(
             `/devices/${deviceId}/unit?from_state=${fromState}`, 'GET', {token});
     }
 
     // Speaker Status
-    public static async getSpeakerStatus(deviceId: string, token: string, fromState: boolean = false): Promise<{ speaker_status: boolean }> {
+    public static async getSpeakerStatus(deviceId: string, token: string, fromState: boolean = false): Promise<{
+        speaker_status: boolean
+    }> {
         return this.request<{ speaker_status: boolean }>(
             `/devices/${deviceId}/speaker_status?from_state=${fromState}`, 'GET', {token});
     }
 
-    // BLE
-
     public static async ble_getDevice(): Promise<BLEDevice> {
         return this.request<BLEDevice>(`/ble/device`, 'Get')
     }
+
+    // BLE
 
     public static async ble_connectToWiFi(ssid: string, password: string): Promise<string> {
         return this.request<string>(`/ble/connect_wifi`, 'POST',
@@ -181,8 +166,6 @@ export class Client {
             {body: {host, port}},
         );
     }
-
-    // SSE
 
     /**
      * Subscribe to SSE events for a device
@@ -241,5 +224,37 @@ export class Client {
         });
 
         return queue.consume();
+    }
+
+    // SSE
+
+    private static async request<T>(
+        endpoint: string,
+        method: string = 'GET',
+        options: { headers?: Record<string, string>, token?: string, body?: unknown } = {},
+    ): Promise<T> {
+        // remove last / if present
+        const baseUrl = this.baseUrl.endsWith('/') ? this.baseUrl.slice(0, -1) : this.baseUrl;
+        const ep = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+        const url = `${baseUrl}/${ep}`;
+
+        const headers: HeadersInit = options.headers || {
+            'Content-Type': 'application/json',
+        };
+        if (options?.token) {
+            headers['Authorization'] = `Bearer ${options.token}`;
+        }
+
+        const response = await fetch(url, {
+            method,
+            headers: headers,
+            body: options?.body ? JSON.stringify(options.body) : undefined,
+        });
+
+        if (!response.ok) {
+            throw new Anova4AllError(response.status, await response.text());
+        }
+
+        return response.json();
     }
 }
