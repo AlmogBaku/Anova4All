@@ -112,17 +112,15 @@ func (d *device) handshake(ctx context.Context) error {
 	d.logger = d.logger.Named(d.idCard)
 	d.connection.Name(d.idCard)
 
-	version, err := d.SendCommand(ctx, &commands.GetVersion{})
+	_, err = d.SendCommand(ctx, &commands.GetVersion{})
 	if err != nil {
 		return fmt.Errorf("failed to get version: %w", err)
 	}
-	d.version = version.(string)
 
-	secretKey, err := d.SendCommand(ctx, &commands.GetSecretKey{})
+	_, err = d.SendCommand(ctx, &commands.GetSecretKey{})
 	if err != nil {
 		return fmt.Errorf("failed to get secret key: %w", err)
 	}
-	d.secretKey = secretKey.(string)
 
 	_, err = d.SendCommand(ctx, &commands.GetDeviceStatus{})
 	if err != nil {
@@ -205,6 +203,10 @@ func (d *device) updateState(ctx context.Context, command commands.Command, resp
 		d.state.TimerValue = response.(int)
 	case *commands.GetSpeakerStatus:
 		d.state.SpeakerStatus = response.(bool)
+	case *commands.GetSecretKey:
+		d.secretKey = response.(string)
+	case *commands.GetVersion:
+		d.version = response.(string)
 	}
 
 	d.notifyStateChange(ctx)
