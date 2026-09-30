@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useState} from 'react';
 import {TbAlertCircle, TbTemperature, TbTemperatureCelsius, TbTemperatureFahrenheit} from 'react-icons/tb';
 import {useAnova} from "../contexts/Anova.tsx";
 import {DeviceStatus, TemperatureUnit} from "../client";
@@ -8,14 +8,25 @@ import TimerControl from './TimerControl';
 const Home: React.FC = () => {
     const {device, state: anovaState} = useAnova();
     const running = anovaState?.status === DeviceStatus.Running
+    const [busy, setBusy] = useState(false);
+    const [actionError, setActionError] = useState<string | undefined>(undefined);
 
     const handleStartStop = async () => {
-        if (!device) return;
-        if (running) {
-            await device.stopCooking();
-            await device.clearAlarm()
-        } else {
-            await device.startCooking();
+        if (!device || busy) return;
+        setBusy(true);
+        setActionError(undefined);
+        try {
+            if (running) {
+                await device.stopCooking();
+                await device.clearAlarm()
+            } else {
+                await device.startCooking();
+            }
+        } catch (e) {
+            console.error('Error starting/stopping:', e);
+            setActionError(`Failed to ${running ? 'stop' : 'start'} cooking`);
+        } finally {
+            setBusy(false);
         }
     };
 
@@ -47,11 +58,19 @@ const Home: React.FC = () => {
                 </div>
                 <TemperatureControl/>
                 <TimerControl/>
+                {actionError && (
+                    <div className="alert alert-error mb-2">
+                        <TbAlertCircle className="text-2xl mr-2"/>
+                        {actionError}
+                    </div>
+                )}
                 <button
                     className={`btn btn-lg w-full ${running ? 'btn-error' : 'btn-success'}`}
                     onClick={handleStartStop}
+                    disabled={!device || busy}
                 >
-                    {running ? 'Stop Cooking' : 'Start Cooking'}
+                    {busy && <span className="loading loading-spinner"/>}
+                    {busy ? (running ? 'Stopping…' : 'Starting…') : (running ? 'Stop Cooking' : 'Start Cooking')}
                 </button>
             </div>
         </div>

@@ -11,11 +11,15 @@ const TemperatureControl: React.FC = () => {
     const unit = anovaState?.unit;
 
     const [localTemp, setLocalTemp] = useState<string>("");
+    const [editing, setEditing] = useState(false);
     const [error, setError] = useState<string | undefined>(undefined);
 
+    // Don't overwrite what the user is typing with incoming device state.
     useEffect(() => {
-        setLocalTemp(anovaState?.target_temperature?.toFixed(1) || "");
-    }, [setLocalTemp, anovaState?.target_temperature]);
+        if (!editing) {
+            setLocalTemp(anovaState?.target_temperature?.toFixed(1) || "");
+        }
+    }, [anovaState?.target_temperature, editing]);
 
     const debouncedSetTemp = useDebounce(async (value: number) => {
         const error = validateTemperature(value);
@@ -23,8 +27,14 @@ const TemperatureControl: React.FC = () => {
             setError(error);
             return;
         }
-        await device!.setTargetTemperature(value);
-    }, 500);
+        setError(undefined);
+        try {
+            await device!.setTargetTemperature(value);
+        } catch (e) {
+            console.error('Error setting temperature:', e);
+            setError("Failed to set temperature");
+        }
+    }, 1000);
 
     const handleTempChange = (value: string) => {
         setLocalTemp(value);
@@ -58,6 +68,8 @@ const TemperatureControl: React.FC = () => {
                 value={localTemp}
                 className="text-4xl"
                 onChange={handleTempChange}
+                onFocus={() => setEditing(true)}
+                onBlur={() => setEditing(false)}
             />
             <span className="input-hint">{unitSymbol}</span>
         </InputControl>

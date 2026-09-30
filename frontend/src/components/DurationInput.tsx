@@ -11,11 +11,17 @@ const DurationInput: React.FC<DurationInputProps> = ({
                                                          className,
                                                          ...props
                                                      }) => {
-    const [digits, setDigits] = useState<string>(value ? value.toString() : '');
+    // `value` is total minutes; `digits` is the HHMM representation shown in the input.
+    const minutesToDigits = (minutes: number): string => {
+        const hours = Math.min(Math.floor(minutes / 60), 99);
+        return `${hours.toString().padStart(2, '0')}${(minutes % 60).toString().padStart(2, '0')}`;
+    };
+
+    const [digits, setDigits] = useState<string>(minutesToDigits(value || 0));
 
     useEffect(() => {
         if (value !== undefined) {
-            setDigits(value.toString().padStart(4, '0'));
+            setDigits(minutesToDigits(value));
         }
     }, [value]);
 
