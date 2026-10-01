@@ -45,7 +45,7 @@ function ConnectedApps() {
               label={
                 <>
                   {a.name}
-                  <span className="block text-xs font-normal tracking-normal normal-case">
+                  <span className="mt-0.5 block font-sans text-sm font-normal tracking-normal text-ink-soft normal-case [font-stretch:100%]">
                     Since {new Date(a.grantedAt).toLocaleDateString()}
                   </span>
                 </>

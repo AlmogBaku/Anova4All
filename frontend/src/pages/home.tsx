@@ -93,7 +93,7 @@ export function HomePage() {
           Your cookers
         </h1>
         {data && data.length > 0 && (
-          <Button asChild variant="outline">
+          <Button asChild variant="outline" className="caps">
             <Link to="/setup" className="no-underline">
               Set up a cooker
             </Link>
@@ -111,7 +111,7 @@ export function HomePage() {
       )}
       <Rail>
         {data && data.length === 0 && (
-          <Ticket className="mx-1.5 max-w-md sm:mx-3">
+          <Ticket className="mx-1.5 max-w-md sm:mx-auto">
             <TicketHead title="No cookers yet" />
             <TicketSection perforated={false} className="grid gap-4">
               <p className="leading-relaxed">

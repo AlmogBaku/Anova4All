@@ -154,22 +154,26 @@ to the Pi. The examples below use `anova.example.com` as the hostname.
    404. It installs the credentials as `/etc/cloudflared/<TUNNEL_ID>.json` (root-owned,
    mode 600) and installs `deploy/cloudflared.service`. Then it validates the ingress
    rules and enables and starts `cloudflared`. The credentials file is never printed.
-4. **Set the server's env file on the Pi.** Edit it with `sudoedit`:
+4. **Set the server's env file on the Pi** (`/opt/anova4all/anova4all.env`, mode 600).
+   The server serves the web UI too, so the UI, the API and `/mcp` share one origin and
+   no CORS is needed:
 
    ```sh
    MCP_PUBLIC_URL=https://anova.example.com/mcp
-   CORS_ORIGINS=https://<user>.github.io        # the web UI's origin, not the tunnel
+   UI_DIR=/opt/anova4all/ui                     # the built frontend/dist
    PUBLIC_HOST=<WAN IPv4, or a DNS-only name>   # what the cooker dials on 8080
    ```
 
    Don't use the tunnel hostname for `PUBLIC_HOST`. It resolves to Cloudflare, which
    won't carry the cooker's TCP. Restart the server afterwards
    (`sudo systemctl restart anova4all`).
-5. **Build the web UI against the tunnel** with `VITE_API_URL=https://anova.example.com`.
-6. **Set Supabase Auth.** Set `site_url` and the redirect URLs to the web UI's origin
-   (for example `https://<user>.github.io/Anova4All/` and `…/**`). The tunnel hostname
-   doesn't need to be a redirect URL: MCP clients find the auth server through
-   `MCP_PUBLIC_URL`'s `/.well-known/oauth-protected-resource` metadata.
+5. **Build the web UI** with `make ui`, leaving `VITE_API_URL` unset so it calls its own
+   origin, and copy `frontend/dist` to `UI_DIR`.
+6. **Set Supabase Auth.** `site_url` and the redirect URLs are the tunnel origin
+   (`[remotes.production.auth]` in `supabase/config.toml`, pushed with
+   `supabase config push`). In the dashboard, set the OAuth server's authorization path
+   to `/oauth/consent` and allow dynamic client registration; `config push` can't set
+   those two.
 
 Check that it works with `curl https://anova.example.com/health` and
 `systemctl status cloudflared`. Every request reaches the server from 127.0.0.1. That

@@ -71,6 +71,24 @@ function StepList({ current }: { current: number }) {
 }
 
 /**
+ * The phone's stand-in for the step list: one slim segment per step, filled up
+ * to the current one. The head band already reads "Step N of 9" and the step's
+ * name is printed right under it, so this stays decorative.
+ */
+function StepStrip({ current }: { current: number }) {
+  return (
+    <div aria-hidden className="flex gap-1 sm:hidden">
+      {VISIBLE.map((s, i) => (
+        <span
+          key={s}
+          className={cn("h-1.5 flex-1", i <= current ? "bg-ink" : "bg-ink/15")}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
  * The "get the cooker ready" diagram: the circulator's silhouette (after
  * public/logo.svg) clipped to the wall of a pot, its cable running to a plug.
  */
@@ -79,8 +97,8 @@ function CookerDiagram() {
     <svg
       role="img"
       aria-label={PREPARE.diagram.label}
-      viewBox="0 0 340 200"
-      className="h-auto w-full max-w-sm text-ink"
+      viewBox="0 0 340 218"
+      className="h-auto w-full max-w-[300px] text-ink"
     >
       {/* Cable from the cooker's head to the plug. */}
       <path
@@ -97,8 +115,8 @@ function CookerDiagram() {
         strokeWidth="3"
         strokeLinecap="round"
       />
-      <path d="M56 172H66" strokeWidth="1.5" className="stroke-ink-soft" />
-      <text x="70" y="176" fill="currentColor" className="caps text-[12px]">
+      {/* 17 units renders at 14 px or more down to a 360 px wide phone. */}
+      <text x="20" y="212" fill="currentColor" className="caps text-[17px]">
         {PREPARE.diagram.plug}
       </text>
       <g transform="translate(20 0)">
@@ -138,8 +156,8 @@ function CookerDiagram() {
           <path d="M120 80H102V106H107V86H120Z" />
         </g>
         <ellipse cx="140" cy="21" rx="16" ry="9" className="fill-paper" />
-        <path d="M165 22H196" strokeWidth="1.5" className="stroke-ink-soft" />
-        <text x="202" y="26" fill="currentColor" className="caps text-[12px]">
+        <path d="M165 22H190" strokeWidth="1.5" className="stroke-ink-soft" />
+        <text x="196" y="28" fill="currentColor" className="caps text-[17px]">
           {PREPARE.diagram.cooker}
         </text>
       </g>
@@ -465,14 +483,17 @@ export function SetupWizard({
           index >= 0 ? WIZARD.progress(index + 1, VISIBLE.length) : undefined
         }
       />
-      <TicketSection perforated={false} className="pb-4">
+      {/* The full list from sm: up; a phone gets the strip so the key stays in view. */}
+      <TicketSection perforated={false} className="hidden pb-4 sm:block">
         <StepList current={current} />
       </TicketSection>
       <TicketSection
         role="group"
         aria-labelledby="setup-step"
-        className="grid gap-4 pb-6"
+        perforated={false}
+        className="grid gap-4 pt-4 pb-6 sm:perforation sm:pt-5"
       >
+        <StepStrip current={current} />
         <h2
           id="setup-step"
           tabIndex={-1}

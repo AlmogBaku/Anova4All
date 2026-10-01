@@ -16,7 +16,7 @@ export function QuietLink({
   return (
     <Link
       className={cn(
-        "inline-flex min-h-11 items-center text-ink underline decoration-[1.5px] underline-offset-4 hover:decoration-2",
+        "inline-flex min-h-11 min-w-11 items-center text-ink underline decoration-[1.5px] underline-offset-4 hover:decoration-2",
         className,
       )}
       {...props}

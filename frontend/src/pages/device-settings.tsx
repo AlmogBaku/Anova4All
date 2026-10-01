@@ -4,7 +4,7 @@ import { Confirm } from "@/components/confirm.tsx";
 import { Field } from "@/components/field.tsx";
 import { ErrorAlert, Loading } from "@/components/status.tsx";
 import {
-  OrderLine,
+  Rail,
   Ticket,
   TicketHead,
   TicketPage,
@@ -21,6 +21,31 @@ import { NAME_MAX, validateDeviceName, type Device } from "@/lib/devices.ts";
 import { errorText } from "@/lib/errors.ts";
 
 const date = (iso: string) => new Date(iso).toLocaleDateString();
+
+/**
+ * A list row: a caps label over its value on the left, an optional action in
+ * its own column on the right, so the values line up whether or not a row has
+ * an action.
+ */
+function Row({
+  label,
+  children,
+  action,
+}: {
+  label: ReactNode;
+  children: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 py-2">
+      <div className="grid gap-0.5">
+        <span className="caps text-sm text-ink-soft">{label}</span>
+        <span className="[overflow-wrap:anywhere]">{children}</span>
+      </div>
+      {action}
+    </div>
+  );
+}
 
 function RenameForm({
   device,
@@ -80,18 +105,11 @@ function Members({ device }: { device: Device }) {
       <ul className="grid">
         {members.data?.map((m) => (
           <li key={m.userId}>
-            <OrderLine
+            <Row
               label={m.isOwner ? "Owner" : "Member"}
-              className="min-h-12 items-center py-1.5"
-            >
-              <span className="flex items-center justify-end gap-3">
-                <span className="[overflow-wrap:anywhere]">
-                  {m.email}
-                  {m.userId === user?.id && (
-                    <span className="font-normal text-ink-soft"> (you)</span>
-                  )}
-                </span>
-                {device.isOwner && !m.isOwner && (
+              action={
+                device.isOwner &&
+                !m.isOwner && (
                   <Confirm
                     trigger={
                       <Button
@@ -111,9 +129,14 @@ function Members({ device }: { device: Device }) {
                         .then((ok) => ok && members.reload())
                     }
                   />
-                )}
-              </span>
-            </OrderLine>
+                )
+              }
+            >
+              <span className="font-semibold">{m.email}</span>
+              {m.userId === user?.id && (
+                <span className="text-ink-soft"> (you)</span>
+              )}
+            </Row>
           </li>
         ))}
       </ul>
@@ -207,14 +230,9 @@ function Invites({ device }: { device: Device }) {
         <ul className="grid">
           {open.map((i) => (
             <li key={i.id}>
-              <OrderLine
+              <Row
                 label="Open link"
-                className="min-h-12 items-center py-1.5"
-              >
-                <span className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
-                  <span className="text-sm font-normal">
-                    Created {date(i.createdAt)}, expires {date(i.expiresAt)}
-                  </span>
+                action={
                   <Button
                     variant="destructive"
                     size="sm"
@@ -225,13 +243,32 @@ function Invites({ device }: { device: Device }) {
                   >
                     Revoke
                   </Button>
+                }
+              >
+                <span className="block text-sm">
+                  Created {date(i.createdAt)}
                 </span>
-              </OrderLine>
+                <span className="block text-sm">
+                  Expires {date(i.expiresAt)}
+                </span>
+              </Row>
             </li>
           ))}
         </ul>
       )}
     </div>
+  );
+}
+
+/**
+ * One settings ticket on its own short length of rail, so every ticket on the
+ * page hangs rather than only the first. Padding matches TicketPage.
+ */
+function Hung({ children }: { children: ReactNode }) {
+  return (
+    <Rail>
+      <div className="px-1.5 sm:px-3">{children}</div>
+    </Rail>
   );
 }
 
@@ -247,10 +284,12 @@ export function Section({
 }) {
   const id = useId();
   return (
-    <Ticket aria-labelledby={id}>
-      <TicketHead titleAs="h2" titleId={id} title={title} meta={meta} />
-      {children}
-    </Ticket>
+    <Hung>
+      <Ticket aria-labelledby={id}>
+        <TicketHead titleAs="h2" titleId={id} title={title} meta={meta} />
+        {children}
+      </Ticket>
+    </Hung>
   );
 }
 
@@ -303,7 +342,7 @@ export function DeviceSettingsPage() {
           Cooker settings
         </h1>
       </header>
-      <TicketPage width="md">
+      <div className="grid gap-6">
         {d.isOwner && (
           <Section title="Name">
             <TicketSection perforated={false}>
@@ -381,7 +420,7 @@ export function DeviceSettingsPage() {
             </TicketSection>
           </Section>
         )}
-      </TicketPage>
+      </div>
     </div>
   );
 }

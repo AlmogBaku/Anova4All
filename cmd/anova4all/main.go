@@ -142,6 +142,7 @@ func run(ctx context.Context, cfg *viper.Viper, logger *zap.Logger) error {
 		PublicHost:  cfg.GetString("public_host"),
 		PublicPort:  cfg.GetInt("public_anova_port"),
 		Cookers:     mgr.BoundCount,
+		UIDir:       cfg.GetString("ui_dir"),
 		Logger:      logger,
 	})
 	if pub := cfg.GetString("mcp_public_url"); pub != "" {
@@ -253,6 +254,7 @@ func loadConfig() *viper.Viper {
 	v.SetDefault("public_host", "")
 	v.SetDefault("public_anova_port", 8080)
 	v.SetDefault("mcp_public_url", "")
+	v.SetDefault("ui_dir", "")
 
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.SetConfigName("config")

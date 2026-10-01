@@ -86,6 +86,8 @@ export function CookScreen({
     (mode === "idle" || heating) && link !== "stream_down" && !view.busy;
   const unit = `°${values.unit.toUpperCase()}`;
   const live = mode !== "loading" && mode !== "offline";
+  // A reading is current only while the stream is up.
+  const fresh = live && link === "online";
 
   return (
     <Ticket aria-labelledby="cooker-name">
@@ -114,7 +116,7 @@ export function CookScreen({
         <p
           className={cn(
             "font-condensed text-[6.5rem] leading-[0.82] font-extrabold tracking-[-0.03em] tabular-nums sm:text-[8.5rem]",
-            !live && "text-ink-soft",
+            !fresh && "text-ink-soft",
           )}
         >
           {view.current ?? "--"}
@@ -148,7 +150,7 @@ export function CookScreen({
           </p>
           <Button
             variant="outline"
-            className="w-full sm:w-auto"
+            className="w-full sm:w-auto sm:justify-self-start"
             disabled={view.busy}
             onClick={() => void controller.stop()}
           >
@@ -193,6 +195,7 @@ export function CookScreen({
           <AutoStopField
             checked={values.autoStop}
             disabled={!canEdit || values.minutes === 0}
+            noTimer={canEdit && values.minutes === 0}
             error={invalid.autoStop}
             onChange={(on) => controller.editAutoStop(on)}
           />
@@ -225,7 +228,7 @@ export function CookScreen({
             <p aria-live="polite" className="text-sm text-ink-soft">
               {heating && view.saving ? "Saving…" : ""}
             </p>
-            <Button asChild variant="link" className="px-0">
+            <Button asChild variant="link">
               <Link to={settingsHref}>Cooker settings</Link>
             </Button>
           </div>

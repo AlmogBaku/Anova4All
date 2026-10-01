@@ -2,48 +2,42 @@
  * The Ticket Rail, in plain CSS for the MCP Apps card. A paper ticket with an
  * ink head band; --heat floods the band only while the cooker is heating.
  *
- * Host style variables (MCP Apps) come first, with fallbacks for hosts that
- * send none. The ticket is built from them so it follows the host's theme.
+ * The ticket is the app's own world: its paper and ink are the app's colours
+ * (frontend/src/index.css), not the host's. Host style variables (MCP Apps)
+ * still set the type scale and the sans fallback, and the host draws whatever
+ * sits around the ticket, since the page itself stays transparent.
  */
 :root {
   color-scheme: light dark;
-  --color-text-primary: light-dark(#1f2937, #f3f4f6);
-  --color-text-secondary: light-dark(#4b5563, #a1a1aa);
-  --color-text-inverse: light-dark(#f9fafb, #111827);
-  --color-text-danger: light-dark(#b91c1c, #f87171);
-  --color-background-primary: light-dark(#ffffff, #1a1a1a);
-  --color-background-secondary: light-dark(#f4f4f5, #262626);
-  --color-background-inverse: light-dark(#111827, #f9fafb);
-  --color-border-primary: light-dark(#d4d4d8, #3f3f46);
-  --color-ring-primary: light-dark(#2563eb, #60a5fa);
-  --border-radius-md: 8px;
-  --border-width-regular: 1px;
   --font-sans: ui-sans-serif, system-ui, sans-serif;
   --font-weight-normal: 400;
   --font-weight-semibold: 600;
   --font-text-md-size: 1rem;
   --font-text-md-line-height: 1.5;
   --font-text-sm-size: 0.875rem;
-  --font-heading-lg-size: 1.25rem;
 
-  /* The card's own world, mapped onto the host's palette. */
-  --paper: var(--color-background-primary);
-  --ink: var(--color-text-primary);
-  --ink-soft: var(--color-text-secondary);
-  --band: var(--color-background-inverse);
-  --band-ink: var(--color-text-inverse);
-  --perf: var(--color-border-primary);
+  /* The app's palette; dark is the kitchen display: charcoal paper, white ink. */
+  --paper: light-dark(oklch(0.985 0.003 100), oklch(0.27 0.008 240));
+  --ink: light-dark(oklch(0.19 0.004 250), oklch(0.94 0.004 100));
+  --ink-soft: light-dark(oklch(0.44 0.008 250), oklch(0.74 0.008 240));
+  --band: var(--ink);
+  --band-ink: var(--paper);
+  --band-offline: light-dark(oklch(0.94 0.004 230), oklch(0.28 0.008 240));
+  --perf: light-dark(oklch(0.19 0.004 250 / 0.22), oklch(0.94 0.004 100 / 0.2));
+  --danger: light-dark(oklch(0.5 0.19 25), oklch(0.72 0.16 25));
   /* Reserved for "heating now": the head band and the Stop key, nothing else. */
   --heat: light-dark(oklch(0.68 0.19 45), oklch(0.72 0.18 48));
-  --heat-ink: oklch(0.17 0.004 250);
+  --heat-ink: light-dark(oklch(0.19 0.004 250), oklch(0.16 0.004 250));
   --ticket-shadow:
     0 1px 2px light-dark(rgb(15 20 30 / 0.18), rgb(0 0 0 / 0.5)),
     0 6px 18px light-dark(rgb(15 20 30 / 0.14), rgb(0 0 0 / 0.45));
   /*
-   * No web font: the iframe CSP blocks the fetch. These families carry a
-   * width axis or a narrow cut where installed; anywhere else font-stretch
-   * falls back to the host's sans at normal width.
+   * Archivo is bundled and registered from bytes (font.ts), since the iframe
+   * CSP blocks font URLs. The rest of the stack only shows if that fails.
    */
+  --font-ticket:
+    "Archivo Variable", "Archivo", "Roboto Flex", "Bahnschrift",
+    var(--font-sans);
   --font-condensed:
     "Archivo Variable", "Archivo", "Roboto Flex", "Bahnschrift",
     "Roboto Condensed", "Helvetica Neue", "Arial Narrow", var(--font-sans);
@@ -101,6 +95,7 @@ body {
 .ticket {
   position: relative;
   margin-bottom: 6px;
+  font-family: var(--font-ticket);
   background: var(--paper);
   color: var(--ink);
   box-shadow: var(--ticket-shadow);
@@ -157,7 +152,7 @@ body {
 }
 
 .ticket-head[data-tone="offline"] {
-  background: var(--color-background-secondary);
+  background: var(--band-offline);
   color: var(--ink-soft);
 }
 
@@ -208,15 +203,12 @@ body {
 }
 
 .danger {
-  color: var(--color-text-danger);
+  color: var(--danger);
 }
 
-/* The water temperature owns the ticket. */
-.temps {
-  margin: 0;
-}
-
+/* The water temperature owns the ticket; its unit is set as a superscript. */
 .big {
+  margin: 0;
   font-family: var(--font-condensed);
   font-stretch: 68%;
   font-size: clamp(3.5rem, 18vw, 5.5rem);
@@ -226,11 +218,20 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* Order lines: caps label on the left, value on the right. */
-.order {
-  padding-top: 0;
+.big .unit {
+  margin-left: 0.25rem;
+  font-size: 0.4em;
+  line-height: 1;
+  vertical-align: top;
+  letter-spacing: 0;
 }
 
+.big + .facts,
+.part > .big + .line {
+  margin-top: 0.75rem;
+}
+
+/* Order lines: caps label on the left, value on the right. */
 .facts {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -428,6 +429,35 @@ input[type="checkbox"] {
   accent-color: var(--ink);
 }
 
+/*
+ * The app's square ink switch on a native checkbox (role="switch"): a 56 x 32
+ * track in the 44 px .check row, its thumb painted as a background square.
+ */
+input[type="checkbox"].switch {
+  appearance: none;
+  width: 3.5rem;
+  height: 2rem;
+  min-height: 2rem;
+  border: 2px solid var(--ink);
+  border-radius: 2px;
+  background: linear-gradient(
+      color-mix(in srgb, var(--ink-soft) 70%, transparent),
+      color-mix(in srgb, var(--ink-soft) 70%, transparent)
+    )
+    no-repeat 4px 50% / 1.25rem 1.25rem;
+  background-color: transparent;
+  cursor: pointer;
+  transition:
+    background-position 150ms ease-out,
+    background-color 150ms ease-out;
+}
+
+input[type="checkbox"].switch:checked {
+  background-image: linear-gradient(var(--paper), var(--paper));
+  background-position: calc(100% - 4px) 50%;
+  background-color: var(--ink);
+}
+
 button {
   cursor: pointer;
   font-weight: var(--font-weight-semibold);
@@ -480,8 +510,9 @@ button.stop:disabled:hover {
   background: var(--heat);
 }
 
+/* Every control: a 2 px ink ring, 2 px clear of it. */
 :focus-visible {
-  outline: 2px solid var(--color-ring-primary);
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
 
@@ -489,7 +520,8 @@ button.stop:disabled:hover {
   .ticket-head::before,
   .ticket-head h1,
   .ticket-head .state,
-  button {
+  button,
+  input[type="checkbox"].switch {
     transition: none;
   }
 }

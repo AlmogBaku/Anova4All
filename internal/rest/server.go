@@ -6,7 +6,11 @@ package rest
 import (
 	"errors"
 	"net/http"
+	"os"
+	"path"
+	"path/filepath"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,7 +38,10 @@ type Options struct {
 	Cookers func() int
 	// PingEvery is the SSE ping and access re-check interval (default 15 s).
 	PingEvery time.Duration
-	Logger    *zap.Logger
+	// UIDir is the built web UI, served for every other GET with an index.html
+	// fallback for app routes. Empty serves no UI.
+	UIDir  string
+	Logger *zap.Logger
 }
 
 type Server struct {
@@ -88,9 +95,32 @@ func New(opts Options) *Server {
 	api.POST("/devices/:device_id/cook/stop", s.stopCook)
 
 	s.NoRoute(func(c *gin.Context) {
+		if s.serveUI(c) {
+			return
+		}
 		writeError(c, &control.Error{Code: "not_found", Message: "no such endpoint"})
 	})
 	return s
+}
+
+// serveUI serves a file from UIDir, or index.html for a path that isn't one.
+// /api and /.well-known keep their JSON 404s.
+func (s *Server) serveUI(c *gin.Context) bool {
+	p := c.Request.URL.Path
+	if s.opts.UIDir == "" || (c.Request.Method != http.MethodGet && c.Request.Method != http.MethodHead) ||
+		strings.HasPrefix(p, "/api/") || strings.HasPrefix(p, "/.well-known/") {
+		return false
+	}
+	name := path.Clean("/" + p) // rooted, so ".." can't leave UIDir
+	file := filepath.Join(s.opts.UIDir, filepath.FromSlash(name))
+	if fi, err := os.Stat(file); err != nil || fi.IsDir() {
+		file = filepath.Join(s.opts.UIDir, "index.html")
+		c.Header("Cache-Control", "no-cache")
+	} else if strings.HasPrefix(name, "/assets/") {
+		c.Header("Cache-Control", "public, max-age=31536000, immutable") // hashed names
+	}
+	c.File(file)
+	return true
 }
 
 // Handle mounts an extra handler (e.g. /mcp) on an exact path, for every method.

@@ -45,11 +45,11 @@
 }
 
 .dark {
-  --steel: oklch(0.17 0.006 240);
+  --steel: oklch(0.15 0.006 240);
   --steel-deep: oklch(0.13 0.006 240);
   --rail: oklch(0.36 0.01 240);
   --rail-hi: oklch(0.5 0.01 240);
-  --paper: oklch(0.235 0.007 240);
+  --paper: oklch(0.27 0.008 240);
   --ink: oklch(0.94 0.004 100);
   --ink-soft: oklch(0.74 0.008 240);
   --heat: oklch(0.72 0.18 48);

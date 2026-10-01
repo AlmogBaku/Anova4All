@@ -102,10 +102,18 @@ export function UnitField({
         value={unit}
         onValueChange={(v) => v && onChange(v as TemperatureUnit)}
       >
-        <ToggleGroupItem value="c" aria-label="Celsius">
+        <ToggleGroupItem
+          value="c"
+          aria-label="Celsius"
+          className="h-12 min-w-12"
+        >
           °C
         </ToggleGroupItem>
-        <ToggleGroupItem value="f" aria-label="Fahrenheit">
+        <ToggleGroupItem
+          value="f"
+          aria-label="Fahrenheit"
+          className="h-12 min-w-12"
+        >
           °F
         </ToggleGroupItem>
       </ToggleGroup>
@@ -162,11 +170,14 @@ export function DurationField({
 export function AutoStopField({
   checked,
   disabled,
+  noTimer,
   error,
   onChange,
 }: {
   checked: boolean;
   disabled?: boolean;
+  /** No timer is set, so auto-stop has nothing to wait for. */
+  noTimer?: boolean;
   error?: string;
   onChange: (on: boolean) => void;
 }) {
@@ -186,7 +197,7 @@ export function AutoStopField({
       <Message
         id={`${id}-msg`}
         error={error}
-        hint={disabled ? "Set a timer first." : undefined}
+        hint={noTimer ? "Set a timer first." : undefined}
       />
     </div>
   );

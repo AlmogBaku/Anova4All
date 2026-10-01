@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { Slot } from "radix-ui";
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-sm text-[0.9375rem] font-semibold whitespace-nowrap transition-[background-color,color,border-color] outline-none disabled:pointer-events-none disabled:opacity-45 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-sm text-[0.9375rem] font-semibold whitespace-nowrap transition-[background-color,color,border-color] disabled:pointer-events-none disabled:opacity-45 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -15,7 +15,7 @@ const buttonVariants = cva(
         outline: "border-2 border-ink bg-transparent text-ink hover:bg-ink/8",
         secondary: "bg-secondary text-secondary-foreground hover:bg-accent",
         ghost: "text-ink hover:bg-ink/8",
-        link: "h-auto min-h-11 px-0 text-ink underline decoration-[1.5px] underline-offset-4 hover:decoration-2",
+        link: "h-auto min-h-11 px-0! text-ink underline decoration-[1.5px] underline-offset-4 hover:decoration-2",
       },
       size: {
         default: "h-11 px-5 has-[>svg]:px-4",

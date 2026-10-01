@@ -184,9 +184,9 @@ const STATE_WORD: Record<View["kind"], string> = {
   device_required: "",
   error: "",
   offline: "Offline",
-  idle: "Not heating",
+  idle: "Idle",
   heating: "Heating",
-  auto_stopped: "Auto-stopped",
+  auto_stopped: "Idle",
 };
 
 function CardView({ view, busy, act, pick }: ViewProps) {
@@ -268,9 +268,25 @@ function CardView({ view, busy, act, pick }: ViewProps) {
       {view.kind !== "offline" && (
         <div className="part">
           <p className="caps label">Water</p>
-          <p className="temps">
-            <span className="big">{formatTemp(view.water, view.unit)}</span>
+          <p className="big">
+            {formatNumber(view.water)}
+            <span className="unit">{unitLabel(view.unit)}</span>
+            <span className="sr-only"> water temperature</span>
           </p>
+          {view.kind === "heating" ? (
+            <dl className="facts">
+              <dt>Set</dt>
+              <dd>{formatTemp(view.target, view.unit)}</dd>
+              {view.stopsAt && (
+                <>
+                  <dt>Stops at</dt>
+                  <dd>{formatClock(view.stopsAt)}</dd>
+                </>
+              )}
+            </dl>
+          ) : (
+            <p className="line muted">Not heating</p>
+          )}
         </div>
       )}
       {view.kind === "heating" && <Heating view={view} busy={busy} act={act} />}
@@ -317,6 +333,11 @@ function CardView({ view, busy, act, pick }: ViewProps) {
       )}
     </section>
   );
+}
+
+/** The water temperature without its unit, which is set as a superscript. */
+function formatNumber(t: number): string {
+  return Number.isInteger(t) ? String(t) : t.toFixed(1);
 }
 
 function formatSeen(iso: string): string {
@@ -375,26 +396,6 @@ function Heating({
 
   return (
     <>
-      <div className="part order">
-        <dl className="facts">
-          <dt>Target</dt>
-          <dd>{formatTemp(view.target, view.unit)}</dd>
-          <dt>Timer</dt>
-          <dd>
-            {view.timerMinutes === 0
-              ? "None"
-              : view.timerRunning
-                ? `${formatMinutes(view.timerMinutes)} left`
-                : `${formatMinutes(view.timerMinutes)}, not running`}
-          </dd>
-          {view.stopsAt && (
-            <>
-              <dt>Auto-stop</dt>
-              <dd>Stops at {formatClock(view.stopsAt)}</dd>
-            </>
-          )}
-        </dl>
-      </div>
       <div className="part perf">
         <p className="caps label">Order (changes apply now)</p>
         <div className="edit">
@@ -411,7 +412,13 @@ function Heating({
           />
           <Stepper
             label="Timer"
-            value={shown.minutes === 0 ? "None" : formatMinutes(shown.minutes)}
+            value={
+              shown.minutes === 0
+                ? "None"
+                : draft?.minutes === undefined && view.timerRunning
+                  ? `${formatMinutes(shown.minutes)} left`
+                  : formatMinutes(shown.minutes)
+            }
             disabled={busy}
             onDown={() =>
               edit({
@@ -426,6 +433,8 @@ function Heating({
           <label className="check">
             <input
               type="checkbox"
+              role="switch"
+              className="switch"
               checked={shown.autoStop && shown.minutes > 0}
               disabled={busy || shown.minutes === 0}
               onChange={(e) => edit({ autoStop: e.target.checked })}
@@ -587,6 +596,8 @@ function StartForm(props: {
       <label className="check">
         <input
           type="checkbox"
+          role="switch"
+          className="switch"
           checked={autoStop && m > 0}
           disabled={!(m > 0)}
           onChange={(e) => setAutoStop(e.target.checked)}

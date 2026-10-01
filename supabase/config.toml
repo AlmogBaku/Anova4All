@@ -406,3 +406,11 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 # declarative_schema_path = "./database"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# The live project. Overrides the local values above on `supabase config push`.
+[remotes.production]
+project_id = "lebimptwgcdfsydgcvxl"
+
+[remotes.production.auth]
+site_url = "https://anova.baku.co.il"
+additional_redirect_urls = ["https://anova.baku.co.il/", "https://anova.baku.co.il/**"]

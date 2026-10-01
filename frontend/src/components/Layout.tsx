@@ -24,7 +24,7 @@ export function Layout() {
       <header>
         <nav
           aria-label="Main"
-          className="mx-auto flex max-w-5xl items-center gap-2 px-4 pt-3 pb-2 sm:px-6"
+          className="mx-auto flex max-w-4xl items-center gap-2 px-4 pt-3 pb-2 sm:px-6"
         >
           <Link
             to="/"
@@ -33,7 +33,7 @@ export function Layout() {
             <img
               src={`${import.meta.env.BASE_URL}logo.svg`}
               alt=""
-              className="h-8 w-auto"
+              className="h-8 w-auto dark:invert"
             />
             <span className="font-condensed text-2xl leading-none font-extrabold tracking-[-0.01em] uppercase">
               Anova4All
@@ -51,7 +51,7 @@ export function Layout() {
           )}
         </nav>
       </header>
-      <main id="main" className="mx-auto max-w-5xl px-3 pt-4 pb-16 sm:px-6">
+      <main id="main" className="mx-auto max-w-4xl px-3 pt-4 pb-16 sm:px-6">
         <Outlet />
       </main>
       <Toaster position="top-center" />
