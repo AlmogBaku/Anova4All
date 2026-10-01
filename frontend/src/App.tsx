@@ -16,7 +16,8 @@ import { DeviceSettingsPage } from "@/pages/device-settings.tsx";
 import { DevicePage } from "@/pages/device.tsx";
 import { HomePage } from "@/pages/home.tsx";
 import { InvitePage } from "@/pages/invite.tsx";
-import { NotFoundPage, OAuthConsentPage } from "@/pages/misc.tsx";
+import { NotFoundPage } from "@/pages/misc.tsx";
+import { OAuthConsentPage } from "@/pages/oauth-consent.tsx";
 import { SetupPage } from "@/pages/setup.tsx";
 
 // Every route works as a deep link: GitHub Pages serves index.html as 404.html.

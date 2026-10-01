@@ -1,14 +1,70 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { Field } from "@/components/field.tsx";
-import { ErrorAlert } from "@/components/status.tsx";
+import { Confirm } from "@/components/confirm.tsx";
+import { ErrorAlert, Loading } from "@/components/status.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group.tsx";
 import { useAuth } from "@/contexts/auth.tsx";
 import { useTheme, type Theme } from "@/contexts/theme.tsx";
 import { useAction } from "@/hooks/use-action.ts";
+import { useAsync } from "@/hooks/use-async.ts";
 import { signOut, updatePassword, validatePassword } from "@/lib/auth.ts";
+import { oauth } from "@/lib/data.ts";
+import { errorText } from "@/lib/errors.ts";
+
+/** AI apps the user approved on the consent page; revoking stops their refresh at once. */
+function ConnectedApps() {
+  const apps = useAsync("apps", () => oauth.apps());
+  const revoke = useAction(async (clientId: string) => {
+    await oauth.revoke(clientId);
+    return true;
+  });
+  if (apps.loading && !apps.data) return <Loading />;
+  if (apps.error !== undefined)
+    return <ErrorAlert>{errorText(apps.error)}</ErrorAlert>;
+  if (!apps.data?.length)
+    return (
+      <p className="text-sm text-muted-foreground">
+        No apps are connected to your account.
+      </p>
+    );
+  return (
+    <div className="grid gap-2">
+      {revoke.error && <ErrorAlert>{revoke.error}</ErrorAlert>}
+      <ul className="grid gap-2">
+        {apps.data.map((a) => (
+          <li
+            key={a.clientId}
+            className="flex items-center justify-between gap-4"
+          >
+            <span>
+              {a.name}
+              <span className="text-sm text-muted-foreground">
+                {" "}
+                · since {new Date(a.grantedAt).toLocaleDateString()}
+              </span>
+            </span>
+            <Confirm
+              trigger={
+                <Button variant="outline" size="sm" disabled={revoke.busy}>
+                  Revoke
+                </Button>
+              }
+              title={`Revoke ${a.name}?`}
+              description="It can't start new sessions. One already open stops working within an hour."
+              action="Revoke"
+              onConfirm={() =>
+                void revoke.run(a.clientId).then((ok) => ok && apps.reload())
+              }
+            />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 function PasswordForm() {
   const [password, setPassword] = useState("");
@@ -102,10 +158,7 @@ export function AccountPage() {
         <h2 id="account-apps" className="text-lg font-semibold">
           Connected apps
         </h2>
-        {/* Placeholder: OAuth/MCP clients will be listed and revoked here. */}
-        <p className="text-sm text-muted-foreground">
-          No apps are connected to your account.
-        </p>
+        <ConnectedApps />
       </section>
 
       <Separator />

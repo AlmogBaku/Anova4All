@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { inFrame, oauthApi, trustedRedirect } from "./oauth.ts";
+import { consentChoice, inFrame, oauthApi, trustedRedirect } from "./oauth.ts";
 
 describe("trustedRedirect", () => {
   it("accepts the exact https app hosts and http loopback", () => {
@@ -135,5 +135,39 @@ describe("oauthApi", () => {
     ]);
     await api.revoke("c1");
     expect(revokeGrant).toHaveBeenCalledWith({ clientId: "c1" });
+  });
+});
+
+describe("consentChoice", () => {
+  const req = (redirectUri: string) => ({
+    kind: "consent" as const,
+    authorizationId: "auth-1",
+    clientName: "Claude",
+    redirectUri,
+    scope: "openid",
+  });
+
+  it("offers Approve only for a trusted app at the top level", () => {
+    expect(consentChoice(req("https://claude.ai/cb"), false)).toBe("approve");
+    expect(consentChoice(req("https://claude.ai/cb"), true)).toBe("refuse");
+    expect(consentChoice(req("https://evilclaude.ai/cb"), false)).toBe(
+      "refuse",
+    );
+    expect(consentChoice(req("http://claude.ai/cb"), false)).toBe("refuse");
+  });
+
+  it("follows an earlier approval only to a trusted app", () => {
+    expect(
+      consentChoice(
+        { kind: "redirect", url: "https://claude.ai/cb?code=1" },
+        false,
+      ),
+    ).toBe("follow");
+    expect(
+      consentChoice(
+        { kind: "redirect", url: "https://claude.ai.evil.test/cb?code=1" },
+        false,
+      ),
+    ).toBe("refuse");
   });
 });

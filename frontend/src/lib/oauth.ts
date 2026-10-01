@@ -37,6 +37,17 @@ export function inFrame(win: Window = window): boolean {
   }
 }
 
+/** What the consent page may offer for a request. */
+export function consentChoice(
+  d: ConsentDetails,
+  framed: boolean,
+): "approve" | "refuse" | "follow" {
+  if (framed) return "refuse";
+  const uri = d.kind === "consent" ? d.redirectUri : d.url;
+  if (!trustedRedirect(uri)) return "refuse";
+  return d.kind === "consent" ? "approve" : "follow";
+}
+
 export interface ConsentRequest {
   kind: "consent";
   authorizationId: string;
