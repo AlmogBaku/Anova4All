@@ -1,10 +1,16 @@
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { Field } from "@/components/field.tsx";
 import { Confirm } from "@/components/confirm.tsx";
 import { ErrorAlert, Loading } from "@/components/status.tsx";
+import {
+  OrderLine,
+  Ticket,
+  TicketHead,
+  TicketPage,
+  TicketSection,
+} from "@/components/ticket.tsx";
 import { Button } from "@/components/ui/button.tsx";
-import { Separator } from "@/components/ui/separator.tsx";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group.tsx";
 import { useAuth } from "@/contexts/auth.tsx";
 import { useTheme, type Theme } from "@/contexts/theme.tsx";
@@ -26,39 +32,39 @@ function ConnectedApps() {
     return <ErrorAlert>{errorText(apps.error)}</ErrorAlert>;
   if (!apps.data?.length)
     return (
-      <p className="text-sm text-muted-foreground">
-        No apps are connected to your account.
-      </p>
+      <p className="text-ink-soft">No apps are connected to your account.</p>
     );
   return (
     <div className="grid gap-2">
       {revoke.error && <ErrorAlert>{revoke.error}</ErrorAlert>}
-      <ul className="grid gap-2">
+      <ul className="grid">
         {apps.data.map((a) => (
-          <li
-            key={a.clientId}
-            className="flex items-center justify-between gap-4"
-          >
-            <span>
-              {a.name}
-              <span className="text-sm text-muted-foreground">
-                {" "}
-                · since {new Date(a.grantedAt).toLocaleDateString()}
-              </span>
-            </span>
-            <Confirm
-              trigger={
-                <Button variant="outline" size="sm" disabled={revoke.busy}>
-                  Revoke
-                </Button>
+          <li key={a.clientId}>
+            <OrderLine
+              className="items-center [&>span:first-child]:min-w-0 [&>span:first-child]:break-words"
+              label={
+                <>
+                  {a.name}
+                  <span className="block text-xs font-normal tracking-normal normal-case">
+                    Since {new Date(a.grantedAt).toLocaleDateString()}
+                  </span>
+                </>
               }
-              title={`Revoke ${a.name}?`}
-              description="It can't start new sessions. One already open stops working within an hour."
-              action="Revoke"
-              onConfirm={() =>
-                void revoke.run(a.clientId).then((ok) => ok && apps.reload())
-              }
-            />
+            >
+              <Confirm
+                trigger={
+                  <Button variant="outline" size="sm" disabled={revoke.busy}>
+                    Revoke
+                  </Button>
+                }
+                title={`Revoke ${a.name}?`}
+                description="It can't start new sessions. One already open stops working within an hour."
+                action="Revoke"
+                onConfirm={() =>
+                  void revoke.run(a.clientId).then((ok) => ok && apps.reload())
+                }
+              />
+            </OrderLine>
           </li>
         ))}
       </ul>
@@ -85,7 +91,7 @@ function PasswordForm() {
     }
   };
   return (
-    <form noValidate onSubmit={onSubmit} className="grid gap-3">
+    <form noValidate onSubmit={onSubmit} className="grid gap-4">
       {save.error && <ErrorAlert>{save.error}</ErrorAlert>}
       <Field
         label="New password"
@@ -96,11 +102,11 @@ function PasswordForm() {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
-      <div className="flex items-center gap-3">
-        <Button type="submit" disabled={save.busy}>
+      <div className="grid gap-2">
+        <Button type="submit" size="lg" className="w-full" disabled={save.busy}>
           {save.busy ? "Saving…" : "Change password"}
         </Button>
-        <span aria-live="polite" className="text-sm text-muted-foreground">
+        <span aria-live="polite" className="text-center text-sm text-ink-soft">
           {saved ? "Password changed" : ""}
         </span>
       </div>
@@ -118,64 +124,76 @@ export function AccountPage() {
   });
 
   return (
-    <div className="grid gap-6">
-      <h1 className="text-2xl font-semibold">Account</h1>
-      <section className="grid gap-1" aria-labelledby="account-email">
-        <h2 id="account-email" className="text-lg font-semibold">
-          Email
-        </h2>
-        <p>{user?.email}</p>
-      </section>
+    <TicketPage>
+      <Ticket>
+        <TicketHead titleAs="h1" title="Account" />
+        <TicketSection perforated={false}>
+          <OrderLine label="Email">
+            <span className="break-all">{user?.email}</span>
+          </OrderLine>
+        </TicketSection>
 
-      <Separator />
-      <section className="grid gap-3" aria-labelledby="account-password">
-        <h2 id="account-password" className="text-lg font-semibold">
-          Password
-        </h2>
-        <PasswordForm />
-      </section>
+        <Section id="account-password" title="Password">
+          <PasswordForm />
+        </Section>
 
-      <Separator />
-      <section className="grid gap-3" aria-labelledby="account-theme">
-        <h2 id="account-theme" className="text-lg font-semibold">
-          Appearance
-        </h2>
-        <ToggleGroup
-          type="single"
-          variant="outline"
-          aria-labelledby="account-theme"
-          value={theme}
-          onValueChange={(v) => v && setTheme(v as Theme)}
-        >
-          <ToggleGroupItem value="system">System</ToggleGroupItem>
-          <ToggleGroupItem value="light">Light</ToggleGroupItem>
-          <ToggleGroupItem value="dark">Dark</ToggleGroupItem>
-        </ToggleGroup>
-      </section>
+        <Section id="account-theme" title="Appearance">
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            aria-labelledby="account-theme"
+            value={theme}
+            onValueChange={(v) => v && setTheme(v as Theme)}
+            className="grid w-full grid-cols-3"
+          >
+            <ToggleGroupItem value="system">System</ToggleGroupItem>
+            <ToggleGroupItem value="light">Light</ToggleGroupItem>
+            <ToggleGroupItem value="dark">Dark</ToggleGroupItem>
+          </ToggleGroup>
+        </Section>
 
-      <Separator />
-      <section className="grid gap-2" aria-labelledby="account-apps">
-        <h2 id="account-apps" className="text-lg font-semibold">
-          Connected apps
-        </h2>
-        <ConnectedApps />
-      </section>
+        <Section id="account-apps" title="Connected apps">
+          <ConnectedApps />
+        </Section>
 
-      <Separator />
-      {out.error && <ErrorAlert>{out.error}</ErrorAlert>}
-      <div>
-        <Button
-          variant="outline"
-          disabled={out.busy}
-          onClick={() =>
-            void out
-              .run()
-              .then((ok) => ok && navigate("/login", { replace: true }))
-          }
-        >
-          Log out
-        </Button>
-      </div>
-    </div>
+        <TicketSection className="grid gap-3">
+          {out.error && <ErrorAlert>{out.error}</ErrorAlert>}
+          <Button
+            variant="outline"
+            className="w-full"
+            disabled={out.busy}
+            onClick={() =>
+              void out
+                .run()
+                .then((ok) => ok && navigate("/login", { replace: true }))
+            }
+          >
+            Log out
+          </Button>
+        </TicketSection>
+      </Ticket>
+    </TicketPage>
+  );
+}
+
+/** A perforated ticket section with a caps heading. */
+function Section({
+  id,
+  title,
+  children,
+}: {
+  id: string;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <TicketSection>
+      <section className="grid gap-4" aria-labelledby={id}>
+        <h2 id={id} className="caps text-sm text-ink-soft">
+          {title}
+        </h2>
+        {children}
+      </section>
+    </TicketSection>
   );
 }

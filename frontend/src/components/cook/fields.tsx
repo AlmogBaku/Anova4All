@@ -62,7 +62,7 @@ export function TemperatureField({
         type="number"
         inputMode="decimal"
         step="0.1"
-        className="w-32"
+        className="w-36 text-lg font-semibold tabular-nums"
         disabled={disabled}
         value={text ?? String(value)}
         aria-invalid={!!error || undefined}
@@ -91,7 +91,7 @@ export function UnitField({
 }) {
   return (
     <div className="grid gap-1.5">
-      <span className="text-sm font-medium" id="unit-label">
+      <span className="text-sm font-semibold" id="unit-label">
         Unit
       </span>
       <ToggleGroup
@@ -137,7 +137,7 @@ export function DurationField({
         type="text"
         inputMode="numeric"
         autoComplete="off"
-        className="w-32 tabular-nums"
+        className="w-36 text-lg font-semibold tabular-nums"
         disabled={disabled}
         value={formatDigits(digits ?? minutesToDigits(minutes))}
         aria-invalid={!!error || undefined}

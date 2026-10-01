@@ -30,6 +30,9 @@ export const STEP_PROGRESS: Partial<Record<StepId, string>> = {
 export const PREFLIGHT = {
   intro:
     "Setup runs in this browser over Bluetooth. Stay within a few meters of the cooker.",
+  /** For strangers who found the project: who runs this. */
+  independent:
+    "Anova4All is an independent open-source project. It isn't affiliated with Anova.",
   checkAgain: "Check again",
   bluetoothOff: {
     title: "Bluetooth is off",
@@ -49,6 +52,13 @@ export const PREPARE = {
     "Keep this device within a few meters of the cooker.",
   ],
   next: "The cooker is ready",
+  /** The diagram above the steps; labels only name what the steps mention. */
+  diagram: {
+    label:
+      "The cooker clipped to the side of a pot, with its cable plugged in.",
+    cooker: "Cooker",
+    plug: "Plug in",
+  },
 };
 
 export const FIND = {
@@ -70,8 +80,8 @@ export const WIFI = {
 };
 
 export const PAIR = {
-  waiting: (seconds: number) =>
-    `Waiting for the cooker to connect to the server… ${seconds} s`,
+  waiting: (seconds: number, limit: number) =>
+    `Waiting for the cooker to connect to the server… ${seconds} of ${limit} s`,
   lastStatus: {
     device_offline: "The cooker hasn't reached the server yet.",
     key_mismatch:
@@ -94,6 +104,13 @@ export const NAME = {
   label: "Name",
   save: "Save name",
   skip: "Skip",
+};
+
+export const WIZARD = {
+  title: "Set up a cooker",
+  progress: (step: number, total: number) => `Step ${step} of ${total}`,
+  stepsLabel: "Setup steps",
+  done: "done",
 };
 
 export const COMMON = {

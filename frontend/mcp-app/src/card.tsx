@@ -192,58 +192,91 @@ const STATE_WORD: Record<View["kind"], string> = {
 function CardView({ view, busy, act, pick }: ViewProps) {
   switch (view.kind) {
     case "loading":
-      return <p className="line muted">Loading…</p>;
+      return (
+        <section className="ticket">
+          <div className="part">
+            <p className="line muted">Loading…</p>
+          </div>
+        </section>
+      );
     case "no_cookers":
-      return <p className="line">{view.message}</p>;
+      return (
+        <section className="ticket">
+          <div className="part">
+            <p className="line">{view.message}</p>
+          </div>
+        </section>
+      );
     case "error":
       return (
-        <p className="line danger" role="alert">
-          {view.message}
-        </p>
+        <section className="ticket">
+          <div className="part">
+            <p className="line danger" role="alert">
+              {view.message}
+            </p>
+          </div>
+        </section>
       );
     case "device_required":
       return (
-        <section>
-          <p className="line">{view.message}</p>
-          <ul className="choices">
-            {view.devices.map((d) => (
-              <li key={d.id}>
-                <button type="button" onClick={() => pick(d.id)}>
-                  {d.name}
-                  <span className="muted">
-                    {" "}
-                    · {d.online ? "online" : "offline"}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+        <section className="ticket">
+          <div className="part">
+            <p className="line">{view.message}</p>
+            <ul className="choices">
+              {view.devices.map((d) => (
+                <li key={d.id}>
+                  <button type="button" onClick={() => pick(d.id)}>
+                    <span className="choice-name">{d.name}</span>
+                    <span className="caps muted">
+                      {d.online ? "online" : "offline"}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         </section>
       );
   }
   const device = view.device;
   return (
-    <section>
-      <header className="head">
-        <h1>{device.name}</h1>
-        <span className="state">{STATE_WORD[view.kind]}</span>
+    <section className="ticket" aria-labelledby="cooker-name">
+      <header
+        className="ticket-head"
+        data-tone={
+          view.kind === "heating"
+            ? "heat"
+            : view.kind === "offline"
+              ? "offline"
+              : "idle"
+        }
+      >
+        <h1 id="cooker-name" className="caps">
+          {device.name}
+        </h1>
+        <span className="caps state">{STATE_WORD[view.kind]}</span>
       </header>
       {view.kind === "offline" && (
-        <p className="line muted">
-          {view.lastSeenAt
-            ? `Last seen ${formatSeen(view.lastSeenAt)}.`
-            : "Not seen yet."}
-        </p>
+        <div className="part">
+          <p className="line muted">
+            {view.lastSeenAt
+              ? `Last seen ${formatSeen(view.lastSeenAt)}.`
+              : "Not seen yet."}
+          </p>
+        </div>
       )}
       {view.kind !== "offline" && (
-        <p className="temps">
-          <span className="big">{formatTemp(view.water, view.unit)}</span>
-          <span className="muted"> water</span>
-        </p>
+        <div className="part">
+          <p className="caps label">Water</p>
+          <p className="temps">
+            <span className="big">{formatTemp(view.water, view.unit)}</span>
+          </p>
+        </div>
       )}
       {view.kind === "heating" && <Heating view={view} busy={busy} act={act} />}
       {view.kind === "auto_stopped" && (
-        <>
+        <div className="part perf" role="status">
+          <p className="caps label">Stopped automatically</p>
           <p className="line">
             Stopped by the timer at {formatClock(view.endedAt)}. The alarm may
             still be sounding.
@@ -257,10 +290,10 @@ function CardView({ view, busy, act, pick }: ViewProps) {
               Silence
             </button>
           </div>
-        </>
+        </div>
       )}
       {view.kind === "idle" && (
-        <>
+        <div className="part perf">
           {view.alert && (
             <p className="line danger" role="alert">
               {view.alert}
@@ -273,12 +306,14 @@ function CardView({ view, busy, act, pick }: ViewProps) {
             busy={busy}
             onStart={(a) => void act(a, device)}
           />
-        </>
+        </div>
       )}
       {"notice" in view && view.notice && (
-        <p className="line danger" role="alert">
-          {view.notice}
-        </p>
+        <div className="part perf">
+          <p className="line danger" role="alert">
+            {view.notice}
+          </p>
+        </div>
       )}
     </section>
   );
@@ -340,88 +375,95 @@ function Heating({
 
   return (
     <>
-      <dl className="facts">
-        <dt>Target</dt>
-        <dd>{formatTemp(view.target, view.unit)}</dd>
-        <dt>Timer</dt>
-        <dd>
-          {view.timerMinutes === 0
-            ? "None"
-            : view.timerRunning
-              ? `${formatMinutes(view.timerMinutes)} left`
-              : `${formatMinutes(view.timerMinutes)}, not running`}
-        </dd>
-        {view.stopsAt && (
-          <>
-            <dt>Auto-stop</dt>
-            <dd>Stops at {formatClock(view.stopsAt)}</dd>
-          </>
-        )}
-      </dl>
-      <div className="edit">
-        <Stepper
-          label="Target"
-          value={formatTemp(shown.target, view.unit)}
-          disabled={busy}
-          onDown={() =>
-            edit({ target: clampTemp(shown.target - TEMP_STEP, view.unit) })
-          }
-          onUp={() =>
-            edit({ target: clampTemp(shown.target + TEMP_STEP, view.unit) })
-          }
-        />
-        <Stepper
-          label="Timer"
-          value={shown.minutes === 0 ? "None" : formatMinutes(shown.minutes)}
-          disabled={busy}
-          onDown={() =>
-            edit({
-              minutes: clampMinutes(shown.minutes - TIMER_STEP),
-              ...(shown.minutes - TIMER_STEP <= 0 ? { autoStop: false } : {}),
-            })
-          }
-          onUp={() =>
-            edit({ minutes: clampMinutes(shown.minutes + TIMER_STEP) })
-          }
-        />
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={shown.autoStop && shown.minutes > 0}
-            disabled={busy || shown.minutes === 0}
-            onChange={(e) => edit({ autoStop: e.target.checked })}
-          />
-          Stop heating when the timer ends
-        </label>
+      <div className="part order">
+        <dl className="facts">
+          <dt>Target</dt>
+          <dd>{formatTemp(view.target, view.unit)}</dd>
+          <dt>Timer</dt>
+          <dd>
+            {view.timerMinutes === 0
+              ? "None"
+              : view.timerRunning
+                ? `${formatMinutes(view.timerMinutes)} left`
+                : `${formatMinutes(view.timerMinutes)}, not running`}
+          </dd>
+          {view.stopsAt && (
+            <>
+              <dt>Auto-stop</dt>
+              <dd>Stops at {formatClock(view.stopsAt)}</dd>
+            </>
+          )}
+        </dl>
       </div>
-      <div className="row">
-        {dirty && (
-          <>
-            <button
-              type="button"
-              className="primary"
-              disabled={busy}
-              onClick={() => void apply()}
-            >
-              Apply
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => setDraft(null)}
-            >
-              Cancel
-            </button>
-          </>
-        )}
-        <button
-          type="button"
-          className="stop"
-          disabled={busy}
-          onClick={() => void act({ type: "stop" }, view.device)}
-        >
-          Stop
-        </button>
+      <div className="part perf">
+        <p className="caps label">Order (changes apply now)</p>
+        <div className="edit">
+          <Stepper
+            label="Target"
+            value={formatTemp(shown.target, view.unit)}
+            disabled={busy}
+            onDown={() =>
+              edit({ target: clampTemp(shown.target - TEMP_STEP, view.unit) })
+            }
+            onUp={() =>
+              edit({ target: clampTemp(shown.target + TEMP_STEP, view.unit) })
+            }
+          />
+          <Stepper
+            label="Timer"
+            value={shown.minutes === 0 ? "None" : formatMinutes(shown.minutes)}
+            disabled={busy}
+            onDown={() =>
+              edit({
+                minutes: clampMinutes(shown.minutes - TIMER_STEP),
+                ...(shown.minutes - TIMER_STEP <= 0 ? { autoStop: false } : {}),
+              })
+            }
+            onUp={() =>
+              edit({ minutes: clampMinutes(shown.minutes + TIMER_STEP) })
+            }
+          />
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={shown.autoStop && shown.minutes > 0}
+              disabled={busy || shown.minutes === 0}
+              onChange={(e) => edit({ autoStop: e.target.checked })}
+            />
+            Stop heating when the timer ends
+          </label>
+        </div>
+      </div>
+      <div className="part perf bump">
+        <div className="row">
+          {dirty && (
+            <>
+              <button
+                type="button"
+                className="primary"
+                disabled={busy}
+                onClick={() => void apply()}
+              >
+                Apply
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setDraft(null)}
+              >
+                Cancel
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            className="stop"
+            disabled={busy}
+            onClick={() => void act({ type: "stop" }, view.device)}
+          >
+            Stop
+          </button>
+        </div>
       </div>
     </>
   );
@@ -436,7 +478,7 @@ function Stepper(props: {
 }) {
   return (
     <div className="stepper">
-      <span className="muted">{props.label}</span>
+      <span className="caps label">{props.label}</span>
       <button
         type="button"
         aria-label={`Lower ${props.label.toLowerCase()}`}
@@ -504,7 +546,7 @@ function StartForm(props: {
       }}
     >
       <label>
-        <span className="muted">Temperature</span>
+        <span className="caps label">Temperature</span>
         <input
           type="number"
           inputMode="decimal"
@@ -516,7 +558,7 @@ function StartForm(props: {
         />
       </label>
       <label>
-        <span className="muted">Unit</span>
+        <span className="caps label">Unit</span>
         <select
           value={unit}
           onChange={(e) => {
@@ -530,7 +572,7 @@ function StartForm(props: {
         </select>
       </label>
       <label>
-        <span className="muted">Timer (min)</span>
+        <span className="caps label">Timer (min)</span>
         <input
           type="number"
           inputMode="numeric"
@@ -552,7 +594,7 @@ function StartForm(props: {
         Stop heating when the timer ends
       </label>
       {problem && <p className="line danger">{problem}</p>}
-      <div className="row">
+      <div className="row bump">
         <button
           type="submit"
           className="primary"

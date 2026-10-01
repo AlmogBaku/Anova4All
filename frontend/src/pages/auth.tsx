@@ -1,12 +1,11 @@
 import { useState, type FormEvent } from "react";
 import {
-  Link,
   Navigate,
   useLocation,
   useNavigate,
   type Location,
 } from "react-router";
-import { AuthCard } from "@/components/auth/auth-card.tsx";
+import { AuthCard, QuietLink } from "@/components/auth/auth-card.tsx";
 import { Field } from "@/components/field.tsx";
 import { ErrorAlert, Loading, Notice } from "@/components/status.tsx";
 import { Button } from "@/components/ui/button.tsx";
@@ -29,6 +28,20 @@ function useReturnTo(): { from: Location | null; target: string | Location } {
 }
 
 const isInvite = (from: Location | null) => from?.pathname === "/invite";
+
+/** What this is, for someone who landed here from a link. */
+function About({ invite }: { invite?: string }) {
+  return (
+    <>
+      {invite && <p className="font-semibold">{invite}</p>}
+      <p>Control your Anova Precision Cooker Wi-Fi from anywhere.</p>
+      <p className="text-sm text-ink-soft">
+        Anova4All is an independent open-source project, not affiliated with
+        Anova.
+      </p>
+    </>
+  );
+}
 
 export function LoginPage() {
   const { session, loading } = useAuth();
@@ -54,18 +67,30 @@ export function LoginPage() {
   return (
     <AuthCard
       title="Log in"
-      description={isInvite(from) ? "Log in to accept the invite." : undefined}
+      description={
+        <About
+          invite={isInvite(from) ? "Log in to accept the invite." : undefined}
+        />
+      }
       onSubmit={onSubmit}
+      action={
+        <Button
+          type="submit"
+          size="lg"
+          className="w-full"
+          disabled={action.busy}
+        >
+          {action.busy ? "Logging in…" : "Log in"}
+        </Button>
+      }
       footer={
         <>
-          <Link to="/forgot-password" className="underline">
-            Forgot your password?
-          </Link>
-          <span>
+          <QuietLink to="/forgot-password">Forgot your password?</QuietLink>
+          <span className="inline-flex min-h-11 items-center gap-1">
             No account?{" "}
-            <Link to="/sign-up" state={{ from }} className="underline">
+            <QuietLink to="/sign-up" state={{ from }}>
               Sign up
-            </Link>
+            </QuietLink>
           </span>
         </>
       }
@@ -87,9 +112,6 @@ export function LoginPage() {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
-      <Button type="submit" disabled={action.busy}>
-        {action.busy ? "Logging in…" : "Log in"}
-      </Button>
     </AuthCard>
   );
 }
@@ -123,13 +145,16 @@ export function SignUpPage() {
     return (
       <AuthCard
         title="Check your email"
-        description={`We sent a confirmation link to ${email}.`}
+        description={
+          <p>
+            We sent a confirmation link to{" "}
+            <span className="font-semibold break-all">{email}</span>.
+          </p>
+        }
       >
-        <p className="text-sm">
-          Open the link to finish creating your account.
-        </p>
+        <p>Open the link to finish creating your account.</p>
         {isInvite(from) && (
-          <p className="text-sm">
+          <p className="text-ink-soft">
             After you confirm, open the invite link again to join the cooker.
           </p>
         )}
@@ -141,15 +166,31 @@ export function SignUpPage() {
     <AuthCard
       title="Sign up"
       description={
-        isInvite(from) ? "Create an account to accept the invite." : undefined
+        <About
+          invite={
+            isInvite(from)
+              ? "Create an account to accept the invite."
+              : undefined
+          }
+        />
       }
       onSubmit={onSubmit}
+      action={
+        <Button
+          type="submit"
+          size="lg"
+          className="w-full"
+          disabled={action.busy}
+        >
+          {action.busy ? "Signing up…" : "Sign up"}
+        </Button>
+      }
       footer={
-        <span>
+        <span className="inline-flex min-h-11 items-center gap-1">
           Already have an account?{" "}
-          <Link to="/login" state={{ from }} className="underline">
+          <QuietLink to="/login" state={{ from }}>
             Log in
-          </Link>
+          </QuietLink>
         </span>
       }
     >
@@ -172,9 +213,6 @@ export function SignUpPage() {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
-      <Button type="submit" disabled={action.busy}>
-        {action.busy ? "Signing up…" : "Sign up"}
-      </Button>
     </AuthCard>
   );
 }
@@ -198,15 +236,12 @@ export function ForgotPasswordPage() {
     return (
       <AuthCard
         title="Check your email"
-        footer={
-          <Link to="/login" className="underline">
-            Back to log in
-          </Link>
-        }
+        footer={<QuietLink to="/login">Back to log in</QuietLink>}
       >
-        <p className="text-sm">
-          If an account exists for {email}, we sent a link to reset the
-          password.
+        <p className="leading-relaxed">
+          If an account exists for{" "}
+          <span className="font-semibold break-all">{email}</span>, we sent a
+          link to reset the password.
         </p>
       </AuthCard>
     );
@@ -215,13 +250,19 @@ export function ForgotPasswordPage() {
   return (
     <AuthCard
       title="Reset your password"
-      description="We'll email you a link to set a new password."
+      description={<p>We'll email you a link to set a new password.</p>}
       onSubmit={onSubmit}
-      footer={
-        <Link to="/login" className="underline">
-          Back to log in
-        </Link>
+      action={
+        <Button
+          type="submit"
+          size="lg"
+          className="w-full"
+          disabled={action.busy}
+        >
+          {action.busy ? "Sending…" : "Send reset link"}
+        </Button>
       }
+      footer={<QuietLink to="/login">Back to log in</QuietLink>}
     >
       {action.error && <ErrorAlert>{action.error}</ErrorAlert>}
       <Field
@@ -232,9 +273,6 @@ export function ForgotPasswordPage() {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
       />
-      <Button type="submit" disabled={action.busy}>
-        {action.busy ? "Sending…" : "Send reset link"}
-      </Button>
     </AuthCard>
   );
 }
@@ -256,11 +294,7 @@ export function ResetPasswordPage() {
     return (
       <AuthCard
         title="Reset link not valid"
-        footer={
-          <Link to="/forgot-password" className="underline">
-            Send a new link
-          </Link>
-        }
+        footer={<QuietLink to="/forgot-password">Send a new link</QuietLink>}
       >
         <ErrorAlert>
           {authErrorFromHash(INITIAL_HASH) ??
@@ -271,11 +305,18 @@ export function ResetPasswordPage() {
   }
   if (done) {
     return (
-      <AuthCard title="Password updated">
-        <Button onClick={() => navigate("/", { replace: true })}>
-          Go to your cookers
-        </Button>
-      </AuthCard>
+      <AuthCard
+        title="Password updated"
+        action={
+          <Button
+            size="lg"
+            className="w-full"
+            onClick={() => navigate("/", { replace: true })}
+          >
+            Go to your cookers
+          </Button>
+        }
+      />
     );
   }
 
@@ -288,7 +329,20 @@ export function ResetPasswordPage() {
   };
 
   return (
-    <AuthCard title="Set a new password" onSubmit={onSubmit}>
+    <AuthCard
+      title="Set a new password"
+      onSubmit={onSubmit}
+      action={
+        <Button
+          type="submit"
+          size="lg"
+          className="w-full"
+          disabled={action.busy}
+        >
+          {action.busy ? "Saving…" : "Save password"}
+        </Button>
+      }
+    >
       {action.error && <ErrorAlert>{action.error}</ErrorAlert>}
       <Field
         label="New password"
@@ -299,9 +353,6 @@ export function ResetPasswordPage() {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
-      <Button type="submit" disabled={action.busy}>
-        {action.busy ? "Saving…" : "Save password"}
-      </Button>
     </AuthCard>
   );
 }
@@ -314,11 +365,7 @@ export function ConfirmPage() {
   return (
     <AuthCard
       title="Couldn't confirm your email"
-      footer={
-        <Link to="/login" className="underline">
-          Log in
-        </Link>
-      }
+      footer={<QuietLink to="/login">Log in</QuietLink>}
     >
       <ErrorAlert>
         {authErrorFromHash(INITIAL_HASH) ??

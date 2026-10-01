@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { ErrorAlert } from "@/components/status.tsx";
+import {
+  Ticket,
+  TicketHead,
+  TicketPage,
+  TicketSection,
+} from "@/components/ticket.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { useAction } from "@/hooks/use-action.ts";
 import { devices } from "@/lib/data.ts";
@@ -18,15 +24,22 @@ export function InvitePage() {
 
   if (!token) {
     return (
-      <div className="grid gap-4">
-        <h1 className="text-2xl font-semibold">Invite</h1>
-        <ErrorAlert>
-          This invite link is incomplete. Copy the whole link and open it again.
-        </ErrorAlert>
-        <Link to="/" className="underline">
-          Go to your cookers
-        </Link>
-      </div>
+      <TicketPage width="sm">
+        <Ticket>
+          <TicketHead titleAs="h1" title="Invite" tone="offline" />
+          <TicketSection perforated={false} className="grid gap-5">
+            <ErrorAlert>
+              This invite link is incomplete. Copy the whole link and open it
+              again.
+            </ErrorAlert>
+            <Button asChild variant="outline" className="w-full">
+              <Link to="/" className="no-underline">
+                Go to your cookers
+              </Link>
+            </Button>
+          </TicketSection>
+        </Ticket>
+      </TicketPage>
     );
   }
 
@@ -37,23 +50,32 @@ export function InvitePage() {
   };
 
   return (
-    <div className="grid gap-4">
-      <h1 className="text-2xl font-semibold">You're invited to a cooker</h1>
-      <p>
-        Accept to add the cooker to your list. You'll be able to see and control
-        it.
-      </p>
-      {accept.error && <ErrorAlert>{accept.error}</ErrorAlert>}
-      <div className="flex gap-2">
-        <Button onClick={() => void onAccept()} disabled={accept.busy}>
-          {accept.busy ? "Accepting…" : "Accept invite"}
-        </Button>
-        <Button asChild variant="outline">
-          <Link to="/" replace>
-            Not now
-          </Link>
-        </Button>
-      </div>
-    </div>
+    <TicketPage width="sm">
+      <Ticket>
+        <TicketHead titleAs="h1" title="You're invited" />
+        <TicketSection perforated={false} className="grid gap-4">
+          <p className="leading-relaxed">
+            Someone shared a cooker with you. Accept to add it to your list.
+            You'll be able to see and control it.
+          </p>
+          {accept.error && <ErrorAlert>{accept.error}</ErrorAlert>}
+        </TicketSection>
+        <TicketSection className="grid gap-2 pt-4">
+          <Button
+            size="lg"
+            className="w-full"
+            onClick={() => void onAccept()}
+            disabled={accept.busy}
+          >
+            {accept.busy ? "Accepting…" : "Accept invite"}
+          </Button>
+          <Button asChild variant="ghost" className="w-full">
+            <Link to="/" replace className="no-underline">
+              Not now
+            </Link>
+          </Button>
+        </TicketSection>
+      </Ticket>
+    </TicketPage>
   );
 }

@@ -3,6 +3,8 @@ import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { DONE_TOAST, COMMON } from "@/components/setup/copy.ts";
 import { SetupWizard } from "@/components/setup/setup-wizard.tsx";
+import { TicketPage } from "@/components/ticket.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import { useSetup } from "@/hooks/use-setup.ts";
 
 export function SetupPage() {
@@ -17,15 +19,17 @@ export function SetupPage() {
   }, [deviceId, navigate]);
 
   return (
-    <div className="grid gap-6">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold">Set up a cooker</h1>
-        {/* Leaving the page disconnects Bluetooth and stops waiting (useSetup cleanup). */}
-        <Link to="/" className="text-sm underline">
-          {COMMON.cancel}
-        </Link>
-      </div>
-      <SetupWizard state={state} runner={runner} />
-    </div>
+    <TicketPage>
+      <SetupWizard
+        state={state}
+        runner={runner}
+        cancel={
+          // Leaving the page disconnects Bluetooth and stops waiting (useSetup cleanup).
+          <Button asChild variant="link">
+            <Link to="/">{COMMON.cancel}</Link>
+          </Button>
+        }
+      />
+    </TicketPage>
   );
 }

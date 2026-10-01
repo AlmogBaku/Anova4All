@@ -5,8 +5,10 @@ import { cn } from "@/lib/utils.ts";
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
   cn(
-    "rounded-md px-2 py-1 text-sm hover:underline",
-    isActive && "font-semibold",
+    "caps inline-flex h-11 items-center border-b-[3px] px-3 text-sm transition-colors",
+    isActive
+      ? "border-ink text-ink"
+      : "border-transparent text-ink-soft hover:text-ink",
   );
 
 export function Layout() {
@@ -15,20 +17,30 @@ export function Layout() {
     <div className="min-h-svh bg-background text-foreground">
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:p-2"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-paper focus:p-3"
       >
         Skip to content
       </a>
-      <header className="border-b">
+      <header>
         <nav
           aria-label="Main"
-          className="mx-auto flex max-w-3xl items-center gap-4 px-4 py-3"
+          className="mx-auto flex max-w-5xl items-center gap-2 px-4 pt-3 pb-2 sm:px-6"
         >
-          <Link to="/" className="font-semibold">
-            Anova4All
+          <Link
+            to="/"
+            className="flex h-11 items-center gap-2.5 pr-2 text-ink no-underline"
+          >
+            <img
+              src={`${import.meta.env.BASE_URL}logo.svg`}
+              alt=""
+              className="h-8 w-auto"
+            />
+            <span className="font-condensed text-2xl leading-none font-extrabold tracking-[-0.01em] uppercase">
+              Anova4All
+            </span>
           </Link>
           {user && (
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex items-center">
               <NavLink to="/" end className={navClass}>
                 Cookers
               </NavLink>
@@ -39,10 +51,10 @@ export function Layout() {
           )}
         </nav>
       </header>
-      <main id="main" className="mx-auto max-w-3xl px-4 py-6">
+      <main id="main" className="mx-auto max-w-5xl px-3 pt-4 pb-16 sm:px-6">
         <Outlet />
       </main>
-      <Toaster position="bottom-center" />
+      <Toaster position="top-center" />
     </div>
   );
 }

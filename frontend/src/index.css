@@ -2,78 +2,72 @@
 
 @import "tw-animate-css";
 
+@import "@fontsource-variable/archivo/wdth.css";
+
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * The Ticket Rail. Steel ground and rail, square thermal-paper tickets, ink
+ * caps, dashed perforations. --heat is reserved for "heating now".
+ */
 :root {
-  --radius: 0.65rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.141 0.005 285.823);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.141 0.005 285.823);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.705 0.213 47.604);
-  --primary-foreground: oklch(0.98 0.016 73.684);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.21 0.006 285.885);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.705 0.213 47.604);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-primary: oklch(0.705 0.213 47.604);
-  --sidebar-primary-foreground: oklch(0.98 0.016 73.684);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.705 0.213 47.604);
+  --radius: 0.125rem;
+  --steel: oklch(0.84 0.006 230);
+  --steel-deep: oklch(0.7 0.008 230);
+  --rail: oklch(0.62 0.01 230);
+  --rail-hi: oklch(0.9 0.004 230);
+  --paper: oklch(0.985 0.003 100);
+  --ink: oklch(0.19 0.004 250);
+  --ink-soft: oklch(0.44 0.008 250);
+  --heat: oklch(0.68 0.19 45);
+  --heat-ink: oklch(0.19 0.004 250);
+  --ticket-shadow:
+    0 1px 2px oklch(0.2 0.01 250 / 0.18), 0 6px 18px oklch(0.2 0.01 250 / 0.14);
+
+  --background: var(--steel);
+  --foreground: var(--ink);
+  --card: var(--paper);
+  --card-foreground: var(--ink);
+  --popover: var(--paper);
+  --popover-foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: var(--paper);
+  --secondary: oklch(0.93 0.004 230);
+  --secondary-foreground: var(--ink);
+  --muted: oklch(0.94 0.004 230);
+  --muted-foreground: var(--ink-soft);
+  --accent: oklch(0.93 0.004 230);
+  --accent-foreground: var(--ink);
+  --destructive: oklch(0.5 0.19 25);
+  --border: oklch(0.19 0.004 250 / 0.22);
+  --input: oklch(0.19 0.004 250 / 0.55);
+  --ring: var(--ink);
 }
 
 .dark {
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.21 0.006 285.885);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.646 0.222 41.116);
-  --primary-foreground: oklch(0.98 0.016 73.684);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.646 0.222 41.116);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.646 0.222 41.116);
-  --sidebar-primary-foreground: oklch(0.98 0.016 73.684);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.646 0.222 41.116);
+  --steel: oklch(0.17 0.006 240);
+  --steel-deep: oklch(0.13 0.006 240);
+  --rail: oklch(0.36 0.01 240);
+  --rail-hi: oklch(0.5 0.01 240);
+  --paper: oklch(0.235 0.007 240);
+  --ink: oklch(0.94 0.004 100);
+  --ink-soft: oklch(0.74 0.008 240);
+  --heat: oklch(0.72 0.18 48);
+  --heat-ink: oklch(0.16 0.004 250);
+  --ticket-shadow: 0 1px 2px oklch(0 0 0 / 0.5), 0 8px 22px oklch(0 0 0 / 0.45);
+
+  --secondary: oklch(0.29 0.008 240);
+  --muted: oklch(0.28 0.008 240);
+  --accent: oklch(0.3 0.008 240);
+  --destructive: oklch(0.72 0.16 25);
+  --border: oklch(0.94 0.004 100 / 0.2);
+  --input: oklch(0.94 0.004 100 / 0.5);
 }
 
 @theme inline {
+  --font-sans:
+    "Archivo Variable", ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji";
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -92,23 +86,41 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
+  --color-steel: var(--steel);
+  --color-rail: var(--rail);
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-heat: var(--heat);
+  --color-heat-ink: var(--heat-ink);
+  --shadow-ticket: var(--ticket-shadow);
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) * 2);
+  --radius-xl: calc(var(--radius) * 2);
+}
+
+@utility font-condensed {
+  font-stretch: 68%;
+}
+
+/* Ticket head and order labels: condensed ink caps. */
+@utility caps {
+  font-stretch: 80%;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* A perforation between ticket sections. */
+@utility perforation {
+  border-top: 2px dashed var(--border);
+}
+
+/* The torn bottom edge of a ticket: a row of half-circle notches. */
+@utility torn-edge {
+  mask: radial-gradient(circle at 50% 100%, transparent 3.5px, #000 4px) 0 0 /
+    8px 100% repeat-x;
 }
 
 @layer base {
@@ -116,7 +128,49 @@
     @apply border-border outline-ring/50;
   }
 
+  html {
+    color-scheme: light;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background font-sans text-foreground antialiased;
+    font-feature-settings: "tnum" 0;
+    caret-color: var(--ink);
+    scrollbar-color: var(--rail) var(--steel);
+  }
+
+  ::selection {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+
+  a {
+    text-underline-offset: 0.2em;
+    text-decoration-thickness: 1.5px;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }

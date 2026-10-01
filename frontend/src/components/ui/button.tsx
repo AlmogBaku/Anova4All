@@ -4,30 +4,28 @@ import { cn } from "@/lib/utils";
 import { Slot } from "radix-ui";
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-sm text-[0.9375rem] font-semibold whitespace-nowrap transition-[background-color,color,border-color] outline-none disabled:pointer-events-none disabled:opacity-45 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default: "bg-ink text-paper hover:bg-ink/85",
+        heat: "bg-heat text-heat-ink hover:bg-heat/85",
         destructive:
-          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
-        outline:
-          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
-        secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost:
-          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
-        link: "text-primary underline-offset-4 hover:underline",
+          "border-2 border-destructive bg-transparent text-destructive hover:bg-destructive hover:text-paper",
+        outline: "border-2 border-ink bg-transparent text-ink hover:bg-ink/8",
+        secondary: "bg-secondary text-secondary-foreground hover:bg-accent",
+        ghost: "text-ink hover:bg-ink/8",
+        link: "h-auto min-h-11 px-0 text-ink underline decoration-[1.5px] underline-offset-4 hover:decoration-2",
       },
       size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        xs: "h-6 gap-1 rounded-md px-2 text-xs has-[>svg]:px-1.5 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5",
-        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
-        icon: "size-9",
-        "icon-xs": "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm": "size-8",
-        "icon-lg": "size-10",
+        default: "h-11 px-5 has-[>svg]:px-4",
+        xs: "h-11 gap-1 px-3 text-sm",
+        sm: "h-11 gap-1.5 px-3.5 text-sm",
+        lg: "h-14 px-6 text-base caps",
+        icon: "size-11",
+        "icon-xs": "size-11 [&_svg:not([class*='size-'])]:size-3.5",
+        "icon-sm": "size-11",
+        "icon-lg": "size-12",
       },
     },
     defaultVariants: {
