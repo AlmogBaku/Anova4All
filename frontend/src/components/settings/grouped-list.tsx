@@ -26,7 +26,7 @@ export function GroupedList({
 }
 
 /**
- * Section header: small uppercase label with ink-soft color, positioned above
+ * Section header: small label with ink-soft color, positioned above
  * a grouped list.
  */
 export function SectionHeader({

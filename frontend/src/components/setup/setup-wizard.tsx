@@ -863,7 +863,7 @@ function NameScreen({
           maxLength={40}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="mt-4.5 h-14 rounded-[1.125rem] border-heat px-4 text-[1.0625rem]"
+          className="mt-4.5 h-14 rounded-[1.125rem] px-4 text-[1.0625rem]"
         />
         {error && (
           <p id={errorId} className="mt-1.5 text-sm text-destructive">

@@ -192,10 +192,7 @@ export function DurationField({
               onChange(digitsToMinutes(d));
             }}
           />
-          <span
-            aria-hidden
-            className="ml-[0.15em] text-[0.8125rem] text-ink-soft"
-          >
+          <span className="ml-[0.15em] text-[0.8125rem] text-ink-soft">
             {digits === null ? resting.unit : "h"}
           </span>
         </span>

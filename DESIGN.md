@@ -131,7 +131,7 @@ The palette is warm and tactile: soft porcelain grounds, copper for heat, ink fo
 ## Typography
 
 **Primary Font:** Geist Variable (100–900) with system fallback
-**Character:** A contemporary geometric sans, technically neutral but warm in its lighter weights. The extralight numerals (200) give the water temperature a precise, instrument-like quality. Small caps labels (`letter-spacing: 0.12em`) separate sections without adding visual weight.
+**Character:** A contemporary geometric sans, technically neutral but warm in its lighter weights. The extralight numerals (200) give the water temperature a precise, instrument-like quality. Small caps labels (`letter-spacing: 0.08em`) separate sections without adding visual weight.
 
 ### Hierarchy
 - **Display** (200, 4–6rem fluid, line-height 1, tracking -0.04em, tabular-nums): The water temperature. Extralight weight makes large sizes feel precise, not heavy.
@@ -201,7 +201,7 @@ Components are purpose-built for the cook screen and share the warm porcelain + 
 ### Unit Toggle (°C / °F)
 - **Shape:** Horizontal pill sitting in the dial's bottom gap, `h-8` (32px) × `w-24` (96px), rounded-full. Radix RadioGroup with a sliding `--paper` thumb that translates between the two options.
 - **Colors:** `--well` background with inset hairline ring (`shadow-[inset_0_0_0_1px_var(--rail-hi)]`). Unselected labels are `--ink-soft`, selected is `--ink`. Thumb is `--paper` with contact shadow in light mode, `--rail` with stronger shadow in dark.
-- **Interaction:** Switches between Celsius and Fahrenheit. Thumb slides with 180ms ease-out transition. Taps in the dial's bottom gap beside the pill are ignored by the dial (stopped from propagating).
+- **Interaction:** Switches between Celsius and Fahrenheit. Thumb slides with 180ms ease-out transition. Presses in the dial's bottom gap beside the pill are ignored by angle (`pressAction`); the pill itself is excluded from the dial's pointer handling.
 
 ### Buttons
 - **Shape:** Full-round (pill), 44px default height, 56px large.

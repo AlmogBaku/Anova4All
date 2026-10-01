@@ -537,6 +537,8 @@ func TestSetCommandsAcceptEchoedValue(t *testing.T) {
 			return wifitest.Reply{Text: "57.0"}, true
 		case "start time":
 			return wifitest.Reply{Text: "start time"}, true
+		case "set temp 60.0": // another number is a stale reply, never a confirmation
+			return wifitest.Reply{Text: "56.5"}, true
 		}
 		return wifitest.Reply{}, false
 	}})
@@ -550,6 +552,9 @@ func TestSetCommandsAcceptEchoedValue(t *testing.T) {
 		if _, err := dev.SendCommand(ctxT(t, 3*time.Second), cmd); err != nil {
 			t.Errorf("%s: %v", cmd.Encode(), err)
 		}
+	}
+	if _, err := dev.SendCommand(ctxT(t, 5*time.Second), commands.SetTargetTemperature{Temperature: 60, Unit: commands.Celsius}); err == nil {
+		t.Error("set temp 60.0 accepted 56.5 as its reply")
 	}
 }
 
