@@ -93,6 +93,24 @@ To use TLS, set the following environment variables:
 - `REST_SERVER_TLS_CERT`: The REST server TLS certificate file path (default: empty).
 - `REST_SERVER_TLS_KEY`: The REST server TLS key file path (default: empty).
 
+### Local development with a fake cooker
+
+You don't need a real cooker to work on the server or the UI. `cmd/fakecooker` dials the cooker port and
+answers like a cooker: it heats toward the set point while running, counts the timer down, and redials if the
+link drops. It uses a synthetic identity (`anova f00000000000000000000000`, key `testkey000`).
+
+```sh
+supabase start   # local database and auth
+ENV=dev SUPABASE_URL=http://127.0.0.1:54321 \
+  DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres \
+  go run ./cmd/anova4all   # REST on :8000, cooker port on :8080
+make fake-cooker         # in a second terminal
+```
+
+The URLs are the local Supabase defaults; `supabase status` prints them. Change the fake with flags, e.g.
+`make fake-cooker ARGS="-set-temp 57 -rate 2"`; `go run ./cmd/fakecooker -h` lists them all. Stop it with
+Ctrl-C. To control it from the UI, pair it with the key above.
+
 ### Using the deployed UI
 
 You can use the deployed UI, and set your own server address in the Settings page: https://almogbaku.github.io/Anova4All/
@@ -100,6 +118,65 @@ This saves the configuration in the browser's local storage.
 
 This can be quite useful if you deploy the server on a Raspberry Pi or similar device, expose it externally, and use the
 UI from anywhere.
+
+## Cloudflare Tunnel
+
+On the Pi, the HTTP API listens on `127.0.0.1:8000` only. A locally-managed
+Cloudflare Tunnel publishes it over HTTPS, covering `/api`, the SSE stream, `/mcp`,
+`/.well-known/oauth-protected-resource` and `/health`. The cooker port (8080) is raw
+TCP, and cooker firmware can't use a tunnel, so the router still forwards WAN 8080
+to the Pi. The examples below use `anova.example.com` as the hostname.
+
+1. **Install cloudflared on the Pi.** You need only the binary. A Pi 1 is ARMv6, so use
+   the `cloudflared-linux-arm` release asset, which is built with `GOARM=5`. The `armhf`
+   asset and Cloudflare's apt package are ARMv7 builds and won't run on it. Copy the
+   asset to `/usr/local/bin/cloudflared` with mode 755, and check it against the
+   SHA256 in the release notes.
+2. **Create the tunnel on your Mac.** Your Cloudflare login (`cert.pem`) stays on the
+   Mac and never goes to the Pi.
+
+   ```sh
+   cloudflared tunnel login
+   cloudflared tunnel create anova4all      # writes ~/.cloudflared/<TUNNEL_ID>.json
+   cloudflared tunnel route dns anova4all anova.example.com
+   ```
+
+3. **Install the tunnel on the Pi.** Run this from the Mac:
+
+   ```sh
+   make deploy-tunnel PI_HOST=pi@<pi-address> TUNNEL_ID=<TUNNEL_ID> \
+     TUNNEL_HOST=anova.example.com TUNNEL_CREDS=$HOME/.cloudflared/<TUNNEL_ID>.json
+   ```
+
+   This renders `deploy/cloudflared.yml.example` into `/etc/cloudflared/config.yml`,
+   which sends `anova.example.com` to `http://localhost:8000` and everything else to a
+   404. It installs the credentials as `/etc/cloudflared/<TUNNEL_ID>.json` (root-owned,
+   mode 600) and installs `deploy/cloudflared.service`. Then it validates the ingress
+   rules and enables and starts `cloudflared`. The credentials file is copied, never
+   printed. Keep it out of the repo.
+4. **Set the server's env file on the Pi.** Edit it with `sudoedit`:
+
+   ```sh
+   MCP_PUBLIC_URL=https://anova.example.com/mcp
+   CORS_ORIGINS=https://<user>.github.io        # the web UI's origin, not the tunnel
+   PUBLIC_HOST=<WAN IPv4, or a DNS-only name>   # what the cooker dials on 8080
+   ```
+
+   Don't use the tunnel hostname for `PUBLIC_HOST`. It resolves to Cloudflare, which
+   won't carry the cooker's TCP. Restart the server afterwards
+   (`sudo systemctl restart anova4all`).
+5. **Build the web UI against the tunnel** with `VITE_API_URL=https://anova.example.com`.
+6. **Set Supabase Auth.** Set `site_url` and the redirect URLs to the web UI's origin
+   (for example `https://<user>.github.io/Anova4All/` and `…/**`). The tunnel hostname
+   doesn't need to be a redirect URL: MCP clients find the auth server through
+   `MCP_PUBLIC_URL`'s `/.well-known/oauth-protected-resource` metadata.
+
+Check that it works with `curl https://anova.example.com/health` and
+`systemctl status cloudflared`. Every request reaches the server from 127.0.0.1. That
+is harmless here: rate limits are per user, and the server neither logs client IPs
+nor keys anything on them. If cloudflared uses too much CPU on a Pi 1, add
+`protocol: http2` to the config. It falls back to that by itself when UDP 7844 is
+blocked.
 
 ## References
 

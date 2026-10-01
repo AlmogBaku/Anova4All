@@ -67,8 +67,8 @@ type Cooker struct {
 
 // Conn is a connected fake cooker.
 type Conn struct {
-	t  testing.TB
-	nc net.Conn
+	logf func(format string, args ...any)
+	nc   net.Conn
 
 	wmu sync.Mutex // serializes writes
 
@@ -87,9 +87,24 @@ type Conn struct {
 // Dial connects a fake cooker to addr. It is closed at test cleanup.
 func Dial(t testing.TB, addr string, c Cooker) *Conn {
 	t.Helper()
-	nc, err := net.DialTimeout("tcp", addr, 2*time.Second)
+	f, err := Connect(context.Background(), addr, c, t.Logf)
 	if err != nil {
-		t.Fatalf("wifitest: dial %s: %v", addr, err)
+		t.Fatalf("wifitest: %v", err)
+	}
+	t.Cleanup(func() { _ = f.Close() })
+	return f
+}
+
+// Connect connects a fake cooker to addr outside a test; the caller closes it.
+// logf receives write errors (nil discards them).
+func Connect(ctx context.Context, addr string, c Cooker, logf func(format string, args ...any)) (*Conn, error) {
+	d := net.Dialer{Timeout: 2 * time.Second}
+	nc, err := d.DialContext(ctx, "tcp", addr)
+	if err != nil {
+		return nil, fmt.Errorf("dial %s: %w", addr, err)
+	}
+	if logf == nil {
+		logf = func(string, ...any) {}
 	}
 	if c.IDCard == "" {
 		c.IDCard = IDCard
@@ -104,10 +119,9 @@ func Dial(t testing.TB, addr string, c Cooker) *Conn {
 	if c.State != nil {
 		st = *c.State
 	}
-	f := &Conn{t: t, nc: nc, cfg: c, st: st, respond: c.Respond, silent: c.Silent, counts: map[string]int{}, done: make(chan struct{})}
+	f := &Conn{logf: logf, nc: nc, cfg: c, st: st, respond: c.Respond, silent: c.Silent, counts: map[string]int{}, done: make(chan struct{})}
 	go f.readLoop()
-	t.Cleanup(func() { _ = f.Close() })
-	return f
+	return f, nil
 }
 
 // Frame encodes msg as one wire frame (including the trailing 0x16).
@@ -115,6 +129,35 @@ func Frame(msg string) []byte {
 	m := wifi.AnovaMessage(msg)
 	b, _ := m.MarshalBinary()
 	return append(b, 0x16)
+}
+
+// ReadFrame reads the next frame from r and decodes it, skipping noise before the 'h'
+// and frames that fail to decode.
+func ReadFrame(r *bufio.Reader) (string, error) {
+	for {
+		b, err := r.ReadByte()
+		if err != nil {
+			return "", err
+		}
+		if b != 'h' {
+			continue
+		}
+		n, err := r.ReadByte()
+		if err != nil {
+			return "", err
+		}
+		buf := make([]byte, int(n)+4)
+		buf[0], buf[1] = 'h', n
+		if _, err := io.ReadFull(r, buf[2:len(buf)-1]); err != nil {
+			return "", err
+		}
+		buf[len(buf)-1] = 0x16
+		var m wifi.AnovaMessage
+		if err := m.UnmarshalBinary(buf); err != nil {
+			continue
+		}
+		return string(m), nil
+	}
 }
 
 // SetState changes the state used for default replies.
@@ -136,6 +179,13 @@ func (f *Conn) SetKey(key string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.cfg.Key = key
+}
+
+// Key returns what `get number` returns now (the server may have changed it with `set number`).
+func (f *Conn) Key() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.cfg.Key
 }
 
 // SetResponder replaces the responder (nil restores defaults).
@@ -239,28 +289,11 @@ func (f *Conn) readLoop() {
 	defer func() { _ = f.Close() }()
 	r := bufio.NewReader(f.nc)
 	for {
-		b, err := r.ReadByte()
+		m, err := ReadFrame(r)
 		if err != nil {
 			return
 		}
-		if b != 'h' {
-			continue
-		}
-		n, err := r.ReadByte()
-		if err != nil {
-			return
-		}
-		buf := make([]byte, int(n)+4)
-		buf[0], buf[1] = 'h', n
-		if _, err := io.ReadFull(r, buf[2:len(buf)-1]); err != nil {
-			return
-		}
-		buf[len(buf)-1] = 0x16
-		var m wifi.AnovaMessage
-		if err := m.UnmarshalBinary(buf); err != nil {
-			continue
-		}
-		f.handle(string(m))
+		f.handle(m)
 	}
 }
 
@@ -300,7 +333,7 @@ func (f *Conn) handle(cmd string) {
 			err = f.Send(append([]string{text}, r.Then...)...)
 		}
 		if err != nil && !errors.Is(err, net.ErrClosed) {
-			f.t.Logf("wifitest: write reply: %v", err)
+			f.logf("wifitest: write reply: %v", err)
 		}
 	}
 	if r.Delay > 0 {
