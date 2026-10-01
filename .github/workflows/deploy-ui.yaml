@@ -22,23 +22,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
-      - name: Install dependencies
-        working-directory: ./frontend
-        run: |
-          bun install
-
       - name: Build UI
         working-directory: ./frontend
         shell: bash
+        env:
+          # Public values only (repository variables, not secrets).
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
         run: |
-          VITE_BASE_ROUTE=/Anova4All/ bun run build --base=/Anova4All/
+          bun install --frozen-lockfile
+          bun run build --base=/Anova4All/
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
