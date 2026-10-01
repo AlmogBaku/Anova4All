@@ -132,8 +132,9 @@ to the Pi. The examples below use `anova.example.com` as the hostname.
    asset and Cloudflare's apt package are ARMv7 builds and won't run on it. Copy the
    asset to `/usr/local/bin/cloudflared` with mode 755, and check it against the
    SHA256 in the release notes.
-2. **Create the tunnel on your Mac.** Your Cloudflare login (`cert.pem`) stays on the
-   Mac and never goes to the Pi.
+2. **Create the tunnel on the Pi.** `tunnel login` prints a URL; open it in any
+   browser and pick your domain. It saves `~/.cloudflared/cert.pem`, which can manage
+   tunnels and DNS for the whole domain; keep it private (mode 600).
 
    ```sh
    cloudflared tunnel login
@@ -145,15 +146,14 @@ to the Pi. The examples below use `anova.example.com` as the hostname.
 
    ```sh
    make deploy-tunnel PI_HOST=pi@<pi-address> TUNNEL_ID=<TUNNEL_ID> \
-     TUNNEL_HOST=anova.example.com TUNNEL_CREDS=$HOME/.cloudflared/<TUNNEL_ID>.json
+     TUNNEL_HOST=anova.example.com
    ```
 
    This renders `deploy/cloudflared.yml.example` into `/etc/cloudflared/config.yml`,
    which sends `anova.example.com` to `http://localhost:8000` and everything else to a
    404. It installs the credentials as `/etc/cloudflared/<TUNNEL_ID>.json` (root-owned,
    mode 600) and installs `deploy/cloudflared.service`. Then it validates the ingress
-   rules and enables and starts `cloudflared`. The credentials file is copied, never
-   printed. Keep it out of the repo.
+   rules and enables and starts `cloudflared`. The credentials file is never printed.
 4. **Set the server's env file on the Pi.** Edit it with `sudoedit`:
 
    ```sh
