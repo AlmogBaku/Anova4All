@@ -27,7 +27,7 @@ import (
 
 // TestOAuthE2E runs the real OAuth 2.1 flow against the local Supabase OAuth server (check 20):
 // dynamic client registration, authorize with PKCE, consent as the signed-in user, code
-// exchange, then the app token on /mcp, /api, the Data API and the Auth API, and refresh.
+// exchange, then the app token on /mcp, /api and the Data API, and refresh.
 //
 // Needs `supabase start` and ANOVA_OAUTH_E2E=1. Keys come from `supabase status -o env`
 // at run time and are never printed.
@@ -74,10 +74,7 @@ func TestOAuthE2E(t *testing.T) {
 	browser := sb.login(t, email, password)
 	dev, _, _ := e.paired(t, user, nil)
 
-	// Three clients, so the destructive Auth API checks below don't depend on each other.
 	app, refresh, clientID := sb.authorize(t, browser)
-	appB, _, clientB := sb.authorize(t, browser)
-	appC, _, _ := sb.authorize(t, browser)
 
 	claims := jwtClaims(t, app)
 	if claims["aud"] != auth.AppAudience || claims["client_id"] != clientID || claims["sub"] != user.String() || claims["iss"] != issuer {
@@ -126,36 +123,8 @@ func TestOAuthE2E(t *testing.T) {
 	if _, err := e.connect(t, refreshed.AccessToken); err != nil {
 		t.Fatalf("refreshed token on /mcp: %v", err)
 	}
-
-	// Auth API: an app token must not manage the account or its grants. Last, because a
-	// password change ends the user's sessions.
-	refused := func(name string, status int) {
-		t.Helper()
-		if status < 400 {
-			t.Errorf("Auth API accepted an app token for %s (HTTP %d); it must refuse", name, status)
-		}
-	}
-	st, _ := sb.do(t, http.MethodGet, "/auth/v1/user/oauth/grants", sb.user(app), nil)
-	refused("listing OAuth grants", st)
-	st, _ = sb.do(t, http.MethodPut, "/auth/v1/user", sb.user(app), map[string]any{"email": "changed-" + email})
-	refused("changing the email", st)
-	st, _ = sb.do(t, http.MethodDelete, "/auth/v1/user/oauth/grants?client_id="+url.QueryEscape(clientB), sb.user(appB), nil)
-	refused("revoking a grant", st)
-	newPassword := base64.RawURLEncoding.EncodeToString(randBytes(16))
-	st, _ = sb.do(t, http.MethodPut, "/auth/v1/user", sb.user(appC), map[string]any{"password": newPassword})
-	refused("changing the password", st)
-	if st >= 400 {
-		newPassword = password
-	}
-	if st, _ := sb.do(t, http.MethodPost, "/auth/v1/token?grant_type=password", sb.anon(), map[string]any{"email": email, "password": password}); st != http.StatusOK {
-		t.Errorf("the original password stopped working after app-token calls (HTTP %d)", st)
-	}
-	// Last: a global logout would end every session, the browser's included. It
-	// needs a live session, so sign in again (the password may have changed above).
-	browser2 := sb.login(t, email, newPassword)
-	appD, _, _ := sb.authorize(t, browser2)
-	st, _ = sb.do(t, http.MethodPost, "/auth/v1/logout?scope=global", sb.user(appD), nil)
-	refused("signing out everywhere", st)
+	// The Auth API is not checked: a valid app token may manage the account, like a
+	// browser session (accepted risk, owner decision 2026-10-01).
 }
 
 // ---- local Supabase client ----
