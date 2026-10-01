@@ -3,15 +3,19 @@
 package wifi
 
 import (
-	"anova4all/pkg/commands"
 	"context"
+	"errors"
 	"fmt"
-	"go.uber.org/zap"
+	"net"
+	"reflect"
+	"strings"
 	"sync"
 	"time"
-)
 
-const HeartbeatInterval = 2 * time.Second
+	"anova4all/pkg/commands"
+
+	"go.uber.org/zap"
+)
 
 // DeviceState represents the current state of the Anova device.
 type DeviceState struct {
@@ -24,205 +28,366 @@ type DeviceState struct {
 	SpeakerStatus      bool                     `json:"speaker_status"`
 }
 
-// StateChangeCallback is a function type for state change notifications.
-type StateChangeCallback func(ctx context.Context, idCard string, state DeviceState)
-type DeviceEventCallback func(ctx context.Context, idCard string, event AnovaEvent)
-type DisconnectedCallback func(ctx context.Context, idCard string)
-
-// AnovaDevice represents an Anova device connected via WiFi.
+// AnovaDevice is one live Wi-Fi connection from a cooker.
 type AnovaDevice interface {
-	SendCommand(ctx context.Context, command commands.Command) (any, error)
-	SetStateChangeCallback(callback StateChangeCallback)
-	SetEventCallback(callback DeviceEventCallback)
-	SetHandleDisconnectCallback(callback DisconnectedCallback)
-	StartCooking(ctx context.Context) error
-	StopCooking(ctx context.Context) error
-	State() DeviceState
-	Version() string
+	// IDCard is the cooker's id card without the "anova " prefix.
 	IDCard() string
-	SecretKey() string
+	Version() string
+	// State is the last known state.
+	State() DeviceState
+	ConnectedAt() time.Time
+	// SendCommand sends a command at user priority (ahead of polling).
+	SendCommand(ctx context.Context, cmd commands.Command) (any, error)
+	// ReadKey reads the cooker's key with a fresh `get number`.
+	ReadKey(ctx context.Context) (string, error)
+	// Done is closed when the connection ends.
+	Done() <-chan struct{}
 	Close() error
 }
 
+// pollSet is one poll pass.
+var pollSet = []commands.Command{
+	commands.GetDeviceStatus{},
+	commands.GetTargetTemperature{},
+	commands.GetCurrentTemperature{},
+	commands.GetTemperatureUnit{},
+	commands.GetTimerStatus{},
+	commands.GetSpeakerStatus{},
+}
+
+// sink receives device notifications on the device's dispatch goroutine.
+type sink struct {
+	state func(d *device, st DeviceState)
+	event func(d *device, ev AnovaEvent)
+}
+
 type device struct {
-	connection          AnovaConnection
-	idCard              string
-	version             string
-	secretKey           string
-	state               DeviceState
-	stateChangeMu       sync.RWMutex
-	stateChangeCallback StateChangeCallback
-	eventCallback       DeviceEventCallback
-	disconnectCallback  DisconnectedCallback
-	logger              *zap.SugaredLogger
+	c           *conn
+	log         *zap.Logger
+	seq         uint64
+	connectedAt time.Time
+	sink        sink
+	disp        *dispatcher
+	repoll      chan struct{}
+	announced   bool // OnBound delivered; dispatch goroutine only
+
+	mu          sync.Mutex
+	idCard      string
+	version     string
+	state       DeviceState
+	notified    DeviceState
+	hasNotified bool
 }
 
-// NewAnovaDevice creates a new AnovaDevice instance.
-func NewAnovaDevice(ctx context.Context, connection AnovaConnection, logger *zap.Logger) (AnovaDevice, error) {
-	if logger == nil {
-		logger = zap.NewNop()
+var _ AnovaDevice = (*device)(nil)
+
+func newDevice(nc net.Conn, seq uint64, connectedAt time.Time, t timings, log *zap.Logger, s sink) *device {
+	log = log.With(zap.Stringer("remote", nc.RemoteAddr()))
+	d := &device{
+		c:           newConn(nc, t, log),
+		log:         log,
+		seq:         seq,
+		connectedAt: connectedAt,
+		sink:        s,
+		disp:        newDispatcher(log),
+		repoll:      make(chan struct{}, 1),
 	}
-	logger = logger.Named("wifi_device")
-
-	dev := &device{
-		connection: connection,
-		state:      DeviceState{},
-		logger:     logger.Sugar(),
-	}
-	connection.SetEventCallback(dev.handleEvent)
-	err := dev.handshake(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to perform a handshake: %e", err)
-	}
-	go dev.heartbeat(ctx)
-	go func() {
-		<-ctx.Done()
-		if dev.disconnectCallback != nil {
-			dev.disconnectCallback(context.Background(), dev.idCard)
-		}
-	}()
-
-	return dev, nil
+	go d.disp.run()
+	go d.eventLoop()
+	return d
 }
 
-func (d *device) SecretKey() string {
-	return d.secretKey
-}
-func (d *device) State() DeviceState {
-	d.stateChangeMu.RLock()
-	defer d.stateChangeMu.RUnlock()
-	return d.state
-}
-func (d *device) Version() string {
-	return d.version
-}
 func (d *device) IDCard() string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	return d.idCard
 }
 
-// handshake performs the initial handshake with the device.
-func (d *device) handshake(ctx context.Context) error {
-	var err error
+func (d *device) Version() string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.version
+}
 
-	idCard, err := d.SendCommand(ctx, &commands.GetIDCard{})
-	if err != nil {
-		return fmt.Errorf("failed to get ID card: %w", err)
-	}
-	d.idCard = idCard.(string)
-	d.logger = d.logger.Named(d.idCard)
-	d.connection.Name(d.idCard)
+func (d *device) State() DeviceState {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.state
+}
 
-	_, err = d.SendCommand(ctx, &commands.GetVersion{})
-	if err != nil {
-		return fmt.Errorf("failed to get version: %w", err)
-	}
+func (d *device) ConnectedAt() time.Time { return d.connectedAt }
+func (d *device) Done() <-chan struct{}  { return d.c.done }
 
-	_, err = d.SendCommand(ctx, &commands.GetSecretKey{})
-	if err != nil {
-		return fmt.Errorf("failed to get secret key: %w", err)
-	}
-
-	_, err = d.SendCommand(ctx, &commands.GetDeviceStatus{})
-	if err != nil {
-		d.logger.With("error", err).Error("Failed to get initial status")
-		return fmt.Errorf("failed to get initial status: %w", err)
-	}
-
-	d.logger.Debug("Handshake completed")
+func (d *device) Close() error {
+	d.c.close(errors.New("closed by server"))
 	return nil
 }
 
-// heartbeat perform a periodic heartbeat on the device over HeartbeatInterval
-// This is used to keep the connection alive and to keep the device state up to date (polling).
-func (d *device) heartbeat(ctx context.Context) {
-	ticker := time.NewTicker(HeartbeatInterval)
-	defer ticker.Stop()
+func (d *device) String() string {
+	return fmt.Sprintf("<device id_card=%s version=%s>", d.IDCard(), d.Version())
+}
 
+func (d *device) SendCommand(ctx context.Context, cmd commands.Command) (any, error) {
+	return d.send(ctx, prioUser, cmd)
+}
+
+func (d *device) ReadKey(ctx context.Context) (string, error) {
+	v, err := d.send(ctx, prioUser, commands.GetSecretKey{})
+	if err != nil {
+		return "", err
+	}
+	key, ok := v.(string)
+	if !ok {
+		return "", fmt.Errorf("%w: get number returned %T", ErrUnexpectedReply, v)
+	}
+	return key, nil
+}
+
+// handshake reads id card, version and key. It never writes anything to the cooker.
+// The key is returned to the caller and not kept on the device.
+func (d *device) handshake(ctx context.Context) (string, error) {
+	v, err := d.send(ctx, prioUser, commands.GetIDCard{})
+	if err != nil {
+		return "", fmt.Errorf("get id card: %w", err)
+	}
+	id, ok := v.(string)
+	if !ok || id == "" {
+		return "", fmt.Errorf("get id card: %w", ErrUnexpectedReply)
+	}
+	v, err = d.send(ctx, prioUser, commands.GetVersion{})
+	if err != nil {
+		return "", fmt.Errorf("version: %w", err)
+	}
+	version, _ := v.(string)
+
+	d.mu.Lock()
+	d.idCard, d.version = id, version
+	d.mu.Unlock()
+	d.log = d.log.With(zap.String("id_card", id))
+
+	key, err := d.ReadKey(ctx)
+	if err != nil {
+		return "", fmt.Errorf("get number: %w", err)
+	}
+	return key, nil
+}
+
+// pollLoop runs one poll pass per interval. Passes never overlap.
+func (d *device) pollLoop() {
+	t := time.NewTicker(d.c.t.poll)
+	defer t.Stop()
 	for {
 		select {
-		case <-ctx.Done():
+		case <-d.c.done:
 			return
-		case <-ticker.C:
-			d.logger.Debug("Heartbeat...")
+		case <-t.C:
+		case <-d.repoll:
+		}
+		d.pollOnce(context.Background())
+	}
+}
 
-			sequence := []commands.Command{
-				&commands.GetDeviceStatus{},
-				&commands.GetTargetTemperature{},
-				&commands.GetCurrentTemperature{},
-				&commands.GetTemperatureUnit{},
-				&commands.GetTimerStatus{},
-				&commands.GetSpeakerStatus{},
+func (d *device) pollOnce(ctx context.Context) {
+	for _, cmd := range pollSet {
+		if _, err := d.send(ctx, prioPoll, cmd); err != nil {
+			if errors.Is(err, ErrOffline) || ctx.Err() != nil {
+				return
 			}
-
-			for _, cmd := range sequence {
-				if _, err := d.SendCommand(ctx, cmd); err != nil {
-					d.logger.With("error", err).Error("heartbeat failed")
-				}
-			}
+			d.log.Debug("poll failed", zap.Error(err))
 		}
 	}
 }
 
-// SendCommand sends a command to the device and updates the device state.
-func (d *device) SendCommand(ctx context.Context, command commands.Command) (any, error) {
-	if command == nil || !command.SupportsWiFi() {
-		return nil, fmt.Errorf("invalid command: %v", command)
+func (d *device) requestPoll() {
+	select {
+	case d.repoll <- struct{}{}:
+	default:
 	}
-	response, err := d.connection.SendCommand(ctx, command.Encode())
+}
+
+// send runs one command with validation, a single retry for repeatable reads,
+// and a status re-read after start/stop.
+func (d *device) send(ctx context.Context, prio priority, cmd commands.Command) (any, error) {
+	cmd = normalize(cmd)
+	if cmd == nil || !cmd.SupportsWiFi() {
+		return nil, fmt.Errorf("%w: %T", ErrUnsupported, cmd)
+	}
+	line := cmd.Encode()
+	attempts := 1
+	if repeatable(cmd) {
+		attempts = 2
+	}
+	var v any
+	var err error
+	for i := 0; i < attempts; i++ {
+		v, err = d.c.do(ctx, prio, line, decoderFor(cmd))
+		if err == nil || ctx.Err() != nil || !(errors.Is(err, ErrTimeout) || errors.Is(err, ErrUnexpectedReply)) {
+			break
+		}
+	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s: %w", line, err)
 	}
+	d.apply(cmd, v)
 
-	result, err := command.Decode(response)
-	if err != nil {
-		return nil, err
+	switch cmd.(type) {
+	case commands.StartDevice, commands.StopDevice:
+		if _, serr := d.send(ctx, prio, commands.GetDeviceStatus{}); serr != nil {
+			d.log.Debug("status re-read after start/stop failed", zap.Error(serr))
+		}
 	}
-
-	d.updateState(ctx, command, result)
-	return result, nil
+	return v, nil
 }
 
-func (d *device) updateState(ctx context.Context, command commands.Command, response any) {
-	d.stateChangeMu.Lock()
-	defer d.stateChangeMu.Unlock()
-
-	switch command.(type) {
-	case *commands.GetDeviceStatus:
-		d.state.Status = response.(commands.DeviceStatus)
-	case *commands.GetCurrentTemperature:
-		d.state.CurrentTemperature = response.(float64)
-	case *commands.GetTargetTemperature, *commands.SetTargetTemperature:
-		d.state.TargetTemperature = response.(float64)
-	case *commands.SetTemperatureUnit, *commands.GetTemperatureUnit:
-		d.state.Unit = response.(commands.TemperatureUnit)
-	case *commands.GetTimerStatus:
-		timerStatus := response.(commands.TimerStatus)
-		d.state.TimerValue = timerStatus.Minutes
-		d.state.TimerRunning = timerStatus.Running
-	case *commands.SetTimer:
-		d.state.TimerValue = response.(int)
-	case *commands.GetSpeakerStatus:
-		d.state.SpeakerStatus = response.(bool)
-	case *commands.GetSecretKey:
-		d.secretKey = response.(string)
-	case *commands.GetVersion:
-		d.version = response.(string)
+// normalize turns *T into T so type switches see one form.
+func normalize(cmd commands.Command) commands.Command {
+	if cmd == nil {
+		return nil
 	}
-
-	d.notifyStateChange(ctx)
+	rv := reflect.ValueOf(cmd)
+	if rv.Kind() != reflect.Pointer {
+		return cmd
+	}
+	if rv.IsNil() {
+		return nil
+	}
+	if c, ok := rv.Elem().Interface().(commands.Command); ok {
+		return c
+	}
+	return cmd
 }
 
-func (d *device) notifyStateChange(ctx context.Context) {
-	if d.stateChangeCallback != nil {
-		d.stateChangeCallback(ctx, d.idCard, d.state)
+func repeatable(cmd commands.Command) bool {
+	switch cmd.(type) {
+	case commands.GetDeviceStatus, commands.GetTargetTemperature, commands.GetCurrentTemperature,
+		commands.GetTemperatureUnit, commands.GetTimerStatus, commands.GetSpeakerStatus,
+		commands.GetIDCard, commands.GetVersion, commands.GetSecretKey:
+		return true
+	}
+	return false
+}
+
+var errNoFit = errors.New("reply does not fit command")
+
+// decoderFor wraps the command's decoder with a shape check, so a reply meant
+// for another command is rejected (treated as stale) instead of accepted.
+func decoderFor(cmd commands.Command) func(string) (any, error) {
+	return func(line string) (any, error) {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			return nil, errNoFit
+		}
+		v, err := cmd.Decode(line)
+		switch cmd.(type) {
+		case commands.GetDeviceStatus:
+			if err != nil {
+				return statusFallback(trimmed)
+			}
+		case commands.GetSecretKey:
+			if err == nil && len(strings.Fields(trimmed)) != 1 {
+				return nil, errNoFit
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+		// Commands whose decoder returns "was the reply ok": false means it isn't our reply.
+		if b, ok := v.(bool); ok && !b {
+			if _, isSpeaker := cmd.(commands.GetSpeakerStatus); !isSpeaker {
+				return nil, errNoFit
+			}
+		}
+		return v, nil
 	}
 }
 
-func (d *device) handleEvent(ctx context.Context, event AnovaEvent) error {
-	d.stateChangeMu.Lock()
-	defer d.stateChangeMu.Unlock()
+// statusFallback accepts multi-word statuses ("low water", "heater error", ...)
+// that the frozen GetDeviceStatus decoder rejects because it keeps only the first word.
+func statusFallback(s string) (any, error) {
+	s = strings.ToLower(s)
+	for _, st := range []commands.DeviceStatus{commands.LowWater, commands.HeaterError, commands.PowerLoss, commands.UserChangeParameter} {
+		if s == string(st) || strings.HasPrefix(s, string(st)+" ") {
+			return st, nil
+		}
+	}
+	return nil, errNoFit
+}
 
-	switch event.Type {
+// apply updates the state from a successful command. Assertions are checked.
+func (d *device) apply(cmd commands.Command, v any) {
+	d.mu.Lock()
+	st := d.state
+	switch c := cmd.(type) {
+	case commands.GetDeviceStatus:
+		if s, ok := v.(commands.DeviceStatus); ok {
+			st.Status = s
+		}
+	case commands.GetCurrentTemperature:
+		if f, ok := v.(float64); ok {
+			st.CurrentTemperature = f
+		}
+	case commands.GetTargetTemperature:
+		if f, ok := v.(float64); ok {
+			st.TargetTemperature = f
+		}
+	case commands.SetTargetTemperature:
+		st.TargetTemperature = c.Temperature
+	case commands.GetTemperatureUnit:
+		if u, ok := v.(commands.TemperatureUnit); ok {
+			st.Unit = u
+		}
+	case commands.SetTemperatureUnit:
+		st.Unit = c.Unit
+	case commands.GetTimerStatus:
+		if ts, ok := v.(commands.TimerStatus); ok {
+			st.TimerValue, st.TimerRunning = ts.Minutes, ts.Running
+		}
+	case commands.SetTimer:
+		if m, ok := v.(int); ok {
+			st.TimerValue = m
+		}
+	case commands.StartTimer:
+		st.TimerRunning = true
+	case commands.StopTimer:
+		st.TimerRunning = false
+	case commands.StartDevice:
+		st.Status = commands.Running
+	case commands.StopDevice:
+		st.Status = commands.Stopped
+	case commands.GetSpeakerStatus:
+		if b, ok := v.(bool); ok {
+			st.SpeakerStatus = b
+		}
+	}
+	d.state = st
+	d.postStateLocked()
+	d.mu.Unlock()
+}
+
+// postStateLocked queues a state notification if the state differs from the last one queued.
+func (d *device) postStateLocked() {
+	if d.hasNotified && d.state == d.notified {
+		return
+	}
+	d.notified, d.hasNotified = d.state, true
+	st := d.state
+	d.disp.post(func() { d.sink.state(d, st) })
+}
+
+func (d *device) eventLoop() {
+	for {
+		select {
+		case <-d.c.done:
+			return
+		case ev := <-d.c.events:
+			d.handleEvent(ev)
+		}
+	}
+}
+
+func (d *device) handleEvent(ev AnovaEvent) {
+	d.mu.Lock()
+	switch ev.Type {
 	case EventTypeTempReached:
 		d.state.CurrentTemperature = d.state.TargetTemperature
 	case EventTypeLowWater:
@@ -235,62 +400,77 @@ func (d *device) handleEvent(ctx context.Context, event AnovaEvent) error {
 		d.state.TimerRunning = true
 	case EventTypeTimeStop, EventTypeTimeFinish:
 		d.state.TimerRunning = false
+	case EventTypeChangeTemp, EventTypeChangeParam:
+		// The new values are not in the event; re-read them.
+	}
+	d.postStateLocked()
+	d.disp.post(func() { d.sink.event(d, ev) })
+	d.mu.Unlock()
+	d.requestPoll()
+}
+
+// dispatcher runs callbacks for one device, in order, outside any lock.
+// post never blocks, so code running inside a callback may post (and send
+// commands) without deadlocking.
+type dispatcher struct {
+	log    *zap.Logger
+	mu     sync.Mutex
+	q      []func()
+	closed bool
+	wake   chan struct{}
+}
+
+const maxDispatchQueue = 256
+
+func newDispatcher(log *zap.Logger) *dispatcher {
+	return &dispatcher{log: log, wake: make(chan struct{}, 1)}
+}
+
+func (p *dispatcher) post(f func()) {
+	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+		return
+	}
+	if len(p.q) >= maxDispatchQueue {
+		p.q = p.q[1:]
+		p.log.Warn("callback queue full, dropping oldest notification")
+	}
+	p.q = append(p.q, f)
+	p.mu.Unlock()
+	select {
+	case p.wake <- struct{}{}:
 	default:
-		return fmt.Errorf("unknown event: %s", event)
 	}
+}
 
-	d.notifyStateChange(ctx)
-
-	if d.eventCallback != nil {
-		d.eventCallback(ctx, d.idCard, event)
+// close stops accepting posts; run exits after draining what was queued.
+func (p *dispatcher) close() {
+	p.mu.Lock()
+	p.closed = true
+	p.mu.Unlock()
+	select {
+	case p.wake <- struct{}{}:
+	default:
 	}
-	return nil
 }
 
-// SetStateChangeCallback sets the callback for state changes.
-func (d *device) SetStateChangeCallback(callback StateChangeCallback) {
-	d.stateChangeCallback = callback
-}
-
-// SetEventCallback sets the callback for events.
-func (d *device) SetEventCallback(callback DeviceEventCallback) {
-	d.eventCallback = callback
-}
-
-// SetHandleDisconnectCallback sets the callback for disconnections.
-func (d *device) SetHandleDisconnectCallback(callback DisconnectedCallback) {
-	d.disconnectCallback = callback
-}
-
-// StartCooking starts the cooking process.
-func (d *device) StartCooking(ctx context.Context) error {
-	ret, err := d.SendCommand(ctx, &commands.StartDevice{})
-	if err != nil {
-		return err
+func (p *dispatcher) run() {
+	for {
+		p.mu.Lock()
+		if len(p.q) == 0 {
+			closed := p.closed
+			p.mu.Unlock()
+			if closed {
+				return
+			}
+			<-p.wake
+			continue
+		}
+		f := p.q[0]
+		p.q[0] = nil
+		p.q = p.q[1:]
+		p.mu.Unlock()
+		f()
 	}
-	if !ret.(bool) {
-		return fmt.Errorf("failed to start cooking")
-	}
-	return nil
-}
-
-// StopCooking stops the cooking process.
-func (d *device) StopCooking(ctx context.Context) error {
-	ret, err := d.SendCommand(ctx, &commands.StopDevice{})
-	if err != nil {
-		return err
-	}
-	if !ret.(bool) {
-		return fmt.Errorf("failed to stop cooking")
-	}
-	return nil
-}
-
-// Close closes the connection to the device.
-func (d *device) Close() error {
-	return d.connection.Close()
-}
-
-func (d *device) String() string {
-	return fmt.Sprintf("<device id_card=%s version=%s device_number=%s>", d.idCard, d.version, d.secretKey)
 }
