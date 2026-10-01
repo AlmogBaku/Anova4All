@@ -303,11 +303,15 @@ func (s *Service) Start(ctx context.Context, user, deviceID uuid.UUID, in StartC
 			steps = append(steps, commands.SetTimer{Minutes: *in.Minutes})
 		}
 		steps = append(steps, commands.StartDevice{})
-		if in.Minutes != nil && *in.Minutes > 0 {
-			steps = append(steps, commands.StartTimer{})
-		}
 		if err := s.run(ctx, dev, steps...); err != nil {
 			return err
+		}
+		if in.Minutes != nil && *in.Minutes > 0 {
+			if err := s.run(ctx, dev, commands.StartTimer{}); err != nil {
+				// Don't leave it heating with no row: auto-stop would never fire.
+				_ = s.run(ctx, dev, commands.StopDevice{})
+				return err
+			}
 		}
 		_, err = s.st.InsertCook(ctx, a.ID, &user, in.AutoStop)
 		return err

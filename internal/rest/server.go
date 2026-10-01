@@ -119,6 +119,7 @@ func (s *Server) serveUI(c *gin.Context) bool {
 	} else if strings.HasPrefix(name, "/assets/") {
 		c.Header("Cache-Control", "public, max-age=31536000, immutable") // hashed names
 	}
+	c.Header("Content-Security-Policy", "frame-ancestors 'none'") // no page is meant to be framed
 	c.File(file)
 	return true
 }

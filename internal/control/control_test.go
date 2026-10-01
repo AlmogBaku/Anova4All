@@ -2,6 +2,7 @@ package control_test
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -173,6 +174,30 @@ func TestStartClosesLeftoverRowAsManual(t *testing.T) {
 	}
 	if n := openCooks(t, dev); n != 1 {
 		t.Fatalf("%d open cooks", n)
+	}
+}
+
+// A step failing after the heater is on must not leave it heating with no cook row.
+func TestStartTimerFailureStopsHeater(t *testing.T) {
+	e := newEnv(t)
+	alice := storetest.User(t, "alice")
+	dev, _, c := e.paired(t, alice, nil)
+	c.SetResponder(func(cmd string, n int) (wifitest.Reply, bool) {
+		if cmd == "start time" {
+			return wifitest.Reply{Drop: true}, true
+		}
+		return wifitest.Reply{}, false
+	})
+
+	if _, err := e.ctl.Start(context.Background(), alice, dev, control.StartCook{Temperature: 57, Unit: commands.Celsius, Minutes: ptr(30), AutoStop: true}); err == nil {
+		t.Fatal("start succeeded with a dead timer")
+	}
+	if n := openCooks(t, dev); n != 0 {
+		t.Fatalf("%d open cooks after failed start", n)
+	}
+	got := c.Received()
+	if !slices.Contains(got, "stop") {
+		t.Fatalf("heater left on; cooker received %q", got)
 	}
 }
 

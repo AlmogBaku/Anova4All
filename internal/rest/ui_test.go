@@ -63,6 +63,15 @@ func TestServesUIWithSPAFallback(t *testing.T) {
 	if _, _, cc := get("/devices/abc"); cc != "no-cache" {
 		t.Errorf("index Cache-Control = %q", cc)
 	}
+	// No page is meant to be framed; the consent page must never be (clickjacking).
+	res, err := http.Get(srv.URL + "/oauth/consent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if csp := res.Header.Get("Content-Security-Policy"); csp != "frame-ancestors 'none'" {
+		t.Errorf("UI Content-Security-Policy = %q, want frame-ancestors 'none'", csp)
+	}
 	if code, body, _ := get("/api/nope"); code != http.StatusNotFound || !strings.Contains(body, "not_found") {
 		t.Errorf("GET /api/nope = %d %q, want the JSON 404", code, body)
 	}
