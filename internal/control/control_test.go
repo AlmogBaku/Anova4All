@@ -489,6 +489,9 @@ func TestPairErrors(t *testing.T) {
 
 	_, err := e.ctl.Pair(ctx, alice, id, wifitest.Key0)
 	code(t, err, control.CodeDeviceOffline)
+	// Real id cards contain hyphens.
+	_, err = e.ctl.Pair(ctx, alice, "anova f00-00000000000", wifitest.Key0)
+	code(t, err, control.CodeDeviceOffline)
 
 	e.dial(t, id, wifitest.Key1, nil)
 	_, err = e.ctl.Pair(ctx, alice, id, wifitest.Key0)

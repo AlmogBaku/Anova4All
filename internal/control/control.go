@@ -528,7 +528,7 @@ func (s *Service) CloseIfIdle(ctx context.Context, idCard string) error {
 
 var (
 	keyRe    = regexp.MustCompile(`^[a-z0-9]{10}$`)
-	idCardRe = regexp.MustCompile(`^[a-z0-9]{1,64}$`)
+	idCardRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
 )
 
 // Pair makes user the owner of the cooker idCard, if a live connection for it reports key.
