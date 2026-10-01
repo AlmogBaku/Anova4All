@@ -67,6 +67,10 @@ export const FIND = {
   action: "Find my cooker",
   /** Shown before anything is written to the cooker, so a wrong account is noticed. */
   account: (email: string) => `The cooker will be paired to ${email}.`,
+  serverToggle: "Server address",
+  serverLabel: "Address the cooker connects to",
+  serverHint:
+    "Leave empty to use this server's address. Type a LAN IP if the cooker can't reach the public one, e.g. it's on the same Wi-Fi as the server.",
 };
 
 export const WIFI = {

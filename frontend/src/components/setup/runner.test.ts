@@ -158,6 +158,22 @@ describe("SetupRunner", () => {
     });
   });
 
+  it("sends a typed server address instead of the server's own, keeping its port", async () => {
+    const h = harness();
+    expect(h.runner.setServerHost("bad host")).toMatch(/Server address/);
+    expect(h.runner.setServerHost(" 192.168.0.9 ")).toBeNull();
+    await toWifi(h);
+    expect(h.fake.received).toContain(`server para 192.168.0.9 ${SERVER.port}`);
+
+    h.runner.restart();
+    expect(h.runner.setServerHost("")).toBeNull();
+    await h.runner.find();
+    await flush();
+    expect(h.fake.received.at(-1)).toBe(
+      `server para ${SERVER.host} ${SERVER.port}`,
+    );
+  });
+
   it('"keep current Wi-Fi" sends no wifi para', async () => {
     const h = harness();
     await toWifi(h);

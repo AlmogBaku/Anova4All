@@ -7,6 +7,7 @@ import {
   BleError,
   bleErrorFrom,
   bleGuidance,
+  setServerInfoCommand,
   setWifiCommand,
 } from "@/lib/client/ble/index.ts";
 import { PAIR, PREFLIGHT } from "./copy.ts";
@@ -109,6 +110,8 @@ export class SetupRunner {
   /** In memory only, from the key step until pairing succeeds. */
   private key?: string;
   private pairAbort?: AbortController;
+  /** A typed server address that replaces the server's own; the port stays the server's. */
+  private serverHost?: string;
   /** Bumped by restart/dispose so stale async work stops. */
   private epoch = 0;
   private disposed = false;
@@ -136,6 +139,20 @@ export class SetupRunner {
 
   prepared(): void {
     if (this.state.step === "prepare") this.dispatch({ type: "prepared" });
+  }
+
+  /** Overrides the address the cooker dials ("" for the server's own). Returns a validation message, or null. */
+  setServerHost(host: string): string | null {
+    const h = host.trim();
+    if (h) {
+      try {
+        setServerInfoCommand(h, 1);
+      } catch (e) {
+        return e instanceof Error ? e.message : "Invalid server address";
+      }
+    }
+    this.serverHost = h || undefined;
+    return null;
   }
 
   /** Call directly from the click handler. */
@@ -319,7 +336,7 @@ export class SetupRunner {
         } else {
           const info = await this.deps.serverInfo();
           if (this.stale(epoch)) return;
-          await link.setServerInfo(info.host, info.port);
+          await link.setServerInfo(this.serverHost ?? info.host, info.port);
         }
       } catch (e) {
         if (this.stale(epoch)) return;

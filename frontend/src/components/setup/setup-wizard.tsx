@@ -177,6 +177,53 @@ function Problems({ state }: { state: SetupState }) {
   );
 }
 
+function FindStep({ runner, email }: { runner: SetupRunner; email?: string }) {
+  const [host, setHost] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <div className="grid gap-5">
+      <p className="leading-relaxed">{FIND.intro}</p>
+      {email && (
+        <p className="text-sm leading-relaxed text-ink-soft">
+          {FIND.account(email)}
+        </p>
+      )}
+      <details className="group">
+        <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-ink-soft">
+          {FIND.serverToggle}
+        </summary>
+        <div className="pt-2">
+          <Field
+            label={FIND.serverLabel}
+            hint={FIND.serverHint}
+            error={error}
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            inputMode="url"
+            value={host}
+            onChange={(e) => {
+              setHost(e.target.value);
+              setError(runner.setServerHost(e.target.value));
+            }}
+          />
+        </div>
+      </details>
+      <Keys>
+        {/* requestDevice runs synchronously inside this click (user gesture). */}
+        <Button
+          size="lg"
+          className="w-full"
+          disabled={!!error}
+          onClick={() => void runner.find()}
+        >
+          {FIND.action}
+        </Button>
+      </Keys>
+    </div>
+  );
+}
+
 function WifiStep({ runner }: { runner: SetupRunner }) {
   const [change, setChange] = useState(false);
   const [ssid, setSsid] = useState("");
@@ -447,26 +494,7 @@ export function SetupWizard({
       </div>
     );
   } else if (step === "find") {
-    body = (
-      <div className="grid gap-5">
-        <p className="leading-relaxed">{FIND.intro}</p>
-        {user?.email && (
-          <p className="text-sm leading-relaxed text-ink-soft">
-            {FIND.account(user.email)}
-          </p>
-        )}
-        <Keys>
-          {/* requestDevice runs synchronously inside this click (user gesture). */}
-          <Button
-            size="lg"
-            className="w-full"
-            onClick={() => void runner.find()}
-          >
-            {FIND.action}
-          </Button>
-        </Keys>
-      </div>
-    );
+    body = <FindStep runner={runner} email={user?.email} />;
   } else if (step === "wifi") {
     body = <WifiStep runner={runner} />;
   } else {
