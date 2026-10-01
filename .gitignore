@@ -15,4 +15,19 @@ research/*.txt
 .DS_Store
 dist/
 
-./anova4all
+
+# secrets — never commit
+.env
+.env.*
+*.env
+!.env.example
+
+# captures and local artifacts
+research/
+/out33.csv
+/output.csv
+/anova4all
+*.tsbuildinfo
+
+# built MCP card (placeholder.html is committed)
+internal/mcp/ui/app.html

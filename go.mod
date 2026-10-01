@@ -1,6 +1,6 @@
 module anova4all
 
-go 1.23.1
+go 1.25
 
 require (
 	github.com/gin-contrib/cors v1.7.2

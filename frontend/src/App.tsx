@@ -9,7 +9,7 @@ import ProtectedRoute from "@/components/protected-route.tsx";
 import {AuthProvider} from "@/contexts/auth.tsx";
 import {LoginForm} from '@/components/login-form.tsx';
 import {ForgotPasswordForm} from "@/components/forgot-password-form.tsx";
-import {UpdatePasswordForm} from "@/components/update-password-form.tsx";
+import {ResetPasswordForm} from "@/components/reset-password-form.tsx";
 import {SignUpForm} from "@/components/sign-up-form.tsx";
 
 function App() {
@@ -22,8 +22,8 @@ function App() {
                             <Route path="/login" element={<LoginForm/>}/>
                             <Route path="/sign-up" element={<SignUpForm/>}/>
                             <Route path="/forgot-password" element={<ForgotPasswordForm/>}/>
-                            <Route path="/update-password" element={<UpdatePasswordForm/>}/>
                             <Route element={<ProtectedRoute/>}>
+                                <Route path="/reset-password" element={<ResetPasswordForm/>}/>
                                 <Route path="/" element={<Home/>}/>
                                 <Route path="/setup" element={<DeviceSetup/>}/>
                             </Route>

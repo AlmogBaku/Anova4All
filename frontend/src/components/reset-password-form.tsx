@@ -7,7 +7,7 @@ import {useState} from 'react'
 import {supabase} from "@/lib/supabase";
 import {useNavigate} from "react-router-dom";
 
-export function UpdatePasswordForm({className, ...props}: React.ComponentPropsWithoutRef<'div'>) {
+export function ResetPasswordForm({className, ...props}: React.ComponentPropsWithoutRef<'div'>) {
     const [password, setPassword] = useState('')
     const [error, setError] = useState<string | null>(null)
     const [isLoading, setIsLoading] = useState(false)
