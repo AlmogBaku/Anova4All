@@ -141,11 +141,21 @@ func TestOAuthE2E(t *testing.T) {
 	refused("changing the email", st)
 	st, _ = sb.do(t, http.MethodDelete, "/auth/v1/user/oauth/grants?client_id="+url.QueryEscape(clientB), sb.user(appB), nil)
 	refused("revoking a grant", st)
-	st, _ = sb.do(t, http.MethodPut, "/auth/v1/user", sb.user(appC), map[string]any{"password": base64.RawURLEncoding.EncodeToString(randBytes(16))})
+	newPassword := base64.RawURLEncoding.EncodeToString(randBytes(16))
+	st, _ = sb.do(t, http.MethodPut, "/auth/v1/user", sb.user(appC), map[string]any{"password": newPassword})
 	refused("changing the password", st)
+	if st >= 400 {
+		newPassword = password
+	}
 	if st, _ := sb.do(t, http.MethodPost, "/auth/v1/token?grant_type=password", sb.anon(), map[string]any{"email": email, "password": password}); st != http.StatusOK {
 		t.Errorf("the original password stopped working after app-token calls (HTTP %d)", st)
 	}
+	// Last: a global logout would end every session, the browser's included. It
+	// needs a live session, so sign in again (the password may have changed above).
+	browser2 := sb.login(t, email, newPassword)
+	appD, _, _ := sb.authorize(t, browser2)
+	st, _ = sb.do(t, http.MethodPost, "/auth/v1/logout?scope=global", sb.user(appD), nil)
+	refused("signing out everywhere", st)
 }
 
 // ---- local Supabase client ----
