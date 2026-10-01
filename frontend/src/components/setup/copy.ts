@@ -55,6 +55,8 @@ export const FIND = {
   intro:
     'Your browser will show a list of nearby devices. Pick the one named "Anova".',
   action: "Find my cooker",
+  /** Shown before anything is written to the cooker, so a wrong account is noticed. */
+  account: (email: string) => `The cooker will be paired to ${email}.`,
 };
 
 export const WIFI = {

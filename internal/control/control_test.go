@@ -624,3 +624,27 @@ func containsStr(list []string, s string) bool {
 	}
 	return false
 }
+
+// Fake connections that never answer `get number` must not use up the pair
+// budget before the real cooker is asked.
+func TestPairNotStalledBySilentConnections(t *testing.T) {
+	e := newEnv(t)
+	alice := storetest.User(t, "alice")
+	id := card()
+	e.dial(t, id, wifitest.Key0, nil) // the real cooker, oldest
+	mute := func(cmd string, n int) (wifitest.Reply, bool) {
+		return wifitest.Reply{Drop: true}, cmd == "get number" && n > 1 // answers the handshake only
+	}
+	for i := 0; i < 5; i++ {
+		before := len(e.mgr.Connections(id))
+		wifitest.Dial(t, e.mgr.Addr().String(), wifitest.Cooker{IDCard: "anova " + id, Key: wifitest.Key1, Respond: mute})
+		waitFor(t, "connection registered", func() bool { return len(e.mgr.Connections(id)) > before })
+	}
+	start := time.Now()
+	if _, err := e.ctl.Pair(context.Background(), alice, "anova "+id, wifitest.Key0); err != nil {
+		t.Fatalf("pair: %v", err)
+	}
+	if took := time.Since(start); took > 6*time.Second {
+		t.Fatalf("pair took %v", took)
+	}
+}

@@ -2,6 +2,7 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { Field } from "@/components/field.tsx";
 import { ErrorAlert, Loading } from "@/components/status.tsx";
 import { Button } from "@/components/ui/button.tsx";
+import { useAuth } from "@/contexts/auth.tsx";
 import { validateDeviceName } from "@/lib/devices.ts";
 import {
   COMMON,
@@ -199,6 +200,7 @@ export function SetupWizard({
   illustration?: ReactNode;
 }) {
   const { step, phase } = state;
+  const { user } = useAuth();
   const index = VISIBLE.indexOf(step);
   let body: ReactNode;
 
@@ -243,6 +245,11 @@ export function SetupWizard({
     body = (
       <div className="grid gap-4">
         <p>{FIND.intro}</p>
+        {user?.email && (
+          <p className="text-sm text-muted-foreground">
+            {FIND.account(user.email)}
+          </p>
+        )}
         <div>
           {/* requestDevice runs synchronously inside this click (user gesture). */}
           <Button onClick={() => void runner.find()}>{FIND.action}</Button>

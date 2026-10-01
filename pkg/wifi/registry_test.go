@@ -3,9 +3,11 @@
 package wifi_test
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -260,4 +262,56 @@ func TestManagerCloseReturns(t *testing.T) {
 		t.Fatal("Close hung")
 	}
 	waitDone(t, dev, time.Second)
+}
+
+// One source can't crowd out a real cooker: beyond MaxUnboundPerIP, its
+// not-yet-bound connections are refused, and binding frees the slot.
+func TestUnboundConnectionsPerIPAreCapped(t *testing.T) {
+	e := newEnv(t, envCfg{opts: wifi.Options{MaxUnboundPerIP: 2}})
+	e.dial(t, wifitest.Cooker{Key: wifitest.Key0})
+	e.waitBound(t, 2*time.Second) // bound: doesn't count
+	p1 := e.dial(t, wifitest.Cooker{Key: wifitest.Key1})
+	e.dial(t, wifitest.Cooker{Key: wifitest.Key1})
+	eventually(t, 2*time.Second, "2 pending", func() bool { return len(e.m.Connections(id)) == 3 })
+
+	if over := e.dial(t, wifitest.Cooker{Key: wifitest.Key1}); !over.WaitClosed(time.Second) {
+		t.Fatal("third unbound connection from one IP was not refused")
+	}
+	if len(e.m.Connections(id)) != 3 {
+		t.Fatal("refusing changed the registry")
+	}
+
+	_ = p1.Close()
+	eventually(t, 2*time.Second, "slot freed", func() bool { return len(e.m.Connections(id)) == 2 })
+	e.dial(t, wifitest.Cooker{Key: wifitest.Key1})
+	eventually(t, 2*time.Second, "accepted again", func() bool { return len(e.m.Connections(id)) == 3 })
+}
+
+// Key checks hit the database and bcrypt; a flood of handshakes must not take
+// every pool connection or the CPU.
+func TestKeyChecksAreBounded(t *testing.T) {
+	v := &slowVerifier{delay: 100 * time.Millisecond}
+	e := newEnv(t, envCfg{opts: wifi.Options{Verifier: v, MaxUnboundPerIP: 20}})
+	for i := 0; i < 6; i++ {
+		e.dial(t, wifitest.Cooker{Key: wifitest.Key1})
+	}
+	eventually(t, 3*time.Second, "all verified", func() bool { return v.calls.Load() == 6 })
+	if got := v.peak.Load(); got > 2 {
+		t.Fatalf("%d key checks ran at once; want at most 2", got)
+	}
+}
+
+type slowVerifier struct {
+	delay            time.Duration
+	now, peak, calls atomic.Int32
+}
+
+func (v *slowVerifier) VerifyKey(ctx context.Context, _, _ string) (bool, error) {
+	n := v.now.Add(1)
+	for p := v.peak.Load(); n > p && !v.peak.CompareAndSwap(p, n); p = v.peak.Load() {
+	}
+	time.Sleep(v.delay)
+	v.now.Add(-1)
+	v.calls.Add(1)
+	return false, nil
 }

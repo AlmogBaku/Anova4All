@@ -70,6 +70,8 @@ type device struct {
 	disp        *dispatcher
 	repoll      chan struct{}
 	announced   bool // OnBound delivered; dispatch goroutine only
+	ip          string
+	counted     bool // holds an unbound slot for ip; guarded by Manager.mu
 
 	mu          sync.Mutex
 	idCard      string

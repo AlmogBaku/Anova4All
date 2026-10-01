@@ -5,6 +5,8 @@ package storetest
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -17,7 +19,8 @@ import (
 	"anova4all/internal/store"
 )
 
-// AdminURL is the local Supabase superuser URL (override with ANOVA_TEST_ADMIN_URL).
+// AdminURL is the local Supabase superuser URL (override with ANOVA_TEST_ADMIN_URL;
+// it must stay on loopback, see admin).
 func AdminURL() string {
 	if u := os.Getenv("ANOVA_TEST_ADMIN_URL"); u != "" {
 		return u
@@ -25,11 +28,30 @@ func AdminURL() string {
 	return "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
 }
 
+// LocalURL reports whether a postgres URL's host is loopback.
+func LocalURL(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	h := u.Hostname()
+	if h == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && ip.IsLoopback()
+}
+
 // testPassword is set on anova_server in the local database only.
 const testPassword = "local-test-only"
 
 func admin(t testing.TB) *pgx.Conn {
 	t.Helper()
+	// The harness sets a committed password on anova_server and writes users:
+	// never against anything but a local database.
+	if !LocalURL(AdminURL()) {
+		t.Fatal("ANOVA_TEST_ADMIN_URL must point at a loopback host (local Supabase)")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	c, err := pgx.Connect(ctx, AdminURL())

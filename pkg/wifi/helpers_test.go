@@ -82,6 +82,9 @@ func newEnv(t *testing.T, c envCfg) *env {
 	e := &env{v: wifitest.NewVerifier(id, wifitest.Key0), rec: &recorder{}, obs: obs}
 	o := e.rec.opts(wifi.Options{})
 	o.Verifier = e.v
+	if c.opts.Verifier != nil {
+		o.Verifier = c.opts.Verifier
+	}
 	if c.opts.OnBound != nil {
 		o.OnBound = c.opts.OnBound
 	}
@@ -95,6 +98,7 @@ func newEnv(t *testing.T, c envCfg) *env {
 		o.OnEvent = c.opts.OnEvent
 	}
 	o.PendingTTL, o.MaxPending, o.Now = c.opts.PendingTTL, c.opts.MaxPending, c.opts.Now
+	o.MaxUnboundPerIP = c.opts.MaxUnboundPerIP
 	if !c.defaults {
 		if c.tt == (wifi.TestTimings{}) {
 			c.tt = fast()

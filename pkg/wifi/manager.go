@@ -34,9 +34,12 @@ type Options struct {
 	// OnEvent: cooker events (bound devices only).
 	OnEvent func(idCard string, ev AnovaEvent)
 
-	PendingTTL time.Duration    // default 120s
-	MaxPending int              // default 64, oldest dropped
-	Now        func() time.Time // optional, for tests
+	PendingTTL time.Duration // default 120s
+	MaxPending int           // default 64, oldest dropped
+	// MaxUnboundPerIP caps one source's connections that aren't bound yet
+	// (handshaking or pending); beyond it new ones are refused. Default 8.
+	MaxUnboundPerIP int
+	Now             func() time.Time // optional, for tests
 
 	timings *timings // tests only (export_test.go)
 }
@@ -62,9 +65,15 @@ type Manager struct {
 	seq     uint64
 	closed  bool
 	entries map[*device]*entry
+	unbound map[string]int // remote IP → connections not bound yet
+
+	verifySem chan struct{} // bounds concurrent key checks (database + bcrypt)
 }
 
-const verifyTimeout = 5 * time.Second
+const (
+	verifyTimeout       = 5 * time.Second
+	maxConcurrentVerify = 2 // the store pool has 4 connections
+)
 
 // NewManager listens on listenAddr and serves cooker connections until ctx is done or Close is called.
 func NewManager(ctx context.Context, listenAddr string, opts Options, logger *zap.Logger) (*Manager, error) {
@@ -92,6 +101,9 @@ func newManager(ctx context.Context, ln net.Listener, opts Options, logger *zap.
 	if opts.MaxPending <= 0 {
 		opts.MaxPending = 64
 	}
+	if opts.MaxUnboundPerIP <= 0 {
+		opts.MaxUnboundPerIP = 8
+	}
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
@@ -100,11 +112,13 @@ func newManager(ctx context.Context, ln net.Listener, opts Options, logger *zap.
 		t = *opts.timings
 	}
 	m := &Manager{
-		opts:    opts,
-		t:       t,
-		log:     logger.Named("wifi"),
-		ln:      ln,
-		entries: make(map[*device]*entry),
+		opts:      opts,
+		t:         t,
+		log:       logger.Named("wifi"),
+		ln:        ln,
+		entries:   make(map[*device]*entry),
+		unbound:   make(map[string]int),
+		verifySem: make(chan struct{}, maxConcurrentVerify),
 	}
 	m.ctx, m.cancel = context.WithCancel(ctx)
 	m.log.Info("listening for cookers", zap.Stringer("addr", ln.Addr()))
@@ -228,6 +242,7 @@ func (m *Manager) Close() error {
 func (m *Manager) bindLocked(d *device, e *entry) (newly bool, others []*device) {
 	newly = !e.bound
 	e.bound, e.wasBound = true, true
+	m.releaseLocked(d)
 	id := d.IDCard()
 	for o, oe := range m.entries {
 		if o != d && o.IDCard() == id {
@@ -255,12 +270,21 @@ func (m *Manager) afterBind(d *device, newly bool, others []*device) {
 
 // handleConn runs one cooker connection to the end.
 func (m *Manager) handleConn(nc net.Conn) {
+	ip := remoteIP(nc)
 	m.mu.Lock()
+	if m.unbound[ip] >= m.opts.MaxUnboundPerIP {
+		m.mu.Unlock()
+		m.log.Warn("too many unbound cooker connections from one address; refused", zap.String("ip", ip))
+		_ = nc.Close()
+		return
+	}
+	m.unbound[ip]++
 	m.seq++
 	seq := m.seq
 	m.mu.Unlock()
 
 	d := newDevice(nc, seq, m.opts.Now(), m.t, m.log, sink{state: m.deliverState, event: m.deliverEvent})
+	d.ip, d.counted = ip, true // before d is shared; guarded by m.mu from here on
 	m.log.Debug("cooker connected", zap.Stringer("remote", nc.RemoteAddr()))
 
 	if verified, ok := m.admit(d); ok {
@@ -286,12 +310,42 @@ func (m *Manager) admit(d *device) (verified, ok bool) {
 
 	vctx, vcancel := context.WithTimeout(m.ctx, verifyTimeout)
 	defer vcancel()
-	match, err := m.opts.Verifier.VerifyKey(vctx, d.IDCard(), key)
+	match, err := m.verify(vctx, d.IDCard(), key)
 	if err != nil {
 		d.log.Warn("key verification failed; connection stays pending", zap.Error(err))
 		match = false
 	}
 	return match, !d.c.closed()
+}
+
+// verify runs the key check, at most maxConcurrentVerify at a time.
+func (m *Manager) verify(ctx context.Context, idCard, key string) (bool, error) {
+	select {
+	case m.verifySem <- struct{}{}:
+	case <-ctx.Done():
+		return false, ctx.Err()
+	}
+	defer func() { <-m.verifySem }()
+	return m.opts.Verifier.VerifyKey(ctx, idCard, key)
+}
+
+// releaseLocked frees d's unbound slot, once.
+func (m *Manager) releaseLocked(d *device) {
+	if !d.counted {
+		return
+	}
+	d.counted = false
+	if m.unbound[d.ip]--; m.unbound[d.ip] <= 0 {
+		delete(m.unbound, d.ip)
+	}
+}
+
+func remoteIP(nc net.Conn) string {
+	host, _, err := net.SplitHostPort(nc.RemoteAddr().String())
+	if err != nil {
+		return nc.RemoteAddr().String()
+	}
+	return host
 }
 
 func (m *Manager) register(d *device, verified bool) {
@@ -340,6 +394,7 @@ func (m *Manager) unregister(d *device) {
 	if ok {
 		delete(m.entries, d)
 	}
+	m.releaseLocked(d)
 	m.mu.Unlock()
 	if ok && e.wasBound {
 		m.log.Info("bound cooker gone", zap.String("id_card", d.IDCard()), zap.NamedError("cause", d.c.cause()))

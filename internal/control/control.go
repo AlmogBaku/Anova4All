@@ -522,12 +522,24 @@ func (s *Service) Pair(ctx context.Context, user uuid.UUID, idCard, key string) 
 		if len(conns) == 0 {
 			return store.Device{}, ErrDeviceOffline
 		}
+		// Ask every connection at once under one deadline, so connections that never
+		// answer can't use up the budget before the real cooker is asked.
+		rctx, rcancel := context.WithTimeout(ctx, 4*time.Second)
+		ok := make([]bool, len(conns))
+		var wg sync.WaitGroup
+		for i, c := range conns {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				got, err := c.ReadKey(rctx)
+				ok[i] = err == nil && got == key
+			}()
+		}
+		wg.Wait()
+		rcancel()
 		var matching []wifi.AnovaDevice
-		for _, c := range conns { // newest first
-			rctx, rcancel := context.WithTimeout(ctx, 4*time.Second)
-			got, err := c.ReadKey(rctx)
-			rcancel()
-			if err == nil && got == key {
+		for i, c := range conns { // newest first
+			if ok[i] {
 				matching = append(matching, c)
 			}
 		}
