@@ -20,6 +20,7 @@ import (
 	"anova4all/internal/auth"
 	"anova4all/internal/control"
 	"anova4all/internal/cook"
+	"anova4all/internal/mcp"
 	"anova4all/internal/rest"
 	"anova4all/internal/store"
 	"anova4all/pkg/wifi"
@@ -136,6 +137,22 @@ func run(ctx context.Context, cfg *viper.Viper, logger *zap.Logger) error {
 		Cookers:     mgr.BoundCount,
 		Logger:      logger,
 	})
+	if pub := cfg.GetString("mcp_public_url"); pub != "" {
+		routes, err := mcp.New(mcp.Options{
+			Control:    ctl,
+			Verifier:   verifier,
+			PublicURL:  pub,
+			AuthServer: supabaseURL + "/auth/v1",
+			Logger:     logger,
+		})
+		if err != nil {
+			return err
+		}
+		for _, r := range routes {
+			api.Handle(r.Path, r.Handler)
+		}
+		logger.Info("mcp enabled", zap.String("url", pub))
+	}
 	closeReady()
 
 	go sweepUnpaired(ctx, ctl, logger)
