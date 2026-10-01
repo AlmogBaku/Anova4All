@@ -37,3 +37,16 @@ export function timerLabel(heating: boolean, minutes: number): string {
     ? `Timer (${describeMinutes(minutes)} left)`
     : "Timer";
 }
+
+/**
+ * The timer at rest, unambiguous about its unit: 9 -> "9" min, 90 -> "1:30" h.
+ * HH:MM is only used while typing, where the keypad needs fixed digits.
+ */
+export function restingTimer(minutes: number): { value: string; unit: string } {
+  const m = Math.max(0, Math.floor(minutes || 0));
+  if (m < 60) return { value: String(m), unit: "min" };
+  return {
+    value: `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`,
+    unit: "h",
+  };
+}

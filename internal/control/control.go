@@ -295,10 +295,11 @@ func (s *Service) Start(ctx context.Context, user, deviceID uuid.UUID, in StartC
 		} else if closed {
 			ended = append(ended, store.EndManual)
 		}
-		steps := []commands.Command{
-			commands.SetTemperatureUnit{Unit: in.Unit},
-			commands.SetTargetTemperature{Temperature: in.Temperature, Unit: in.Unit},
+		steps, err := s.unitSteps(ctx, dev, in.Unit)
+		if err != nil {
+			return err
 		}
+		steps = append(steps, commands.SetTargetTemperature{Temperature: in.Temperature, Unit: in.Unit})
 		if in.Minutes != nil {
 			steps = append(steps, commands.SetTimer{Minutes: *in.Minutes})
 		}
@@ -320,7 +321,8 @@ func (s *Service) Start(ctx context.Context, user, deviceID uuid.UUID, in StartC
 	if err != nil {
 		return DeviceStatus{}, err
 	}
-	s.log.Info("cook started", zap.Stringer("device", a.ID), zap.Stringer("user", user), zap.Bool("auto_stop", in.AutoStop))
+	s.log.Info("cook started", zap.Stringer("device", a.ID), zap.Stringer("user", user), zap.Bool("auto_stop", in.AutoStop),
+		zap.String("unit", string(in.Unit)), zap.Float64("temperature", in.Temperature))
 	s.notifyChanged(a.IDCard)
 	return s.status(ctx, a)
 }
@@ -353,9 +355,10 @@ func (s *Service) Update(ctx context.Context, user, deviceID uuid.UUID, in Updat
 		}
 		var steps []commands.Command
 		if in.Temperature != nil {
-			steps = append(steps,
-				commands.SetTemperatureUnit{Unit: *in.Unit},
-				commands.SetTargetTemperature{Temperature: *in.Temperature, Unit: *in.Unit})
+			if steps, err = s.unitSteps(ctx, dev, *in.Unit); err != nil {
+				return err
+			}
+			steps = append(steps, commands.SetTargetTemperature{Temperature: *in.Temperature, Unit: *in.Unit})
 		}
 		if in.Minutes != nil {
 			if *in.Minutes > 0 {
@@ -367,6 +370,7 @@ func (s *Service) Update(ctx context.Context, user, deviceID uuid.UUID, in Updat
 		if err := s.run(ctx, dev, steps...); err != nil {
 			return err
 		}
+		s.log.Info("cook updated", zap.Stringer("device", a.ID), zap.Stringer("user", user), zap.Strings("commands", lines(steps)))
 
 		c, err := s.st.OpenCook(ctx, a.ID)
 		if errors.Is(err, store.ErrNotFound) { // started from the cooker's buttons
@@ -670,6 +674,19 @@ func (s *Service) readStatus(ctx context.Context, dev wifi.AnovaDevice) (command
 	return st, nil
 }
 
+// unitSteps returns the "set unit" step only when the cooker uses the other unit. The unit is read
+// fresh, because a repeated "set unit" with the unit already in use flips some cookers to the other one.
+func (s *Service) unitSteps(ctx context.Context, dev wifi.AnovaDevice, unit commands.TemperatureUnit) ([]commands.Command, error) {
+	v, err := s.send(ctx, dev, commands.GetTemperatureUnit{})
+	if err != nil {
+		return nil, err
+	}
+	if v == unit {
+		return nil, nil
+	}
+	return []commands.Command{commands.SetTemperatureUnit{Unit: unit}}, nil
+}
+
 func (s *Service) run(ctx context.Context, dev wifi.AnovaDevice, steps ...commands.Command) error {
 	for _, c := range steps {
 		if _, err := s.send(ctx, dev, c); err != nil {
@@ -693,4 +710,13 @@ func (s *Service) send(ctx context.Context, dev wifi.AnovaDevice, cmd commands.C
 		return nil, fmt.Errorf("cooker command %T: %w", cmd, err)
 	}
 	return v, nil
+}
+
+// lines is what a cook operation sent, for the log. Cook steps never carry the key.
+func lines(cmds []commands.Command) []string {
+	out := make([]string, len(cmds))
+	for i, c := range cmds {
+		out[i] = c.Encode()
+	}
+	return out
 }

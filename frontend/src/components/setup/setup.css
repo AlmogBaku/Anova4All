@@ -1,0 +1,272 @@
+/*
+ * Setup wizard line drawings. One motion each; under reduced motion each one
+ * holds still on its final frame. Colors come from the Copper Ring tokens, so
+ * light and dark both follow the theme.
+ */
+.setup-il {
+  --il-fill: var(--steel);
+  width: 100%;
+  max-width: 270px;
+  max-height: 100%;
+  overflow: visible;
+  color: var(--ink);
+}
+.setup-il * {
+  vector-effect: non-scaling-stroke;
+}
+.setup-il path,
+.setup-il rect,
+.setup-il circle {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.setup-il .il-fill {
+  fill: var(--il-fill);
+}
+.setup-il .il-rail {
+  stroke: var(--rail);
+}
+.setup-il .il-soft {
+  stroke: var(--ink-soft);
+}
+.setup-il .il-cu,
+.setup-il .il-cu * {
+  stroke: var(--heat);
+}
+.setup-il .il-dot {
+  fill: var(--ink);
+  stroke: none;
+}
+.setup-il .il-dot.il-soft {
+  fill: var(--ink-soft);
+}
+.setup-il .il-cu .il-dot,
+.setup-il .il-dot.il-cu {
+  fill: var(--heat);
+}
+.setup-il text {
+  font-family: inherit;
+  fill: var(--ink-soft);
+  stroke: none;
+  font-size: 10px;
+  text-anchor: middle;
+}
+.setup-il text.il-lcd {
+  fill: var(--ink);
+  font-size: 21px;
+  font-weight: 200;
+  letter-spacing: -0.02em;
+}
+.setup-il .il-box {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* On the desktop pane the drawing sits on the well. */
+@media (min-width: 48rem) {
+  .setup-stage .setup-il {
+    --il-fill: var(--well);
+  }
+}
+
+/* A phone shortens the drawing for the Wi-Fi form; its label goes. */
+@media (max-width: 47.99rem) {
+  .setup-stage[data-compact] .setup-il text {
+    display: none;
+  }
+}
+
+/* "Done" ticks in the preflight list. */
+.setup-ok {
+  background: rgb(63 125 88 / 0.12);
+  color: #3f7d58;
+}
+.dark .setup-ok {
+  background: rgb(110 190 140 / 0.14);
+  color: #7fc79a;
+}
+
+/* Preflight: Bluetooth waves. */
+.il-wave {
+  animation: il-wave 2.2s ease-out infinite;
+}
+.il-wave.il-w2 {
+  animation-delay: 0.35s;
+}
+@keyframes il-wave {
+  0% {
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Get ready: the panel's Wi-Fi icon pulses the way it blinks while it looks. */
+.il-blink {
+  animation: il-blink 1.6s ease-in-out infinite;
+}
+.il-halo {
+  animation: il-halo 1.6s ease-out infinite;
+  opacity: 0;
+}
+@keyframes il-blink {
+  50% {
+    opacity: 0.2;
+  }
+}
+@keyframes il-halo {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+/* Find: rings sweep from the phone to the cooker. */
+.il-sweep {
+  animation: il-sweep 2.4s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+}
+.il-sw1 {
+  transform: translateX(10px);
+  opacity: 1;
+}
+.il-sw2 {
+  transform: translateX(46px);
+  opacity: 0.55;
+  animation-delay: 0.8s;
+}
+.il-sw3 {
+  transform: translateX(82px);
+  opacity: 0.25;
+  animation-delay: 1.6s;
+}
+@keyframes il-sweep {
+  0% {
+    transform: translateX(0) scale(0.7);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(96px) scale(1.25);
+    opacity: 0;
+  }
+}
+
+/* Key: slides into the cooker. */
+.il-key {
+  animation: il-insert 3.2s cubic-bezier(0.3, 0.7, 0.2, 1) infinite;
+}
+@keyframes il-insert {
+  0% {
+    transform: translateX(-48px);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  50%,
+  86% {
+    transform: none;
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+    opacity: 0;
+  }
+}
+
+/* Server: a pulse travels cooker, router, server. */
+.setup-il .il-pulse {
+  stroke-dasharray: 9 140;
+  stroke-dashoffset: -84;
+  stroke-width: 2.5;
+  animation: il-travel 2.6s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+@keyframes il-travel {
+  0% {
+    stroke-dashoffset: 9;
+  }
+  100% {
+    stroke-dashoffset: -100;
+  }
+}
+
+/* Wi-Fi: the arcs fill. */
+.setup-il .il-arc {
+  stroke-width: 3;
+}
+.il-fillarc {
+  animation: il-arcfill 2.6s ease-out infinite;
+}
+.il-fillarc.il-f2 {
+  animation-delay: 0.25s;
+}
+.il-fillarc.il-f3 {
+  animation-delay: 0.5s;
+}
+@keyframes il-arcfill {
+  0%,
+  8% {
+    opacity: 0;
+  }
+  22%,
+  84% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Pair: the copper ring drains over the minute. */
+.setup-ring-drain {
+  transition: stroke-dashoffset 1s linear;
+}
+
+/* Name: the typed name on the cooker's display. */
+.setup-caret {
+  animation: il-caret 1s steps(2) infinite;
+}
+@keyframes il-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .il-wave,
+  .il-blink,
+  .il-key,
+  .il-fillarc,
+  .setup-caret {
+    animation: none !important;
+    opacity: 1;
+  }
+  .il-sweep,
+  .setup-il .il-pulse {
+    animation: none !important;
+  }
+  .il-key {
+    transform: none;
+  }
+  .il-halo {
+    animation: none !important;
+    opacity: 0;
+  }
+  .setup-ring-drain {
+    transition: none;
+    stroke-dashoffset: 0 !important;
+  }
+}

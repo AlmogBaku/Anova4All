@@ -188,11 +188,20 @@ export class CookController {
     this.edit({ temperature: t });
   }
 
-  /** Switching units converts the shown temperature. */
+  /**
+   * Switching units converts the shown temperature. A set point outside the
+   * old unit's range was really in the new unit (the cooker reported the
+   * wrong unit), so it is kept rather than converted and clamped.
+   */
   editUnit(unit: TemperatureUnit): void {
     const v = this.view.values;
     if (unit === v.unit) return;
-    this.edit({ unit, temperature: toUnit(v.temperature, v.unit, unit) });
+    const [min, max] = TEMP_RANGE[v.unit];
+    const fits = v.temperature >= min && v.temperature <= max;
+    this.edit({
+      unit,
+      temperature: fits ? toUnit(v.temperature, v.unit, unit) : v.temperature,
+    });
   }
 
   editMinutes(minutes: number): void {

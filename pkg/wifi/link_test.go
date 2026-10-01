@@ -522,3 +522,57 @@ func TestThreeMissedRepliesCloseLink(t *testing.T) {
 		t.Fatalf("closed after %v", took)
 	}
 }
+
+// The real cooker answers `set unit c` with the unit and `start time` with the
+// command itself, not "ok"; a command must accept those echoes as well as "ok".
+func TestSetCommandsAcceptEchoedValue(t *testing.T) {
+	e := newEnv(t, envCfg{tt: noPoll()})
+	e.dial(t, wifitest.Cooker{Respond: func(cmd string, _ int) (wifitest.Reply, bool) {
+		switch cmd {
+		case "set unit c":
+			return wifitest.Reply{Text: "c"}, true
+		case "set unit f":
+			return wifitest.Reply{Text: "F"}, true
+		case "set temp 57.0":
+			return wifitest.Reply{Text: "57.0"}, true
+		case "start time":
+			return wifitest.Reply{Text: "start time"}, true
+		}
+		return wifitest.Reply{}, false
+	}})
+	dev := e.waitBound(t, 2*time.Second)
+	for _, cmd := range []commands.Command{
+		commands.SetTemperatureUnit{Unit: commands.Celsius},
+		commands.SetTemperatureUnit{Unit: commands.Fahrenheit},
+		commands.SetTargetTemperature{Temperature: 57, Unit: commands.Celsius},
+		commands.StartTimer{},
+	} {
+		if _, err := dev.SendCommand(ctxT(t, 3*time.Second), cmd); err != nil {
+			t.Errorf("%s: %v", cmd.Encode(), err)
+		}
+	}
+}
+
+// The cooker reports its timer as "<minutes> running" or "<minutes> stopped".
+func TestTimerStatusReadsRunningWord(t *testing.T) {
+	e := newEnv(t, envCfg{tt: noPoll()})
+	var reply atomic.Value
+	reply.Store("45 running")
+	e.dial(t, wifitest.Cooker{Respond: func(cmd string, _ int) (wifitest.Reply, bool) {
+		if cmd != "read timer" {
+			return wifitest.Reply{}, false
+		}
+		return wifitest.Reply{Text: reply.Load().(string)}, true
+	}})
+	dev := e.waitBound(t, 2*time.Second)
+	for text, want := range map[string]commands.TimerStatus{
+		"45 running": {Minutes: 45, Running: true},
+		"45 stopped": {Minutes: 45, Running: false},
+	} {
+		reply.Store(text)
+		v, err := dev.SendCommand(ctxT(t, 3*time.Second), commands.GetTimerStatus{})
+		if err != nil || v != want {
+			t.Errorf("read timer %q = %v, %v; want %v", text, v, err, want)
+		}
+	}
+}

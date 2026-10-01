@@ -86,7 +86,7 @@ export function OAuthConsentPage() {
     <Page>
       <TicketSection perforated={false} className="grid gap-4">
         <p className="text-lg leading-snug">
-          <span className="font-semibold break-words">{name}</span> wants to use
+          <span className="font-medium break-words">{name}</span> wants to use
           your cookers.
         </p>
         <div>

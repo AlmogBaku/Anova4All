@@ -47,6 +47,7 @@ type envOpts struct {
 	verifier   *auth.Verifier
 	authServer string
 	limits     *mcp.Limits
+	publicURL  string // MCP_PUBLIC_URL; default e.base + "/mcp"
 }
 
 // newEnv runs the real REST server with the MCP routes mounted, as main does.
@@ -90,8 +91,12 @@ func newEnvWith(t *testing.T, o envOpts) *env {
 	if o.limits != nil {
 		limits = *o.limits
 	}
+	publicURL := e.base + "/mcp"
+	if o.publicURL != "" {
+		publicURL = o.publicURL
+	}
 	routes, err := mcp.New(mcp.Options{
-		Control: e.ctl, Verifier: verifier, PublicURL: e.base + "/mcp", AuthServer: authServer,
+		Control: e.ctl, Verifier: verifier, PublicURL: publicURL, AuthServer: authServer,
 		Limits: limits, Logger: log,
 	})
 	if err != nil {
@@ -343,6 +348,33 @@ func TestAuthNoTokenPointsToMetadataNamingSupabase(t *testing.T) {
 	}
 }
 
+// Behind the tunnel the server listens on loopback but requests carry the public Host. The
+// SDK's DNS-rebinding guard refused them all with 403; only the public host and loopback
+// names may pass.
+func TestPublicHostAcceptedOnLoopbackListener(t *testing.T) {
+	e := newEnvWith(t, envOpts{publicURL: "https://anova.example.test/mcp"})
+	tok := e.sign.App(t, uuid.New())
+	for host, want := range map[string]int{
+		"anova.example.test": http.StatusOK,
+		"localhost":          http.StatusOK,
+		"evil.example.test":  http.StatusForbidden,
+	} {
+		req, _ := http.NewRequest(http.MethodPost, e.base+"/mcp", strings.NewReader(initBody))
+		req.Host = host
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		req.Header.Set("Authorization", "Bearer "+tok)
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = res.Body.Close()
+		if res.StatusCode != want {
+			t.Errorf("Host %s: status %d, want %d", host, res.StatusCode, want)
+		}
+	}
+}
+
 func TestAuthTokenSurfaces(t *testing.T) {
 	e := newEnv(t)
 	alice := storetest.User(t, "alice")
@@ -500,7 +532,7 @@ func TestCookToolsGoThroughControl(t *testing.T) {
 	if r.isError {
 		t.Fatalf("start: %s", r.text)
 	}
-	want := []string{"set unit c", "set temp 57.0", "set timer 60", "start", "start time"}
+	want := []string{"set temp 57.0", "set timer 60", "start", "start time"}
 	if got := cookCmds(conn); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("commands %v, want %v", got, want)
 	}

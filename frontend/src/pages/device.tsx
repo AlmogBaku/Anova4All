@@ -52,7 +52,7 @@ function DeviceView({ deviceId }: { deviceId: string }) {
   }
 
   return (
-    <TicketPage>
+    <TicketPage width="xl">
       <CookScreen
         name={stream.status?.name ?? "Cooker"}
         settingsHref={`/devices/${deviceId}/settings`}
@@ -60,6 +60,7 @@ function DeviceView({ deviceId }: { deviceId: string }) {
         controller={controller}
         link={link}
         retryInMs={stream.retryInMs}
+        readingUnit={stream.status?.state?.unit}
       />
     </TicketPage>
   );

@@ -17,3 +17,13 @@ describe("Section", () => {
     expect(labelledBy).not.toMatch(/\s/);
   });
 });
+
+describe("Section without a title", () => {
+  it("renders no empty heading and no dangling label", () => {
+    const html = renderToStaticMarkup(
+      createElement(Section, { children: "body" }),
+    );
+    expect(html).not.toMatch(/<h2/);
+    expect(html).not.toMatch(/aria-labelledby/);
+  });
+});

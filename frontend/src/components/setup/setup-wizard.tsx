@@ -1,38 +1,112 @@
-import { useState, type FormEvent, type ReactNode } from "react";
-import { CheckIcon } from "lucide-react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ComponentProps,
+  type FormEvent,
+  type ReactNode,
+} from "react";
+import {
+  CheckIcon,
+  DotIcon,
+  Loader2Icon,
+  TriangleAlertIcon,
+  UserRoundIcon,
+  WifiIcon,
+} from "lucide-react";
+import { Tabs } from "radix-ui";
 import { Field } from "@/components/field.tsx";
-import { ErrorAlert, Loading } from "@/components/status.tsx";
-import { Ticket, TicketHead, TicketSection } from "@/components/ticket.tsx";
+import { ErrorAlert } from "@/components/status.tsx";
 import { Button } from "@/components/ui/button.tsx";
+import { Input } from "@/components/ui/input.tsx";
 import { useAuth } from "@/contexts/auth.tsx";
 import { validateDeviceName } from "@/lib/devices.ts";
 import { cn } from "@/lib/utils.ts";
 import {
+  CHECKLIST,
   COMMON,
   FIND,
+  HELP,
+  KEY,
   NAME,
   PAIR,
   PREFLIGHT,
   PREPARE,
+  SERVER,
   STEP_PROGRESS,
   STEP_TITLES,
   WIFI,
   WIZARD,
 } from "./copy.ts";
+import { HelpSheet, Note, Steps, type HelpTab } from "./help-sheet.tsx";
+import {
+  FindArt,
+  KeyArt,
+  LateArt,
+  NameArt,
+  PairRing,
+  PreflightArt,
+  ReadyArt,
+  ServerArt,
+  WifiArt,
+} from "./illustrations.tsx";
 import { STEPS, type SetupState, type StepId } from "./machine.ts";
 import { PAIR_TIMEOUT_MS, type SetupRunner } from "./runner.ts";
+import "./setup.css";
 
-const VISIBLE: readonly StepId[] = STEPS.filter((s) => s !== "done");
+/** The steps a person sees; "connect" happens on the "find" screen. */
+type VisibleStep = keyof typeof CHECKLIST;
+const VISIBLE = STEPS.filter(
+  (s): s is VisibleStep => s !== "connect" && s !== "done",
+);
 
-/** The bump-bar keys under a step: one full-width primary, then the rest. */
-function Keys({ children }: { children: ReactNode }) {
-  return <div className="grid gap-2 pt-1">{children}</div>;
+function visibleIndex(step: StepId): number {
+  if (step === "connect") return VISIBLE.indexOf("find");
+  if (step === "done") return VISIBLE.length;
+  return VISIBLE.indexOf(step);
 }
 
-/** The order lines: done steps are checked, the current one is printed in ink. */
-function StepList({ current }: { current: number }) {
+interface Chrome {
+  current: number;
+  cancel?: ReactNode;
+  help: (tab: HelpTab) => void;
+}
+
+const ChromeContext = createContext<Chrome>({ current: 0, help: () => {} });
+
+// ---- shared pieces ----
+
+/** The slim copper bar: how far along setup is. */
+function Progress({ current }: { current: number }) {
+  const shown = Math.min(current + 1, VISIBLE.length);
   return (
-    <ol aria-label={WIZARD.stepsLabel} className="grid">
+    <div
+      role="progressbar"
+      aria-label={WIZARD.progressLabel}
+      aria-valuemin={1}
+      aria-valuemax={VISIBLE.length}
+      aria-valuenow={shown}
+      aria-valuetext={`${shown} of ${VISIBLE.length}`}
+      className="h-1 flex-1 overflow-hidden rounded-full bg-hairline"
+    >
+      <div
+        className="h-full rounded-full bg-linear-to-r from-heat-hi to-heat transition-[width] duration-400 ease-[cubic-bezier(.3,.7,.2,1)] motion-reduce:transition-none"
+        style={{ width: `${(shown / VISIBLE.length) * 100}%` }}
+      />
+    </div>
+  );
+}
+
+/** Desktop: the whole journey as a checklist, so you always see what's left. */
+function Checklist({ current }: { current: number }) {
+  return (
+    <ol
+      aria-label={WIZARD.stepsLabel}
+      className="grid grid-flow-col grid-cols-2 grid-rows-4 gap-x-4.5 gap-y-0.5"
+    >
       {VISIBLE.map((s, i) => {
         const done = i < current;
         const now = i === current;
@@ -41,28 +115,22 @@ function StepList({ current }: { current: number }) {
             key={s}
             aria-current={now ? "step" : undefined}
             className={cn(
-              "caps -mx-2 flex items-center gap-3 px-2 py-0.5 text-sm",
-              done && "text-ink",
-              now && "bg-ink py-1 text-paper",
-              !done && !now && "text-ink-soft",
+              "flex items-center gap-2.5 py-[3px] text-[0.84375rem] text-ink-soft",
+              now && "font-medium text-ink",
             )}
           >
-            <span aria-hidden className="grid size-4 place-items-center">
-              {done ? (
-                <CheckIcon className="size-4" strokeWidth={3} />
-              ) : (
-                <span
-                  className={cn(
-                    "size-2",
-                    now ? "bg-paper" : "border-[1.5px] border-current",
-                  )}
-                />
+            <span
+              aria-hidden
+              className={cn(
+                "grid size-5 shrink-0 place-items-center rounded-full border-[1.5px] border-rail",
+                done && "border-ink bg-ink text-paper",
+                now && "border-heat ring-3 ring-heat/15",
               )}
+            >
+              {done && <CheckIcon className="size-3" strokeWidth={2.5} />}
             </span>
-            <span>
-              {STEP_TITLES[s]}
-              {done && <span className="sr-only"> ({WIZARD.done})</span>}
-            </span>
+            {CHECKLIST[s]}
+            {done && <span className="sr-only"> ({WIZARD.done})</span>}
           </li>
         );
       })}
@@ -71,128 +139,393 @@ function StepList({ current }: { current: number }) {
 }
 
 /**
- * The phone's stand-in for the step list: one slim segment per step, filled up
- * to the current one. The head band already reads "Step N of 9" and the step's
- * name is printed right under it, so this stays decorative.
+ * One step's screen. A phone stacks the bar, the drawing, the copy and the
+ * keys; from md: up the drawing takes the left pane and the copy the right.
  */
-function StepStrip({ current }: { current: number }) {
+function Screen({
+  art,
+  title,
+  children,
+  actions,
+  compactArt = false,
+}: {
+  art: ReactNode;
+  title: ReactNode;
+  children?: ReactNode;
+  actions?: ReactNode;
+  /** A short drawing on a phone, to leave room for a form. */
+  compactArt?: boolean;
+}) {
+  const { current, cancel } = useContext(ChromeContext);
   return (
-    <div aria-hidden className="flex gap-1 sm:hidden">
-      {VISIBLE.map((s, i) => (
-        <span
-          key={s}
-          className={cn("h-1.5 flex-1", i <= current ? "bg-ink" : "bg-ink/15")}
+    <>
+      <div className="flex h-12 shrink-0 items-center gap-3.5 px-1 md:hidden">
+        <span aria-hidden className="size-11 shrink-0" />
+        <Progress current={current} />
+        <div className="shrink-0">{cancel}</div>
+      </div>
+      <div
+        data-compact={compactArt || undefined}
+        className={cn(
+          "setup-stage relative min-h-30 flex-1 md:min-h-0 md:bg-well",
+          compactArt && "h-26 min-h-26 flex-none md:h-auto",
+        )}
+      >
+        {/* Out of flow, so the drawing takes what's left and never pushes the keys down. */}
+        <div className="absolute inset-x-2.5 inset-y-2 mx-auto grid max-w-[270px] grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] place-items-center md:inset-10 md:max-w-[330px] [&>*]:max-h-full">
+          {art}
+        </div>
+      </div>
+      <div className="flex shrink-0 flex-col px-2.5 pb-3 md:min-h-0 md:overflow-y-auto md:px-11 md:py-8.5">
+        <div className="absolute top-4 right-4 hidden md:block">{cancel}</div>
+        <div className="mb-5.5 hidden pr-8 md:block">
+          <Checklist current={current} />
+        </div>
+        <h2
+          id="setup-step"
+          tabIndex={-1}
+          className="text-[1.625rem] leading-[1.15] font-medium tracking-[-0.03em] text-balance focus:outline-none md:text-[1.875rem]"
+        >
+          {title}
+        </h2>
+        {children}
+        {actions && (
+          <div className="mt-4.5 grid gap-1 md:mt-auto md:pt-4.5">
+            {actions}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function Intro({ children }: { children: ReactNode }) {
+  return (
+    <p className="mt-2 text-[0.9375rem] leading-[1.45] text-ink-soft [&_b]:font-medium [&_b]:text-ink">
+      {children}
+    </p>
+  );
+}
+
+/** The primary key: full width on a phone, a fixed width on desktop. */
+function Primary({
+  busy,
+  disabled,
+  children,
+  className,
+  ...props
+}: ComponentProps<typeof Button> & { busy?: boolean }) {
+  return (
+    <Button
+      size="lg"
+      className={cn("w-full md:w-auto md:min-w-65 md:self-start", className)}
+      disabled={busy || disabled}
+      {...props}
+    >
+      {busy && (
+        <Loader2Icon
+          aria-hidden
+          className="size-4 animate-spin motion-reduce:animate-none"
         />
-      ))}
+      )}
+      {children}
+    </Button>
+  );
+}
+
+/** Quiet text links under the primary key. */
+function Links({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex justify-between gap-4 *:only:mx-auto md:justify-start md:gap-5.5 md:*:only:mx-0">
+      {children}
     </div>
   );
 }
 
-/**
- * The "get the cooker ready" diagram: the circulator's silhouette (after
- * public/logo.svg) clipped to the wall of a pot, its cable running to a plug.
- */
-function CookerDiagram() {
+function TextLink(props: ComponentProps<typeof Button>) {
+  return <Button variant="link" className="px-0.5!" {...props} />;
+}
+
+function HelpLink({
+  tab = "find",
+  children = HELP.open,
+}: {
+  tab?: HelpTab;
+  children?: ReactNode;
+}) {
+  const { help } = useContext(ChromeContext);
   return (
-    <svg
-      role="img"
-      aria-label={PREPARE.diagram.label}
-      viewBox="0 0 340 218"
-      className="h-auto w-full max-w-[300px] text-ink"
-    >
-      {/* Cable from the cooker's head to the plug. */}
-      <path
-        d="M142 44C96 44 60 62 50 112S40 160 40 166"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinecap="round"
-      />
-      <rect x="29" y="164" width="22" height="16" rx="2" fill="currentColor" />
-      <path
-        d="M35 180v9M45 180v9"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinecap="round"
-      />
-      {/* 17 units renders at 14 px or more down to a 360 px wide phone. */}
-      <text x="20" y="212" fill="currentColor" className="caps text-[17px]">
-        {PREPARE.diagram.plug}
-      </text>
-      <g transform="translate(20 0)">
-        {/* Water and pot. */}
-        <rect
-          x="111"
-          y="112"
-          width="186"
-          height="77"
-          rx="6"
-          className="fill-ink/8"
-        />
-        <line
-          x1="111"
-          y1="112"
-          x2="297"
-          y2="112"
-          strokeWidth="2"
-          strokeDasharray="6 5"
-          className="stroke-ink-soft"
-        />
-        <path
-          d="M108 86V182a8 8 0 0 0 8 8H292a8 8 0 0 0 8-8V86"
-          fill="none"
-          strokeWidth="3"
-          strokeLinecap="square"
-          className="stroke-ink-soft"
-        />
-        {/* The circulator: head, body, collar, skirt, then the tube in the water. */}
-        <g fill="currentColor">
-          <ellipse cx="140" cy="22" rx="21" ry="13" />
-          <path d="M121 32H159L156 80H124Z" />
-          <rect x="119" y="78" width="42" height="16" rx="3" />
-          <rect x="121" y="94" width="38" height="13" rx="1.5" />
-          <path d="M125 107H155V170a6 6 0 0 1-6 6H131a6 6 0 0 1-6-6Z" />
-          {/* The clamp over the pot's rim. */}
-          <path d="M120 80H102V106H107V86H120Z" />
-        </g>
-        <ellipse cx="140" cy="21" rx="16" ry="9" className="fill-paper" />
-        <path d="M165 22H190" strokeWidth="1.5" className="stroke-ink-soft" />
-        <text x="196" y="28" fill="currentColor" className="caps text-[17px]">
-          {PREPARE.diagram.cooker}
-        </text>
-      </g>
-    </svg>
+    <TextLink aria-haspopup="dialog" onClick={() => help(tab)}>
+      {children}
+    </TextLink>
   );
 }
 
 function Problems({ state }: { state: SetupState }) {
+  if (state.problems.length === 0) return null;
   return (
-    <>
+    <div className="mt-4 grid gap-2">
       {state.problems.map((p) => (
         <ErrorAlert key={p.code} title={p.title}>
           {p.fix}
         </ErrorAlert>
       ))}
+    </div>
+  );
+}
+
+/** Retry resumes at the failed step; start over goes back to "find". */
+function FailActions({
+  runner,
+  startOver = true,
+}: {
+  runner: SetupRunner;
+  startOver?: boolean;
+}) {
+  return (
+    <>
+      <Primary onClick={() => void runner.retry()}>{COMMON.retry}</Primary>
+      {startOver && (
+        <Links>
+          <TextLink onClick={() => runner.restart()}>
+            {COMMON.startOver}
+          </TextLink>
+        </Links>
+      )}
     </>
   );
 }
 
-function FindStep({ runner, email }: { runner: SetupRunner; email?: string }) {
+type RowStatus = "ok" | "working" | "failed" | "unknown";
+
+function StatusDot({ status }: { status: RowStatus }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "grid size-7 shrink-0 place-items-center rounded-full",
+        status === "ok" && "setup-ok",
+        (status === "working" || status === "unknown") &&
+          "bg-well text-ink-soft",
+        status === "failed" && "bg-destructive/10 text-destructive",
+      )}
+    >
+      {status === "ok" && <CheckIcon className="size-4" strokeWidth={2.25} />}
+      {status === "working" && (
+        <Loader2Icon className="size-4 animate-spin motion-reduce:animate-none" />
+      )}
+      {status === "failed" && <TriangleAlertIcon className="size-4" />}
+    </span>
+  );
+}
+
+/** A grouped list: rows split by hairlines, one card with a border. */
+function Rows({ children, ...props }: ComponentProps<"ul">) {
+  return (
+    <ul
+      className="mt-4 overflow-hidden rounded-[1.375rem] border border-hairline bg-paper"
+      {...props}
+    >
+      {children}
+    </ul>
+  );
+}
+
+function Row({
+  status,
+  title,
+  detail,
+  end,
+  truncate = false,
+}: {
+  status: RowStatus;
+  title: ReactNode;
+  detail?: ReactNode;
+  end?: ReactNode;
+  /** One line for the detail, e.g. a long id. */
+  truncate?: boolean;
+}) {
+  return (
+    <li className="flex min-h-13 items-center gap-3 border-t border-hairline px-4 py-3 text-[0.9375rem] first:border-t-0">
+      <StatusDot status={status} />
+      <div className="min-w-0 flex-1">
+        {title}
+        {status === "working" && (
+          <span className="sr-only"> ({PREFLIGHT.checking})</span>
+        )}
+        {detail && (
+          <small
+            className={cn(
+              "mt-px block text-[0.8125rem] text-ink-soft tabular-nums",
+              truncate && "truncate",
+            )}
+          >
+            {detail}
+          </small>
+        )}
+      </div>
+      {end && <span className="shrink-0 text-sm text-ink-soft">{end}</span>}
+    </li>
+  );
+}
+
+// ---- steps ----
+
+function PreflightScreen({
+  state,
+  runner,
+  email,
+}: {
+  state: SetupState;
+  runner: SetupRunner;
+  email?: string;
+}) {
+  const failed = state.phase === "failed";
+  const problem = (...codes: string[]) =>
+    state.problems.find((p) => codes.includes(p.code));
+  const browser = problem("insecure_context", "unsupported");
+  const bluetooth = problem("bluetooth_off");
+  const signedIn = problem("signed_out");
+  const status = (p: unknown, blocked = false): RowStatus =>
+    !failed ? "working" : p ? "failed" : blocked ? "unknown" : "ok";
+  return (
+    <Screen
+      art={<PreflightArt />}
+      title={STEP_TITLES.preflight}
+      actions={
+        failed && (
+          <Primary onClick={() => void runner.retry()}>
+            {PREFLIGHT.checkAgain}
+          </Primary>
+        )
+      }
+    >
+      <Intro>{PREFLIGHT.intro}</Intro>
+      <Rows aria-busy={!failed}>
+        <Row
+          status={status(browser)}
+          title={browser?.title ?? PREFLIGHT.checks.browser}
+          detail={browser?.fix}
+        />
+        <Row
+          status={status(bluetooth, !!browser)}
+          title={bluetooth?.title ?? PREFLIGHT.checks.bluetooth}
+          detail={bluetooth?.fix}
+        />
+        <Row
+          status={status(signedIn)}
+          title={signedIn?.title ?? PREFLIGHT.checks.signedIn}
+          detail={signedIn?.fix ?? email}
+        />
+      </Rows>
+      <p
+        className={cn(
+          "mt-3 text-[0.8125rem] leading-[1.45] text-ink-soft",
+          // A phone gives the room to the fixes.
+          failed && "max-md:hidden",
+        )}
+      >
+        {PREFLIGHT.independent}
+      </p>
+    </Screen>
+  );
+}
+
+function PrepareScreen({
+  runner,
+  illustration,
+}: {
+  runner: SetupRunner;
+  illustration?: ReactNode;
+}) {
+  return (
+    <Screen
+      art={illustration ?? <ReadyArt />}
+      title={STEP_TITLES.prepare}
+      actions={
+        <>
+          <Primary onClick={() => runner.prepared()}>{PREPARE.next}</Primary>
+          <Links>
+            <HelpLink />
+          </Links>
+        </>
+      }
+    >
+      <Steps items={PREPARE.steps} className="mt-3.5" />
+    </Screen>
+  );
+}
+
+/** "find" and "connect": picking the cooker, then connecting, on one screen. */
+function FindScreen({
+  state,
+  runner,
+  email,
+}: {
+  state: SetupState;
+  runner: SetupRunner;
+  email?: string;
+}) {
+  const [showServer, setShowServer] = useState(false);
   const [host, setHost] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const serverId = useId();
+  const { step, phase } = state;
+  const working = phase === "working";
+  const failed = phase === "failed";
   return (
-    <div className="grid gap-5">
-      <p className="leading-relaxed">{FIND.intro}</p>
+    <Screen
+      art={<FindArt />}
+      title={STEP_TITLES.find}
+      actions={
+        failed ? (
+          <FailActions runner={runner} startOver={step !== "find"} />
+        ) : (
+          <>
+            {/* requestDevice runs synchronously inside this click (user gesture). */}
+            <Primary
+              busy={working}
+              disabled={!!error}
+              onClick={() => void runner.find()}
+            >
+              {!working
+                ? FIND.action
+                : step === "connect"
+                  ? FIND.connecting
+                  : FIND.picking}
+            </Primary>
+            <Links>
+              <TextLink
+                aria-expanded={showServer}
+                aria-controls={serverId}
+                disabled={working}
+                onClick={() => setShowServer((v) => !v)}
+              >
+                {FIND.serverToggle}
+              </TextLink>
+              <HelpLink />
+            </Links>
+          </>
+        )
+      }
+    >
+      <Intro>
+        {FIND.intro} <b>{FIND.deviceName}</b>.
+      </Intro>
       {email && (
-        <p className="text-sm leading-relaxed text-ink-soft">
+        <p className="mt-3 flex items-center gap-1.5 text-[0.8125rem] text-ink-soft">
+          <UserRoundIcon aria-hidden className="size-4 shrink-0" />
           {FIND.account(email)}
         </p>
       )}
-      <details className="group">
-        <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-ink-soft">
-          {FIND.serverToggle}
-        </summary>
-        <div className="pt-2">
+      {working && (
+        <p role="status" className="sr-only">
+          {STEP_PROGRESS[step]}
+        </p>
+      )}
+      <Problems state={state} />
+      {showServer && !failed && (
+        <div id={serverId} className="mt-4">
           <Field
             label={FIND.serverLabel}
             hint={FIND.serverHint}
@@ -208,51 +541,85 @@ function FindStep({ runner, email }: { runner: SetupRunner; email?: string }) {
             }}
           />
         </div>
-      </details>
-      <Keys>
-        {/* requestDevice runs synchronously inside this click (user gesture). */}
-        <Button
-          size="lg"
-          className="w-full"
-          disabled={!!error}
-          onClick={() => void runner.find()}
-        >
-          {FIND.action}
-        </Button>
-      </Keys>
+      )}
+    </Screen>
+  );
+}
+
+/** "key" and "server" run on their own; the screen shows what's being written. */
+function WritingScreen({
+  state,
+  runner,
+}: {
+  state: SetupState;
+  runner: SetupRunner;
+}) {
+  const isKey = state.step === "key";
+  const failed = state.phase === "failed";
+  return (
+    <Screen
+      art={isKey ? <KeyArt /> : <ServerArt />}
+      title={STEP_TITLES[state.step]}
+      actions={failed && <FailActions runner={runner} />}
+    >
+      <Intro>{isKey ? KEY.intro : SERVER.intro}</Intro>
+      {failed ? (
+        <Problems state={state} />
+      ) : (
+        <Rows role="status">
+          <Row
+            status="working"
+            title={`${isKey ? KEY.row : SERVER.row}…`}
+            detail={isKey ? state.idCard : undefined}
+            truncate
+          />
+        </Rows>
+      )}
+    </Screen>
+  );
+}
+
+/** A form input with its label printed inside the box, on the left. */
+function InlineField({
+  label,
+  ...input
+}: { label: string } & ComponentProps<typeof Input>) {
+  const id = useId();
+  return (
+    <div className="mt-2 flex h-13 items-center gap-2.5 rounded-2xl border border-hairline bg-paper px-3.5 transition-[border-color] focus-within:border-heat focus-within:ring-4 focus-within:ring-[var(--glow)]">
+      <label
+        htmlFor={id}
+        className="w-[4.625rem] shrink-0 text-[0.8125rem] text-ink-soft"
+      >
+        {label}
+      </label>
+      <Input
+        id={id}
+        className="h-full rounded-none border-0 bg-transparent px-0 focus-visible:ring-0"
+        {...input}
+      />
     </div>
   );
 }
 
-function WifiStep({ runner }: { runner: SetupRunner }) {
-  const [change, setChange] = useState(false);
+const SEG_TAB =
+  "min-h-11 flex-1 rounded-[0.625rem] text-sm text-ink-soft data-[state=active]:bg-paper data-[state=active]:font-medium data-[state=active]:text-ink data-[state=active]:shadow-[0_1px_2px_rgb(0_0_0/0.08)]";
+
+function WifiScreen({
+  state,
+  runner,
+}: {
+  state: SetupState;
+  runner: SetupRunner;
+}) {
+  const [mode, setMode] = useState<"keep" | "change">("keep");
   const [ssid, setSsid] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-
-  if (!change) {
-    return (
-      <div className="grid gap-5">
-        <p className="leading-relaxed">{WIFI.intro}</p>
-        <Keys>
-          <Button
-            size="lg"
-            className="w-full"
-            onClick={() => void runner.keepWifi()}
-          >
-            {WIFI.keep}
-          </Button>
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => setChange(true)}
-          >
-            {WIFI.change}
-          </Button>
-        </Keys>
-      </div>
-    );
-  }
+  const formId = useId();
+  const working = state.phase === "working";
+  const failed = state.phase === "failed";
+  const change = mode === "change";
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -260,48 +627,208 @@ function WifiStep({ runner }: { runner: SetupRunner }) {
   };
 
   return (
-    <form noValidate className="grid gap-5" onSubmit={onSubmit}>
-      <p className="leading-relaxed">{WIFI.intro}</p>
-      {error && <ErrorAlert>{error}</ErrorAlert>}
-      <Field
-        label={WIFI.ssidLabel}
-        autoComplete="off"
-        value={ssid}
-        onChange={(e) => setSsid(e.target.value)}
-      />
-      <Field
-        label={WIFI.passwordLabel}
-        type="password"
-        autoComplete="off"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
-      <Keys>
-        <Button type="submit" size="lg" className="w-full">
-          {WIFI.submit}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full"
-          onClick={() => setChange(false)}
+    <Screen
+      art={
+        <WifiArt network={change ? ssid.trim() || undefined : WIFI.current} />
+      }
+      title={STEP_TITLES.wifi}
+      compactArt={change}
+      actions={
+        failed ? (
+          <FailActions runner={runner} />
+        ) : change ? (
+          <Primary type="submit" form={formId} busy={working}>
+            {working ? WIFI.sending : WIFI.submit}
+          </Primary>
+        ) : (
+          <Primary busy={working} onClick={() => void runner.keepWifi()}>
+            {WIFI.continue}
+          </Primary>
+        )
+      }
+    >
+      <Problems state={state} />
+      <Tabs.Root
+        value={mode}
+        onValueChange={(v) => setMode(v as "keep" | "change")}
+      >
+        <Tabs.List
+          aria-label={WIFI.modesLabel}
+          className="mt-4 flex rounded-[0.875rem] bg-well p-1"
         >
-          {WIFI.keep}
-        </Button>
-      </Keys>
-    </form>
+          <Tabs.Trigger value="keep" className={SEG_TAB} disabled={working}>
+            {WIFI.keepTab}
+          </Tabs.Trigger>
+          <Tabs.Trigger value="change" className={SEG_TAB} disabled={working}>
+            {WIFI.changeTab}
+          </Tabs.Trigger>
+        </Tabs.List>
+        <Tabs.Content value="keep">
+          <Intro>{WIFI.intro}</Intro>
+        </Tabs.Content>
+        <Tabs.Content value="change">
+          <form
+            id={formId}
+            noValidate
+            className="mt-3"
+            onSubmit={(e) => void onSubmit(e)}
+          >
+            {error && <ErrorAlert>{error}</ErrorAlert>}
+            <InlineField
+              label={WIFI.ssidLabel}
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              value={ssid}
+              onChange={(e) => setSsid(e.target.value)}
+            />
+            <InlineField
+              label={WIFI.passwordLabel}
+              type="password"
+              autoComplete="off"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <ul aria-label={WIFI.rulesLabel} className="mt-3 grid gap-1.5">
+              {WIFI.rules.map((r, i) => (
+                <li
+                  key={r}
+                  className="flex gap-2 text-[0.8125rem] leading-[1.4] text-ink-soft"
+                >
+                  {i === 0 ? (
+                    <WifiIcon
+                      aria-hidden
+                      className="mt-0.5 size-[15px] shrink-0 text-ink"
+                    />
+                  ) : (
+                    <DotIcon
+                      aria-hidden
+                      className="mt-0.5 size-[15px] shrink-0 text-ink"
+                      strokeWidth={4}
+                    />
+                  )}
+                  {r}
+                </li>
+              ))}
+            </ul>
+          </form>
+        </Tabs.Content>
+      </Tabs.Root>
+    </Screen>
   );
 }
 
-function NameStep({
-  runner,
+/** Seconds left of the pairing minute, counted from when this mounts. */
+function useSecondsLeft(totalMs: number): number {
+  const [start] = useState(() => Date.now());
+  const [now, setNow] = useState(start);
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(t);
+  }, []);
+  return Math.max(0, Math.ceil((totalMs - (now - start)) / 1000));
+}
+
+function PairWaiting({ state }: { state: SetupState }) {
+  const total = PAIR_TIMEOUT_MS / 1000;
+  const left = useSecondsLeft(PAIR_TIMEOUT_MS);
+  const last = state.pair?.lastCode;
+  return (
+    <Screen
+      art={
+        <PairRing
+          left={left}
+          total={total}
+          label={PAIR.timerLabel(left)}
+          unit={PAIR.secondsLeft}
+        />
+      }
+      title={STEP_TITLES.pair}
+      actions={
+        <Links>
+          <HelpLink tab="reset">{PAIR.tooLong}</HelpLink>
+        </Links>
+      }
+    >
+      <Intro>{PAIR.intro}</Intro>
+      <Note live>
+        {last === "device_offline" || last === "key_mismatch"
+          ? PAIR.lastStatus[last]
+          : last
+            ? PAIR.lastStatus.other
+            : STEP_PROGRESS.pair}
+      </Note>
+    </Screen>
+  );
+}
+
+function PairScreen({
   state,
+  runner,
 }: {
-  runner: SetupRunner;
   state: SetupState;
+  runner: SetupRunner;
+}) {
+  if (state.phase !== "failed") return <PairWaiting state={state} />;
+  const actions = (
+    <>
+      <Primary onClick={() => void runner.retry()}>{PAIR.keepWaiting}</Primary>
+      <Links>
+        <TextLink onClick={() => runner.restart()}>{PAIR.redo}</TextLink>
+      </Links>
+    </>
+  );
+  if (!state.pairTimedOut) {
+    return (
+      <Screen
+        art={<LateArt icon={<TriangleAlertIcon className="size-8.5" />} />}
+        title={STEP_TITLES.pair}
+        actions={actions}
+      >
+        <Problems state={state} />
+      </Screen>
+    );
+  }
+  return (
+    <Screen
+      art={
+        <LateArt
+          icon={
+            <TriangleAlertIcon
+              aria-hidden
+              className="size-8.5"
+              strokeWidth={1.5}
+            />
+          }
+        />
+      }
+      title={PAIR.timeoutTitle}
+      actions={actions}
+    >
+      <div role="alert">
+        <Steps
+          className="mt-3.5"
+          items={PAIR.troubleshooting.map((text, i) => ({
+            text,
+            detail: PAIR.troubleshootingDetail[i],
+          }))}
+        />
+      </div>
+    </Screen>
+  );
+}
+
+function NameScreen({
+  state,
+  runner,
+}: {
+  state: SetupState;
+  runner: SetupRunner;
 }) {
   const [name, setName] = useState(state.device?.name ?? "");
   const [error, setError] = useState<string | null>(null);
+  const formId = useId();
+  const errorId = `${formId}-error`;
   const working = state.phase === "working";
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -310,94 +837,71 @@ function NameStep({
     if (!invalid) void runner.name(name.trim());
   };
   return (
-    <form noValidate className="grid gap-5" onSubmit={onSubmit}>
-      <p className="leading-relaxed">{NAME.intro}</p>
+    <Screen
+      art={<NameArt name={name} />}
+      title={STEP_TITLES.name}
+      actions={
+        <>
+          <Primary type="submit" form={formId} busy={working}>
+            {working ? STEP_PROGRESS.name : NAME.save}
+          </Primary>
+          <Links>
+            <TextLink disabled={working} onClick={() => runner.skipName()}>
+              {NAME.skip}
+            </TextLink>
+          </Links>
+        </>
+      }
+    >
+      <Intro>{NAME.intro}</Intro>
       <Problems state={state} />
-      <Field
-        label={NAME.label}
-        maxLength={40}
-        error={error}
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-      />
-      <Keys>
-        <Button type="submit" size="lg" className="w-full" disabled={working}>
-          {working ? STEP_PROGRESS.name : NAME.save}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full"
-          disabled={working}
-          onClick={() => runner.skipName()}
-        >
-          {NAME.skip}
-        </Button>
-      </Keys>
-    </form>
-  );
-}
-
-function PairStep({
-  runner,
-  state,
-}: {
-  runner: SetupRunner;
-  state: SetupState;
-}) {
-  if (state.phase === "failed") {
-    return (
-      <div className="grid gap-5">
-        {state.pairTimedOut ? (
-          <ErrorAlert title={PAIR.timeoutTitle}>
-            <ul className="list-disc space-y-1 pl-5">
-              {PAIR.troubleshooting.map((t) => (
-                <li key={t}>{t}</li>
-              ))}
-            </ul>
-          </ErrorAlert>
-        ) : (
-          <Problems state={state} />
+      <form id={formId} noValidate onSubmit={onSubmit}>
+        <Input
+          aria-label={NAME.label}
+          aria-invalid={!!error || undefined}
+          aria-describedby={error ? errorId : undefined}
+          maxLength={40}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="mt-4.5 h-14 rounded-[1.125rem] border-heat px-4 text-[1.0625rem]"
+        />
+        {error && (
+          <p id={errorId} className="mt-1.5 text-sm text-destructive">
+            {error}
+          </p>
         )}
-        <Keys>
+      </form>
+      <div
+        role="group"
+        aria-label={NAME.suggestionsLabel}
+        className="mt-2.5 flex flex-wrap gap-2"
+      >
+        {NAME.suggestions.map((s) => (
           <Button
-            size="lg"
-            className="w-full"
-            onClick={() => void runner.retry()}
+            key={s}
+            type="button"
+            variant="secondary"
+            size="sm"
+            aria-pressed={name === s}
+            disabled={working}
+            className="font-normal aria-pressed:bg-ink aria-pressed:text-paper"
+            onClick={() => {
+              setName(s);
+              setError(null);
+            }}
           >
-            {PAIR.keepWaiting}
+            {s}
           </Button>
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => runner.restart()}
-          >
-            {PAIR.redo}
-          </Button>
-        </Keys>
+        ))}
       </div>
-    );
-  }
-  const seconds = Math.round((state.pair?.elapsedMs ?? 0) / 1000);
-  const last = state.pair?.lastCode;
-  return (
-    <div className="grid gap-2">
-      <Loading label={PAIR.waiting(seconds, PAIR_TIMEOUT_MS / 1000)} />
-      {last && (
-        <p className="text-sm text-ink-soft">
-          {last === "device_offline" || last === "key_mismatch"
-            ? PAIR.lastStatus[last]
-            : PAIR.lastStatus.other}
-        </p>
-      )}
-    </div>
+    </Screen>
   );
 }
 
 /**
- * Thin view over SetupRunner: one ticket whose order lines are the steps.
- * `illustration` replaces the diagram on the "get the cooker ready" step;
- * `cancel` is the way out, printed at the foot of the ticket.
+ * Thin view over SetupRunner: renders the machine's state, one step per screen.
+ * `illustration` replaces the drawing on the "get the cooker ready" step;
+ * `cancel` is the way out, printed in the top bar.
  */
 export function SetupWizard({
   state,
@@ -410,132 +914,81 @@ export function SetupWizard({
   illustration?: ReactNode;
   cancel?: ReactNode;
 }) {
-  const { step, phase } = state;
+  const { step } = state;
   const { user } = useAuth();
-  const index = VISIBLE.indexOf(step);
-  const current = step === "done" ? VISIBLE.length : index;
-  let body: ReactNode;
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpTab, setHelpTab] = useState<HelpTab>("find");
+  const chrome: Chrome = {
+    current: visibleIndex(step),
+    cancel,
+    help: (tab) => {
+      setHelpTab(tab);
+      setHelpOpen(true);
+    },
+  };
 
-  if (step === "pair") {
-    body = <PairStep runner={runner} state={state} />;
-  } else if (step === "name") {
-    body = <NameStep runner={runner} state={state} />;
-  } else if (step === "preflight") {
-    body = (
-      <div className="grid gap-5">
-        <p className="leading-relaxed">{PREFLIGHT.intro}</p>
-        <p className="text-sm leading-relaxed text-ink-soft">
-          {PREFLIGHT.independent}
-        </p>
-        {phase === "failed" ? (
-          <>
-            <Problems state={state} />
-            <Keys>
-              <Button
-                size="lg"
-                className="w-full"
-                onClick={() => void runner.retry()}
-              >
-                {PREFLIGHT.checkAgain}
-              </Button>
-            </Keys>
-          </>
-        ) : (
-          <Loading label={STEP_PROGRESS.preflight} />
-        )}
-      </div>
-    );
-  } else if (phase === "working") {
-    body = <Loading label={STEP_PROGRESS[step]} />;
-  } else if (phase === "failed") {
-    body = (
-      <div className="grid gap-5">
-        <Problems state={state} />
-        <Keys>
-          <Button
-            size="lg"
-            className="w-full"
-            onClick={() => void runner.retry()}
-          >
-            {COMMON.retry}
-          </Button>
-          {step !== "find" && (
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => runner.restart()}
-            >
-              {COMMON.startOver}
-            </Button>
-          )}
-        </Keys>
-      </div>
-    );
-  } else if (step === "prepare") {
-    body = (
-      <div className="grid gap-5">
-        <div data-slot="illustration" className="flex justify-center">
-          {illustration ?? <CookerDiagram />}
-        </div>
-        <ol className="list-decimal space-y-2 pl-5 leading-relaxed marker:font-semibold">
-          {PREPARE.steps.map((s) => (
-            <li key={s}>{s}</li>
-          ))}
-        </ol>
-        <Keys>
-          <Button
-            size="lg"
-            className="w-full"
-            onClick={() => runner.prepared()}
-          >
-            {PREPARE.next}
-          </Button>
-        </Keys>
-      </div>
-    );
-  } else if (step === "find") {
-    body = <FindStep runner={runner} email={user?.email} />;
-  } else if (step === "wifi") {
-    body = <WifiStep runner={runner} />;
-  } else {
-    body = <Loading label={STEP_PROGRESS[step]} />;
+  // Each new step moves focus to its heading, so it is announced.
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    document.getElementById("setup-step")?.focus({ preventScroll: true });
+  }, [step]);
+
+  let screen: ReactNode;
+  switch (step) {
+    case "preflight":
+      screen = (
+        <PreflightScreen state={state} runner={runner} email={user?.email} />
+      );
+      break;
+    case "prepare":
+      screen = <PrepareScreen runner={runner} illustration={illustration} />;
+      break;
+    case "find":
+    case "connect":
+      screen = <FindScreen state={state} runner={runner} email={user?.email} />;
+      break;
+    case "key":
+    case "server":
+      screen = <WritingScreen state={state} runner={runner} />;
+      break;
+    case "wifi":
+      screen = <WifiScreen state={state} runner={runner} />;
+      break;
+    case "pair":
+      screen = <PairScreen state={state} runner={runner} />;
+      break;
+    case "name":
+      screen = <NameScreen state={state} runner={runner} />;
+      break;
+    case "done":
+      screen = (
+        <Screen
+          art={<NameArt name={state.device?.name ?? ""} />}
+          title={STEP_TITLES.done}
+        />
+      );
+      break;
   }
 
   return (
-    <Ticket aria-labelledby="setup-title">
-      <TicketHead
-        titleAs="h1"
-        titleId="setup-title"
-        title={WIZARD.title}
-        meta={
-          index >= 0 ? WIZARD.progress(index + 1, VISIBLE.length) : undefined
-        }
-      />
-      {/* The full list from sm: up; a phone gets the strip so the key stays in view. */}
-      <TicketSection perforated={false} className="hidden pb-4 sm:block">
-        <StepList current={current} />
-      </TicketSection>
-      <TicketSection
-        role="group"
+    <ChromeContext value={chrome}>
+      <section
         aria-labelledby="setup-step"
-        perforated={false}
-        className="grid gap-4 pt-4 pb-6 sm:perforation sm:pt-5"
+        className="flex flex-1 flex-col md:relative md:my-auto md:grid md:h-176 md:max-h-full md:flex-none md:grid-cols-2 md:overflow-hidden md:rounded-[1.875rem] md:bg-paper md:shadow-ticket"
       >
-        <StepStrip current={current} />
-        <h2
-          id="setup-step"
-          tabIndex={-1}
-          className="font-condensed text-3xl leading-none font-extrabold tracking-[-0.01em] uppercase"
-        >
-          {STEP_TITLES[step]}
-        </h2>
-        {body}
-      </TicketSection>
-      {cancel && (
-        <TicketSection className="flex min-h-11 items-center justify-end py-1">
-          {cancel}
-        </TicketSection>
-      )}
-    </Ticket>
+        <h1 className="sr-only">{WIZARD.title}</h1>
+        {screen}
+      </section>
+      <HelpSheet
+        open={helpOpen}
+        onOpenChange={setHelpOpen}
+        tab={helpTab}
+        onTabChange={setHelpTab}
+      />
+    </ChromeContext>
   );
 }

@@ -129,7 +129,8 @@ func TestStartRunsEveryStepAndRecordsAutoStop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"set unit c", "set temp 57.0", "set timer 60", "start", "start time"}
+	// The fake is already in °C: a repeated "set unit" flips some real cookers, so none is sent.
+	want := []string{"set temp 57.0", "set timer 60", "start", "start time"}
 	if got := cookCmds(c); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("commands %v, want %v", got, want)
 	}
@@ -138,6 +139,23 @@ func TestStartRunsEveryStepAndRecordsAutoStop(t *testing.T) {
 	}
 	if n := openCooks(t, dev); n != 1 {
 		t.Fatalf("%d open cooks", n)
+	}
+}
+
+func TestUnitIsSetOnlyWhenItChanges(t *testing.T) {
+	e := newEnv(t)
+	alice := storetest.User(t, "alice")
+	dev, _, c := e.paired(t, alice, &wifitest.State{Status: "running", Temp: 56, SetTemp: 57, Unit: "c"})
+
+	if _, err := e.ctl.Update(context.Background(), alice, dev, control.UpdateCook{Temperature: ptr(54.0), Unit: ptr(commands.Celsius)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.ctl.Update(context.Background(), alice, dev, control.UpdateCook{Temperature: ptr(130.0), Unit: ptr(commands.Fahrenheit)}); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"set temp 54.0", "set unit f", "set temp 130.0"}
+	if got := cookCmds(c); strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("commands %v, want %v", got, want)
 	}
 }
 

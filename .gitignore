@@ -31,3 +31,6 @@ research/
 
 # built MCP card (placeholder.html is committed)
 internal/mcp/ui/app.html
+
+# impeccable question logs
+.impeccable/questions/*.log

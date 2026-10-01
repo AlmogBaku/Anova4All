@@ -1,22 +1,14 @@
+import { SettingsIcon } from "lucide-react";
 import { Link } from "react-router";
 import { ErrorAlert, Loading, Notice } from "@/components/status.tsx";
-import {
-  OrderLine,
-  Ticket,
-  TicketHead,
-  TicketSection,
-} from "@/components/ticket.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { cn } from "@/lib/utils.ts";
 import type { LinkView } from "@/lib/api/device-stream.ts";
+import type { TemperatureUnit } from "@/lib/api/types.ts";
 import type { CookController, CookView } from "./controller.ts";
+import { Dial } from "./dial.tsx";
 import { timerLabel } from "./duration.ts";
-import {
-  AutoStopField,
-  DurationField,
-  TemperatureField,
-  UnitField,
-} from "./fields.tsx";
+import { AutoStopField, DurationField, TemperatureField } from "./fields.tsx";
 
 const time = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -34,15 +26,15 @@ function LinkStatus({
     case "cooker_offline":
       return (
         <Notice title="The cooker is offline">
-          Check that it's plugged in and connected to Wi-Fi. This page updates
-          when it's back.
+          Check that it's plugged in and on Wi-Fi. This page updates when it's
+          back.
         </Notice>
       );
     case "stream_down":
       return (
         <Notice title="Connection lost">
           Reconnecting{retryInMs ? ` in ${Math.ceil(retryInMs / 1000)} s` : ""}…
-          The values below may be out of date.
+          Values may be out of date.
         </Notice>
       );
     case "signed_out":
@@ -72,6 +64,7 @@ export function CookScreen({
   controller,
   link,
   retryInMs,
+  readingUnit,
 }: {
   name: string;
   settingsHref: string;
@@ -79,161 +72,152 @@ export function CookScreen({
   controller: CookController;
   link: LinkView;
   retryInMs?: number;
+  /** The unit the cooker reports its water temperature in. */
+  readingUnit?: TemperatureUnit;
 }) {
   const { values, invalid, mode } = view;
   const heating = mode === "heating";
   const canEdit =
     (mode === "idle" || heating) && link !== "stream_down" && !view.busy;
-  const unit = `°${values.unit.toUpperCase()}`;
   const live = mode !== "loading" && mode !== "offline";
   // A reading is current only while the stream is up.
   const fresh = live && link === "online";
-
   return (
-    <Ticket aria-labelledby="cooker-name">
-      <TicketHead
-        titleAs="h1"
-        titleId="cooker-name"
-        title={name}
-        meta={MODE_LABEL[mode]}
-        tone={heating ? "heat" : mode === "offline" ? "offline" : "idle"}
-      />
-
-      {link !== "online" && (
-        <TicketSection perforated={false} className="pb-0">
-          <LinkStatus link={link} retryInMs={retryInMs} />
-        </TicketSection>
-      )}
-
-      <TicketSection
-        perforated={false}
-        aria-labelledby="now-heading"
-        className="grid gap-2 pt-4"
-      >
-        <h2 id="now-heading" className="caps text-sm text-ink-soft">
-          Water
-        </h2>
-        <p
-          className={cn(
-            "font-condensed text-[6.5rem] leading-[0.82] font-extrabold tracking-[-0.03em] tabular-nums sm:text-[8.5rem]",
-            !fresh && "text-ink-soft",
-          )}
-        >
-          {view.current ?? "--"}
-          <span className="ml-1 align-top text-[0.4em] leading-none">
-            {unit}
-          </span>
-          <span className="sr-only"> water temperature</span>
-        </p>
-        <div className="mt-2 grid">
-          {heating ? (
-            <>
-              <OrderLine label="Set">
-                {values.temperature} {unit}
-              </OrderLine>
-              {view.stopsAt && (
-                <OrderLine label="Stops at">{time(view.stopsAt)}</OrderLine>
-              )}
-            </>
-          ) : (
-            live && <p className="text-ink-soft">Not heating</p>
-          )}
-        </div>
-      </TicketSection>
-
-      {view.autoStopped && (
-        <TicketSection className="grid gap-3" role="status">
-          <h2 className="caps text-base">Stopped automatically</h2>
-          <p>
-            The timer ended and heating stopped. The cooker may still be
-            beeping.
-          </p>
-          <Button
-            variant="outline"
-            className="w-full sm:w-auto sm:justify-self-start"
-            disabled={view.busy}
-            onClick={() => void controller.stop()}
+    <section
+      aria-labelledby="cooker-name"
+      className="grid gap-3 rounded-[1.75rem] bg-paper p-4 shadow-ticket sm:grid-cols-[1fr_minmax(0,22rem)] sm:items-center sm:gap-8 sm:p-8"
+    >
+      <header className="flex items-center justify-between gap-3 sm:col-span-2">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span
+            aria-hidden
+            className={cn(
+              "size-2 shrink-0 rounded-full",
+              heating
+                ? "bg-heat shadow-[0_0_0_4px_color-mix(in_oklab,var(--heat)_18%,transparent)]"
+                : mode === "offline"
+                  ? "bg-rail"
+                  : "bg-ink-soft/50",
+            )}
+          />
+          <h1
+            id="cooker-name"
+            className="truncate text-lg leading-tight font-medium tracking-[-0.02em]"
           >
-            Silence
-          </Button>
-        </TicketSection>
-      )}
+            {name}
+          </h1>
+          <span className="sr-only">, {MODE_LABEL[mode]}</span>
+        </div>
+        <Link
+          to={settingsHref}
+          aria-label="Cooker settings"
+          className="grid size-10 shrink-0 place-items-center rounded-full text-ink-soft hover:bg-well hover:text-ink"
+        >
+          <SettingsIcon className="size-5" strokeWidth={1.5} />
+        </Link>
+      </header>
+
+      <div className="grid gap-3">
+        {link !== "online" && <LinkStatus link={link} retryInMs={retryInMs} />}
+        <Dial
+          current={view.current}
+          readingUnit={readingUnit}
+          target={values.temperature}
+          unit={values.unit}
+          heating={heating}
+          fresh={fresh}
+          live={live}
+          modeLabel={MODE_LABEL[mode]}
+          stopsAt={heating && view.stopsAt ? time(view.stopsAt) : undefined}
+          disabled={!canEdit}
+          onChange={(t) => controller.editTemperature(t)}
+          onUnitChange={(u) => controller.editUnit(u)}
+        />
+      </div>
 
       <form
         aria-label="Cook settings"
+        className="grid gap-2"
         onSubmit={(e) => {
           e.preventDefault();
           // Enter starts an idle cook; it never stops a running one.
           if (!heating) void controller.start();
         }}
       >
-        <TicketSection className="grid gap-5">
-          <h2 className="caps text-sm text-ink-soft">
-            {heating ? "Order (changes apply now)" : "Order"}
-          </h2>
-          <div className="flex flex-wrap items-end gap-4">
-            <TemperatureField
-              value={values.temperature}
-              unit={values.unit}
-              error={invalid.temperature}
-              disabled={!canEdit}
-              onChange={(t) => controller.editTemperature(t)}
-            />
-            <UnitField
-              unit={values.unit}
-              disabled={!canEdit}
-              onChange={(u) => controller.editUnit(u)}
-            />
-          </div>
-          <DurationField
-            label={timerLabel(heating, values.minutes)}
-            minutes={values.minutes}
-            error={invalid.minutes}
-            disabled={!canEdit}
-            onChange={(m) => controller.editMinutes(m)}
-          />
-          <AutoStopField
-            checked={values.autoStop}
-            disabled={!canEdit || values.minutes === 0}
-            noTimer={canEdit && values.minutes === 0}
-            error={invalid.autoStop}
-            onChange={(on) => controller.editAutoStop(on)}
-          />
-          {view.error && <ErrorAlert>{view.error}</ErrorAlert>}
-        </TicketSection>
-
-        <TicketSection className="grid gap-3 pb-6">
-          {heating ? (
+        {view.autoStopped && (
+          <div
+            role="status"
+            className="flex items-center justify-between gap-3 rounded-[1.1rem] bg-well px-4 py-3"
+          >
+            <p className="text-[0.875rem]">
+              <span className="font-medium">Stopped automatically.</span>{" "}
+              <span className="text-ink-soft">It may still be beeping.</span>
+            </p>
             <Button
               type="button"
-              variant="heat"
-              size="lg"
-              className="w-full"
+              variant="outline"
+              size="sm"
               disabled={view.busy}
               onClick={() => void controller.stop()}
             >
-              {view.busy ? "Stopping…" : "Stop"}
-            </Button>
-          ) : (
-            <Button
-              type="submit"
-              size="lg"
-              className="w-full"
-              disabled={view.busy || mode !== "idle" || link === "stream_down"}
-            >
-              {view.busy ? "Starting…" : "Start"}
-            </Button>
-          )}
-          <div className="flex min-h-11 items-center justify-between gap-3">
-            <p aria-live="polite" className="text-sm text-ink-soft">
-              {heating && view.saving ? "Saving…" : ""}
-            </p>
-            <Button asChild variant="link">
-              <Link to={settingsHref}>Cooker settings</Link>
+              Silence
             </Button>
           </div>
-        </TicketSection>
+        )}
+        <TemperatureField
+          value={values.temperature}
+          unit={values.unit}
+          error={invalid.temperature}
+          disabled={!canEdit}
+          onChange={(t) => controller.editTemperature(t)}
+        />
+        <DurationField
+          label={timerLabel(heating, values.minutes)}
+          minutes={values.minutes}
+          error={invalid.minutes}
+          disabled={!canEdit}
+          onChange={(m) => controller.editMinutes(m)}
+        />
+        <AutoStopField
+          checked={values.autoStop}
+          disabled={!canEdit || values.minutes === 0}
+          noTimer={canEdit && values.minutes === 0}
+          error={invalid.autoStop}
+          onChange={(on) => controller.editAutoStop(on)}
+        />
+        {view.error && <ErrorAlert>{view.error}</ErrorAlert>}
+        {heating ? (
+          <Button
+            type="button"
+            variant="heat"
+            size="lg"
+            className="mt-1 w-full"
+            disabled={view.busy}
+            onClick={() => void controller.stop()}
+          >
+            {view.busy ? "Stopping…" : "Stop"}
+          </Button>
+        ) : (
+          <Button
+            type="submit"
+            size="lg"
+            className="mt-1 w-full"
+            disabled={view.busy || mode !== "idle" || link === "stream_down"}
+          >
+            {view.busy ? "Starting…" : "Start"}
+          </Button>
+        )}
+        <p
+          aria-live="polite"
+          className="min-h-4 text-center text-xs text-ink-soft"
+        >
+          {heating && view.saving
+            ? "Saving…"
+            : heating
+              ? "Changes apply now"
+              : ""}
+        </p>
       </form>
-    </Ticket>
+    </section>
   );
 }

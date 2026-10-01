@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  restingTimer,
   describeMinutes,
   digitsToMinutes,
   formatDigits,
@@ -42,5 +43,14 @@ describe("timerLabel", () => {
     expect(timerLabel(true, 0)).toBe("Timer");
     expect(timerLabel(false, 90)).toBe("Timer");
     expect(timerLabel(true, 90)).toBe("Timer (1 h 30 min left)");
+  });
+});
+
+describe("restingTimer", () => {
+  it("names minutes as min and longer timers as h, so 00:09 never reads as hours", () => {
+    expect(restingTimer(0)).toEqual({ value: "0", unit: "min" });
+    expect(restingTimer(9)).toEqual({ value: "9", unit: "min" });
+    expect(restingTimer(60)).toEqual({ value: "1:00", unit: "h" });
+    expect(restingTimer(90)).toEqual({ value: "1:30", unit: "h" });
   });
 });

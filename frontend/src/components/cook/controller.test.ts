@@ -188,6 +188,15 @@ describe("CookController while heating", () => {
     expect(api.update).toHaveBeenCalledWith({ temperature: 134.6, unit: "f" });
   });
 
+  it("never turns a unit switch into the minimum when the reported unit is wrong", async () => {
+    // The cooker said "f" while its set point was still 54 °C: 54 °F would
+    // convert to 12 °C and clamp to 25 °C, a real change to the heater.
+    const { c, api } = harness(heating({ target_temperature: 54, unit: "f" }));
+    c.editUnit("c");
+    await vi.advanceTimersByTimeAsync(EDIT_DEBOUNCE_MS);
+    expect(api.update).toHaveBeenCalledWith({ temperature: 54, unit: "c" });
+  });
+
   it("does not send an invalid edit", async () => {
     const { c, api } = harness(heating());
     c.editMinutes(6001);

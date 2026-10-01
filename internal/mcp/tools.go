@@ -105,7 +105,8 @@ func temperatureProp() *jsonschema.Schema {
 
 func unitProp() *jsonschema.Schema {
 	return &jsonschema.Schema{Type: "string", Enum: []any{"c", "f"},
-		Description: `Temperature unit: "c" for Celsius or "f" for Fahrenheit.`}
+		Description: `Temperature unit: "c" for Celsius or "f" for Fahrenheit. The cooker's display ` +
+			`switches to this unit, so use the unit anova_status reports unless the user asks for the other one.`}
 }
 
 func ptr[T any](v T) *T { return &v }
@@ -158,7 +159,8 @@ func (s *server) addTools() {
 			Properties: map[string]*jsonschema.Schema{
 				"device_id":   deviceIDProp(),
 				"temperature": temperatureProp(),
-				"unit":        {Type: "string", Enum: []any{"c", "f"}, Description: `Unit of temperature, "c" or "f". Required with temperature.`},
+				"unit": {Type: "string", Enum: []any{"c", "f"}, Description: `Unit of temperature, "c" or "f". Required with temperature. ` +
+					`The cooker's display switches to this unit, so use the unit anova_status reports unless the user asks for the other one.`},
 				"minutes": {Type: "integer", Minimum: ptr(0.0), Maximum: ptr(6000.0),
 					Description: "New timer length in minutes (0–6000); it restarts the timer. 0 clears the timer and turns auto_stop off."},
 				"auto_stop": {Type: "boolean", Description: "Turn stopping at the timer's end on or off. Needs a running timer."},

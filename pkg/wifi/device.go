@@ -6,8 +6,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -280,21 +282,47 @@ func decoderFor(cmd commands.Command) func(string) (any, error) {
 			return nil, errNoFit
 		}
 		v, err := cmd.Decode(line)
-		switch cmd.(type) {
+		switch c := cmd.(type) {
 		case commands.GetDeviceStatus:
 			if err != nil {
 				return statusFallback(trimmed)
+			}
+		case commands.GetTimerStatus:
+			// The frozen decoder only knows "45 1"; the cooker says "45 running" / "45 stopped".
+			if ts, ok := v.(commands.TimerStatus); err == nil && ok {
+				switch strings.ToLower(strings.Fields(trimmed)[1]) {
+				case "1", "running":
+					ts.Running = true
+				case "0", "stopped":
+				default:
+					return nil, errNoFit
+				}
+				return ts, nil
 			}
 		case commands.GetSecretKey:
 			if err == nil && len(strings.Fields(trimmed)) != 1 {
 				return nil, errNoFit
 			}
+		case commands.SetTemperatureUnit:
+			// The cooker answers with the unit it now uses ("c"), not "ok".
+			if strings.EqualFold(trimmed, string(c.Unit)) {
+				return true, nil
+			}
+		case commands.SetTargetTemperature:
+			// Some firmware echoes the new set point ("57.0") instead of "ok".
+			if f, perr := strconv.ParseFloat(trimmed, 64); perr == nil && math.Abs(f-c.Temperature) < 0.05 {
+				return true, nil
+			}
 		}
 		if err != nil {
 			return nil, err
 		}
-		// Commands whose decoder returns "was the reply ok": false means it isn't our reply.
+		// Commands whose decoder returns "was the reply ok": false means it isn't our reply,
+		// unless the cooker echoed the command back, as it does for `start time`.
 		if b, ok := v.(bool); ok && !b {
+			if strings.EqualFold(trimmed, cmd.Encode()) {
+				return true, nil
+			}
 			if _, isSpeaker := cmd.(commands.GetSpeakerStatus); !isSpeaker {
 				return nil, errNoFit
 			}
@@ -336,6 +364,10 @@ func (d *device) apply(cmd commands.Command, v any) {
 		st.TargetTemperature = c.Temperature
 	case commands.GetTemperatureUnit:
 		if u, ok := v.(commands.TemperatureUnit); ok {
+			if st.Unit != "" && st.Unit != u {
+				d.log.Info("cooker reports a new unit", zap.String("from", string(st.Unit)), zap.String("to", string(u)),
+					zap.Float64("target", st.TargetTemperature))
+			}
 			st.Unit = u
 		}
 	case commands.SetTemperatureUnit:

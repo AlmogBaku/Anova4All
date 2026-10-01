@@ -2,27 +2,32 @@
 
 @import "tw-animate-css";
 
-@import "@fontsource-variable/archivo/wdth.css";
+@import "@fontsource-variable/geist/wght.css";
 
 @custom-variant dark (&:is(.dark *));
 
 /*
- * The Ticket Rail. Steel ground and rail, square thermal-paper tickets, ink
- * caps, dashed perforations. --heat is reserved for "heating now".
+ * Copper Ring. Warm porcelain ground, soft white cards with hairlines, feather-
+ * light Geist numerals. Copper (--heat) is reserved for "heating now" and the
+ * primary action's state.
  */
 :root {
-  --radius: 0.125rem;
-  --steel: oklch(0.84 0.006 230);
-  --steel-deep: oklch(0.7 0.008 230);
-  --rail: oklch(0.62 0.01 230);
-  --rail-hi: oklch(0.9 0.004 230);
-  --paper: oklch(0.985 0.003 100);
-  --ink: oklch(0.19 0.004 250);
-  --ink-soft: oklch(0.44 0.008 250);
-  --heat: oklch(0.68 0.19 45);
-  --heat-ink: oklch(0.19 0.004 250);
+  --radius: 0.875rem;
+  --steel: #f6f2ee; /* the page ground */
+  --steel-deep: #efe9e3;
+  --rail: #ddd3ca;
+  --rail-hi: #ece4dc; /* hairlines */
+  --paper: #fffdfb; /* cards */
+  --well: #f4eee8; /* insets: steppers, segments */
+  --ink: #1d1814;
+  --ink-soft: #776b61;
+  --heat: #c25429;
+  --heat-hi: #e8834a;
+  --heat-ink: #fffdfb;
+  --glow: rgb(214 108 58 / 0.2);
   --ticket-shadow:
-    0 1px 2px oklch(0.2 0.01 250 / 0.18), 0 6px 18px oklch(0.2 0.01 250 / 0.14);
+    0 0 0 1px var(--rail-hi), 0 1px 0 rgb(255 255 255 / 0.7) inset,
+    0 1px 2px rgb(60 30 10 / 0.05), 0 24px 48px -32px rgb(60 30 10 / 0.3);
 
   --background: var(--steel);
   --foreground: var(--ink);
@@ -32,42 +37,42 @@
   --popover-foreground: var(--ink);
   --primary: var(--ink);
   --primary-foreground: var(--paper);
-  --secondary: oklch(0.93 0.004 230);
+  --secondary: var(--well);
   --secondary-foreground: var(--ink);
-  --muted: oklch(0.94 0.004 230);
+  --muted: var(--well);
   --muted-foreground: var(--ink-soft);
-  --accent: oklch(0.93 0.004 230);
+  --accent: var(--well);
   --accent-foreground: var(--ink);
-  --destructive: oklch(0.5 0.19 25);
-  --border: oklch(0.19 0.004 250 / 0.22);
-  --input: oklch(0.19 0.004 250 / 0.55);
-  --ring: var(--ink);
+  --destructive: #b3261e;
+  --border: var(--rail-hi);
+  --input: var(--rail);
+  --ring: var(--heat);
 }
 
 .dark {
-  --steel: oklch(0.15 0.006 240);
-  --steel-deep: oklch(0.13 0.006 240);
-  --rail: oklch(0.36 0.01 240);
-  --rail-hi: oklch(0.5 0.01 240);
-  --paper: oklch(0.27 0.008 240);
-  --ink: oklch(0.94 0.004 100);
-  --ink-soft: oklch(0.74 0.008 240);
-  --heat: oklch(0.72 0.18 48);
-  --heat-ink: oklch(0.16 0.004 250);
-  --ticket-shadow: 0 1px 2px oklch(0 0 0 / 0.5), 0 8px 22px oklch(0 0 0 / 0.45);
+  --steel: #110e0c;
+  --steel-deep: #0c0a08;
+  --rail: #3a322b;
+  --rail-hi: #2a241f;
+  --paper: #1a1613;
+  --well: #231e1a;
+  --ink: #f4ede6;
+  --ink-soft: #a89b90;
+  --heat: #e57f4c;
+  --heat-hi: #f2a26c;
+  --heat-ink: #1a1613;
+  --glow: rgb(240 140 80 / 0.14);
+  --ticket-shadow:
+    0 0 0 1px var(--rail-hi), 0 1px 0 rgb(255 255 255 / 0.03) inset,
+    0 24px 48px -28px rgb(0 0 0 / 0.7);
 
-  --secondary: oklch(0.29 0.008 240);
-  --muted: oklch(0.28 0.008 240);
-  --accent: oklch(0.3 0.008 240);
-  --destructive: oklch(0.72 0.16 25);
-  --border: oklch(0.94 0.004 100 / 0.2);
-  --input: oklch(0.94 0.004 100 / 0.5);
+  --destructive: #f2867b;
 }
 
 @theme inline {
   --font-sans:
-    "Archivo Variable", ui-sans-serif, system-ui, sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji";
+    "Geist Variable", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji";
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -93,6 +98,9 @@
   --color-ink-soft: var(--ink-soft);
   --color-heat: var(--heat);
   --color-heat-ink: var(--heat-ink);
+  --color-heat-hi: var(--heat-hi);
+  --color-well: var(--well);
+  --color-hairline: var(--rail-hi);
   --shadow-ticket: var(--ticket-shadow);
   --radius-sm: var(--radius);
   --radius-md: var(--radius);
@@ -100,27 +108,26 @@
   --radius-xl: calc(var(--radius) * 2);
 }
 
+/* Display numerals: feather-light, tight. */
 @utility font-condensed {
-  font-stretch: 68%;
+  font-weight: 200;
+  letter-spacing: -0.05em;
 }
 
-/* Ticket head and order labels: condensed ink caps. */
+/* Small labels: quiet small caps. */
 @utility caps {
-  font-stretch: 80%;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-weight: 500;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
-/* A perforation between ticket sections. */
+/* A hairline between card sections. */
 @utility perforation {
-  border-top: 2px dashed var(--border);
+  border-top: 1px solid var(--rail-hi);
 }
 
-/* The torn bottom edge of a ticket: a row of half-circle notches. */
 @utility torn-edge {
-  mask: radial-gradient(circle at 50% 100%, transparent 3.5px, #000 4px) 0 0 /
-    8px 100% repeat-x;
+  display: none;
 }
 
 @layer base {
@@ -131,6 +138,28 @@
   html {
     color-scheme: light;
     -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+    font-feature-settings: "ss01";
+  }
+
+  /* Native feel: controls don't select text or zoom on double-tap, and press down. */
+  button,
+  a,
+  [role="switch"],
+  [role="radio"],
+  label {
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
+  }
+  button:not(:disabled):active,
+  [role="radio"]:active {
+    transform: scale(0.97);
+  }
+  button {
+    transition-property:
+      transform, background-color, color, border-color, box-shadow, opacity;
+    transition-duration: 120ms;
   }
 
   html.dark {
@@ -139,6 +168,12 @@
 
   body {
     @apply bg-background font-sans text-foreground antialiased;
+    background-image: radial-gradient(
+      60rem 30rem at 20% -8rem,
+      var(--glow),
+      transparent 70%
+    );
+    background-attachment: fixed;
     font-feature-settings: "tnum" 0;
     caret-color: var(--ink);
     scrollbar-color: var(--rail) var(--steel);
@@ -150,7 +185,7 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--ink);
+    outline: 2px solid var(--heat);
     outline-offset: 2px;
   }
 

@@ -33,7 +33,7 @@ const isInvite = (from: Location | null) => from?.pathname === "/invite";
 function About({ invite }: { invite?: string }) {
   return (
     <>
-      {invite && <p className="font-semibold">{invite}</p>}
+      {invite && <p className="font-medium">{invite}</p>}
       <p>Control your Anova Precision Cooker Wi-Fi from anywhere.</p>
       <p className="text-sm text-ink-soft">
         Anova4All is an independent open-source project, not affiliated with
@@ -148,7 +148,7 @@ export function SignUpPage() {
         description={
           <p>
             We sent a confirmation link to{" "}
-            <span className="font-semibold break-all">{email}</span>.
+            <span className="font-medium break-all">{email}</span>.
           </p>
         }
       >
@@ -240,8 +240,8 @@ export function ForgotPasswordPage() {
       >
         <p className="leading-relaxed">
           If an account exists for{" "}
-          <span className="font-semibold break-all">{email}</span>, we sent a
-          link to reset the password.
+          <span className="font-medium break-all">{email}</span>, we sent a link
+          to reset the password.
         </p>
       </AuthCard>
     );

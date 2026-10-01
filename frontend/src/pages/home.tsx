@@ -54,7 +54,7 @@ function CookerTicket({ d }: { d: Row }) {
         <TicketSection perforated={false} className="grid gap-1 pb-4">
           {state ? (
             <>
-              <p className="font-condensed text-6xl leading-none font-extrabold tracking-[-0.02em] tabular-nums">
+              <p className="text-6xl leading-none font-extralight tracking-[-0.04em] tabular-nums">
                 {state.current_temperature}
                 <span className="ml-1 align-top text-3xl">{unit}</span>
                 <span className="sr-only"> water temperature</span>
@@ -71,7 +71,9 @@ function CookerTicket({ d }: { d: Row }) {
             </p>
           )}
           {!d.isOwner && (
-            <p className="caps pt-1 text-xs text-ink-soft">Shared with you</p>
+            <p className="caps pt-1 text-[0.6875rem] text-ink-soft">
+              Shared with you
+            </p>
           )}
         </TicketSection>
       </Ticket>
@@ -89,11 +91,11 @@ export function HomePage() {
   return (
     <div className="grid gap-5">
       <div className="flex min-h-11 flex-wrap items-center justify-between gap-3 px-1">
-        <h1 className="font-condensed text-4xl leading-none font-extrabold tracking-[-0.01em] uppercase">
+        <h1 className="text-3xl leading-tight font-medium tracking-[-0.03em]">
           Your cookers
         </h1>
         {data && data.length > 0 && (
-          <Button asChild variant="outline" className="caps">
+          <Button asChild variant="outline">
             <Link to="/setup" className="no-underline">
               Set up a cooker
             </Link>

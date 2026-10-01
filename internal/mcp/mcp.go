@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -98,11 +99,13 @@ func New(opts Options) ([]Route, error) {
 
 	srv := newServer(opts.Control, opts.Limits.withDefaults(), opts.Logger.Named("mcp"))
 	h := sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return srv.sdk },
-		&sdk.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
-	protected := sdkauth.RequireBearerToken(appTokenVerifier(opts.Verifier, srv.log), &sdkauth.RequireBearerTokenOptions{
+		// The SDK's DNS-rebinding guard refuses any non-loopback Host on a loopback
+		// listener, which is every request behind the tunnel; allowHosts replaces it.
+		&sdk.StreamableHTTPOptions{Stateless: true, JSONResponse: true, DisableLocalhostProtection: true})
+	protected := allowHosts(pub.Hostname(), sdkauth.RequireBearerToken(appTokenVerifier(opts.Verifier, srv.log), &sdkauth.RequireBearerTokenOptions{
 		ResourceMetadataURL: metaURL,
 		ClockSkew:           30 * time.Second, // matches the verifier's leeway
-	})(h)
+	})(h))
 
 	meta := sdkauth.ProtectedResourceMetadataHandler(&oauthex.ProtectedResourceMetadata{
 		Resource:               resource,
@@ -115,6 +118,24 @@ func New(opts Options) ([]Route, error) {
 		{Path: MetadataPath + path, Handler: meta},
 		{Path: MetadataPath, Handler: meta},
 	}, nil
+}
+
+// allowHosts passes requests addressed to the public host or a loopback name and refuses
+// the rest with 403, so a rebound DNS name can't reach the endpoint.
+func allowHosts(public string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host := r.Host
+		if h, _, err := net.SplitHostPort(host); err == nil {
+			host = h
+		}
+		host = strings.Trim(host, "[]")
+		ip := net.ParseIP(host)
+		if !strings.EqualFold(host, public) && host != "localhost" && (ip == nil || !ip.IsLoopback()) {
+			http.Error(w, "Forbidden: invalid Host header", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // appTokenVerifier accepts only app tokens (aud anova4all-mcp with client_id). The refusal

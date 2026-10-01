@@ -16,7 +16,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
       theme={resolved}
       className="toaster group"
       toastOptions={{
-        classNames: { toast: "!border-2 !shadow-ticket !font-sans" },
+        classNames: {
+          toast: "!border-0 !rounded-2xl !shadow-ticket !font-sans",
+        },
       }}
       icons={{
         success: <CircleCheckIcon className="size-4" />,
