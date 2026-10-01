@@ -105,18 +105,16 @@ export function describe(action: Action, deviceName: string): string {
     case "update": {
       const parts: string[] = [];
       if (action.temperature !== undefined && action.unit) {
-        parts.push(
-          `the target to ${formatTemp(action.temperature, action.unit)}`,
-        );
+        parts.push(`target ${formatTemp(action.temperature, action.unit)}`);
       }
-      if (action.minutes === 0) parts.push("the timer off");
+      if (action.minutes === 0) parts.push("timer off");
       else if (action.minutes !== undefined) {
-        parts.push(`the timer to ${formatMinutes(action.minutes)}`);
+        parts.push(`timer ${formatMinutes(action.minutes)}`);
       }
       if (action.autoStop !== undefined && action.minutes !== 0) {
         parts.push(`auto-stop ${action.autoStop ? "on" : "off"}`);
       }
-      return `User set ${parts.join(", ")} ${on}.`;
+      return `User changed the cook ${on}: ${parts.join(", ")}.`;
     }
   }
 }

@@ -36,11 +36,14 @@ export type LinkView =
   | "cooker_offline"
   | "stream_down"
   | "access_lost"
+  /** 403 before any status: no such cooker, or never a member. */
+  | "no_access"
   | "signed_out";
 
 export function linkView(s: StreamSnapshot): LinkView {
   switch (s.connection) {
     case "access_lost":
+      return s.status ? "access_lost" : "no_access";
     case "signed_out":
       return s.connection;
     case "live":

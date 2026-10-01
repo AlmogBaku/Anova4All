@@ -32,6 +32,8 @@ export interface Cook {
   /** Closed cooks only. */
   ended_at?: string;
   end_reason?: CookEndReason;
+  /** Ended by auto-stop and nobody silenced the alarm yet (server-side, shared). */
+  alarm?: boolean;
 }
 
 export interface DeviceStatus {

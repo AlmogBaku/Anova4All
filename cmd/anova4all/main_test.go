@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"anova4all/internal/store"
 	"anova4all/internal/store/storetest"
 )
 
@@ -75,4 +77,33 @@ func TestRunShutsDownOnCancel(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("shutdown hung")
 	}
+}
+
+// OnBound and OnGone both call touchLastSeen, so last_seen_at is the last time the
+// cooker was connected (its disconnect time once it is offline).
+func TestTouchLastSeenRecordsNow(t *testing.T) {
+	st := storetest.Open(t)
+	alice := storetest.User(t, "alice")
+	ctx := context.Background()
+	idCard := "f0" + strings.ReplaceAll(uuid.NewString(), "-", "")[:22]
+	hash, err := store.HashKey("testkey000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := st.ClaimDevice(ctx, idCard, hash, alice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { storetest.DeleteDevice(t, d.ID) })
+
+	before := time.Now().Add(-time.Second)
+	touchLastSeen(ctx, st, idCard)
+	got, err := st.DeviceByIDCard(ctx, idCard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.LastSeenAt == nil || got.LastSeenAt.Before(before) {
+		t.Fatalf("last_seen_at %v, want >= %v", got.LastSeenAt, before)
+	}
+	touchLastSeen(ctx, st, "f0unknowncard") // an unpaired cooker: no-op, no panic
 }

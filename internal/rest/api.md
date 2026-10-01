@@ -57,7 +57,8 @@ token with `client_id` get `401`. On `401`, refresh the session once and retry.
     "auto_stop": true,
     "stops_at": "…",                // only while open, auto_stop on and timer running
     "ended_at": "…",                // closed cooks only
-    "end_reason": "auto_stop"       // auto_stop | stopped | manual
+    "end_reason": "auto_stop",      // auto_stop | stopped | manual
+    "alarm": true                   // ended by auto-stop and not silenced yet; omitted when false
   }
 }
 ```
@@ -110,7 +111,9 @@ with no cook running, which is how the UI silences the alarm after an auto-stop.
 is sent until Start sends the whole draft. While heating, each edit is a PATCH.
 
 Auto-stop: when the timer of a cook with `auto_stop` finishes, the server stops heating
-and leaves the alarm sounding; the cook ends with `end_reason: "auto_stop"`.
+and leaves the alarm sounding; the cook ends with `end_reason: "auto_stop"` and
+`alarm: true` until someone calls Stop. The cooker can't report its alarm, so the server
+remembers this in memory (a server restart forgets it).
 
 ### Live stream
 

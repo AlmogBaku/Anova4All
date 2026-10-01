@@ -217,7 +217,7 @@ func (s *Store) DeviceByIDCard(ctx context.Context, idCard string) (Device, erro
 	return d, nil
 }
 
-// TouchLastSeen records that the cooker is connected now.
+// TouchLastSeen records that the cooker is (or was until) connected now.
 func (s *Store) TouchLastSeen(ctx context.Context, deviceID uuid.UUID) error {
 	_, err := s.pool.Exec(ctx, `update public.devices set last_seen_at = now() where id = $1`, deviceID)
 	return err

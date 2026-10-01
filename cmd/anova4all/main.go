@@ -40,6 +40,14 @@ func main() {
 	}
 }
 
+// touchLastSeen records that the cooker idCard was connected until now (on connect and
+// on disconnect). Unpaired cookers have no row and are skipped.
+func touchLastSeen(ctx context.Context, st *store.Store, idCard string) {
+	if d, err := st.DeviceByIDCard(ctx, idCard); err == nil {
+		_ = st.TouchLastSeen(ctx, d.ID)
+	}
+}
+
 func newLogger(env string) *zap.Logger {
 	switch strings.ToUpper(env) {
 	case "DEV", "DEVELOPMENT":
@@ -88,9 +96,7 @@ func run(ctx context.Context, cfg *viper.Viper, logger *zap.Logger) error {
 		Verifier: st,
 		OnBound: func(dev wifi.AnovaDevice) {
 			<-ready
-			if d, err := st.DeviceByIDCard(ctx, dev.IDCard()); err == nil {
-				_ = st.TouchLastSeen(ctx, d.ID)
-			}
+			touchLastSeen(ctx, st, dev.IDCard())
 			publish(dev.IDCard())
 			if cooks != nil {
 				cooks.OnBound(dev)
@@ -98,7 +104,8 @@ func run(ctx context.Context, cfg *viper.Viper, logger *zap.Logger) error {
 		},
 		OnGone: func(idCard string, _ wifi.AnovaDevice) {
 			<-ready
-			publish(idCard) // a replacement may already be bound
+			touchLastSeen(ctx, st, idCard) // last seen = the last time it was connected
+			publish(idCard)                // a replacement may already be bound
 		},
 		OnState: func(idCard string, s wifi.DeviceState) {
 			<-ready

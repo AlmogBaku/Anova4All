@@ -116,7 +116,10 @@ describe("describe", () => {
         { type: "update", temperature: 57.5, unit: "c", minutes: 0 },
         "Kitchen",
       ),
-    ).toBe('User set the target to 57.5 °C, the timer off on "Kitchen".');
+    ).toBe('User changed the cook on "Kitchen": target 57.5 °C, timer off.');
+    expect(
+      describeAction({ type: "update", autoStop: true }, "Kitchen 2"),
+    ).toBe('User changed the cook on "Kitchen 2": auto-stop on.');
   });
 });
 
@@ -154,7 +157,7 @@ describe("runAction", () => {
       content: [
         {
           type: "text",
-          text: 'User set the timer to 30 min on "Kitchen". It failed: The cooker is offline.',
+          text: 'User changed the cook on "Kitchen": timer 30 min. It failed: The cooker is offline.',
         },
       ],
     });

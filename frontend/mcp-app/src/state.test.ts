@@ -111,6 +111,7 @@ describe("deriveView", () => {
         auto_stop: true,
         ended_at: endedAt,
         end_reason: "auto_stop",
+        alarm: true,
       },
     });
 
@@ -133,6 +134,14 @@ describe("deriveView", () => {
       new Date(NOW - AUTO_STOP_NOTICE_MS - 1).toISOString(),
     );
     expect(deriveView(data({ devices: [old], deviceId: ID }), NOW).kind).toBe(
+      "idle",
+    );
+  });
+
+  it("is idle once the server says the alarm was silenced (elsewhere too)", () => {
+    const d = autoStopped("2026-10-01T11:50:00Z");
+    delete d.cook!.alarm;
+    expect(deriveView(data({ devices: [d], deviceId: ID }), NOW).kind).toBe(
       "idle",
     );
   });

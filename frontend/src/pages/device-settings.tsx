@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useId, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { Confirm } from "@/components/confirm.tsx";
 import { Field } from "@/components/field.tsx";
@@ -91,7 +91,7 @@ function Members({ device }: { device: Device }) {
                   </Button>
                 }
                 title={`Remove ${m.email}?`}
-                description="They lose access to this cooker right away."
+                description="They can't control this cooker from now on. A screen they already have open closes within 20 seconds."
                 action="Remove"
                 onConfirm={() =>
                   void remove.run(m.userId).then((ok) => ok && members.reload())
@@ -199,16 +199,17 @@ function Invites({ device }: { device: Device }) {
   );
 }
 
-function Section({
+export function Section({
   title,
   children,
 }: {
   title: string;
   children: React.ReactNode;
 }) {
+  const id = useId();
   return (
-    <section className="grid gap-3" aria-labelledby={title}>
-      <h2 id={title} className="text-lg font-semibold">
+    <section className="grid gap-3" aria-labelledby={id}>
+      <h2 id={id} className="text-lg font-semibold">
         {title}
       </h2>
       {children}

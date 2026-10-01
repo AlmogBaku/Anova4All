@@ -362,6 +362,43 @@ func TestAutoStopLeavesAlarmAndStopSilencesIt(t *testing.T) {
 	}
 }
 
+// The auto-stop alarm flag lives on the server, so a reload or another member sees Silence.
+func TestSilenceIsSharedByEveryReader(t *testing.T) {
+	e := newEnv(t)
+	alice, bob := storetest.User(t, "alice"), storetest.User(t, "bob")
+	dev, id, c := e.paired(t, alice, nil)
+	storetest.AddMember(t, dev, bob)
+	ctx := context.Background()
+	ds, err := e.ctl.Start(ctx, alice, dev, control.StartCook{Temperature: 57, Unit: commands.Celsius, Minutes: ptr(1), AutoStop: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ds.Cook.Alarm {
+		t.Fatal("alarm set on an open cook")
+	}
+	c.SetState(func(s *wifitest.State) { s.TimerMinutes = 0 })
+	if err := e.ctl.AutoStop(ctx, id, ds.Cook.ID); err != nil {
+		t.Fatal(err)
+	}
+	for _, u := range []uuid.UUID{alice, bob} {
+		if st, err := e.ctl.Status(ctx, u, dev); err != nil || st.Cook == nil || !st.Cook.Alarm {
+			t.Fatalf("after auto-stop: err=%v cook=%+v", err, st.Cook)
+		}
+	}
+	before := len(e.reasons())
+	if _, err := e.ctl.Stop(ctx, alice, dev); err != nil {
+		t.Fatal(err)
+	}
+	for _, u := range []uuid.UUID{alice, bob} {
+		if st, err := e.ctl.Status(ctx, u, dev); err != nil || st.Cook == nil || st.Cook.Alarm {
+			t.Fatalf("after silence: err=%v cook=%+v", err, st.Cook)
+		}
+	}
+	if got := e.reasons()[before:]; !containsStr(got, id+" ") {
+		t.Fatalf("silence did not notify streams: %v", got)
+	}
+}
+
 func TestStopKeepsLowWaterAlarm(t *testing.T) {
 	e := newEnv(t)
 	alice := storetest.User(t, "alice")

@@ -26,6 +26,21 @@ function DeviceView({ deviceId }: { deviceId: string }) {
     );
   }
 
+  if (link === "no_access") {
+    return (
+      <div className="grid gap-4">
+        <h1 className="text-2xl font-semibold">No access</h1>
+        <ErrorAlert>
+          This cooker doesn't exist, or you don't have access to it. Ask its
+          owner for an invite.
+        </ErrorAlert>
+        <Link to="/" className="underline">
+          Go to your cookers
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-6">
       <div className="flex items-center justify-between gap-4">

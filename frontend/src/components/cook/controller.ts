@@ -16,7 +16,7 @@ export const TEMP_RANGE: Record<TemperatureUnit, readonly [number, number]> = {
 };
 export const MINUTES_MAX = 6000;
 export const EDIT_DEBOUNCE_MS = 1000;
-/** How long after an auto-stop the "Stopped automatically" notice stays up. */
+/** The longest the "Stopped automatically" notice stays up while the alarm isn't silenced. */
 export const AUTO_STOP_NOTICE_MS = 60 * 60 * 1000;
 
 export interface CookValues {
@@ -45,7 +45,7 @@ export interface CookView {
   saving: boolean;
   invalid: Invalid;
   error: string | null;
-  /** The last cook ended by auto-stop and the alarm may still sound. */
+  /** The last cook ended by auto-stop and nobody silenced the alarm yet (server flag). */
   autoStopped: boolean;
   /** ISO time the cooker stops on its own. */
   stopsAt?: string;
@@ -104,8 +104,7 @@ export function validate(v: CookValues): Invalid {
 
 const isValid = (i: Invalid) => !i.temperature && !i.minutes && !i.autoStop;
 
-function serverValues(s: DeviceStatus | null): CookValues {
-  const st = s?.state;
+function serverValues(s: DeviceStatus | null, st = s?.state): CookValues {
   if (!st) return DEFAULTS;
   return {
     temperature: st.target_temperature,
@@ -114,6 +113,10 @@ function serverValues(s: DeviceStatus | null): CookValues {
     autoStop: !!(s?.cook && !s.cook.ended_at && s.cook.auto_stop),
   };
 }
+
+/** Errors that the cooker coming back online resolves. */
+const isOfflineError = (e: unknown) =>
+  isApiError(e, "device_offline") || isApiError(e, "network");
 
 function errorText(e: unknown): string {
   if (isApiError(e, "invalid_input"))
@@ -133,8 +136,11 @@ export class CookController {
   private inFlight = false;
   private busy = false;
   private error: string | null = null;
+  /** `error` is an offline-type error, cleared when the cooker is back. */
+  private errorOffline = false;
   private invalid: Invalid = {};
-  private silenced = new Set<string>();
+  /** The last state seen, shown in the form while the cooker is offline. */
+  private lastState: DeviceStatus["state"];
   private view: CookView;
   private listeners = new Set<() => void>();
   private readonly debounceMs: number;
@@ -160,7 +166,13 @@ export class CookController {
   /** Latest status from the stream or a command response. */
   setStatus(s: DeviceStatus | null): void {
     const wasHeating = isHeating(this.status);
+    const wasOnline = !!(this.status?.online && this.status.state);
     this.status = s;
+    if (s?.state) this.lastState = s.state;
+    if (this.errorOffline && !wasOnline && s?.online && s.state) {
+      this.error = null;
+      this.errorOffline = false;
+    }
     const heating = isHeating(s);
     if (wasHeating && !heating) {
       // The cook ended (here or elsewhere): drop unsent edits.
@@ -217,14 +229,8 @@ export class CookController {
   /** Stop heating; also silences the alarm after an auto-stop. */
   async stop(): Promise<void> {
     if (this.busy) return;
-    const cookId = this.status?.cook?.id;
     this.clearPending();
-    await this.command(
-      () => this.api.stop(),
-      () => {
-        if (cookId) this.silenced.add(cookId);
-      },
-    );
+    await this.command(() => this.api.stop());
   }
 
   dismissError(): void {
@@ -329,7 +335,7 @@ export class CookController {
       if (this.disposed) return;
       this.inFlight = false;
       this.sending = {};
-      this.error = errorText(e);
+      this.setError(e);
       this.emit();
     }
     // Edits made while the request was in flight.
@@ -338,7 +344,7 @@ export class CookController {
 
   private async command(
     run: () => Promise<DeviceStatus>,
-    onOk: () => void,
+    onOk?: () => void,
   ): Promise<void> {
     this.busy = true;
     this.error = null;
@@ -347,15 +353,20 @@ export class CookController {
     try {
       const s = await run();
       if (this.disposed) return;
-      onOk();
+      onOk?.();
       this.busy = false;
       this.setStatus(s);
     } catch (e) {
       if (this.disposed) return;
       this.busy = false;
-      this.error = errorText(e);
+      this.setError(e);
       this.emit();
     }
+  }
+
+  private setError(e: unknown): void {
+    this.error = errorText(e);
+    this.errorOffline = isOfflineError(e);
   }
 
   private clearPending(): void {
@@ -376,14 +387,16 @@ export class CookController {
           ? "heating"
           : "idle";
     const values =
-      mode === "heating" ? this.overlay() : (this.draft ?? serverValues(s));
+      mode === "heating"
+        ? this.overlay()
+        : (this.draft ?? serverValues(s, s?.state ?? this.lastState));
     const cook = s?.cook;
     const autoStopped =
       mode !== "heating" &&
       !!cook &&
       cook.end_reason === "auto_stop" &&
       !!cook.ended_at &&
-      !this.silenced.has(cook.id) &&
+      !!cook.alarm &&
       this.now() - Date.parse(cook.ended_at) < AUTO_STOP_NOTICE_MS;
     return {
       mode,

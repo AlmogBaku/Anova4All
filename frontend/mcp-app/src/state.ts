@@ -164,6 +164,7 @@ export function deriveView(data: CardData, now: number): View {
   if (
     cook?.end_reason === "auto_stop" &&
     cook.ended_at &&
+    cook.alarm &&
     !data.silenced.has(cook.id) &&
     now - Date.parse(cook.ended_at) < AUTO_STOP_NOTICE_MS
   ) {

@@ -290,14 +290,28 @@ describe("DeviceStream", () => {
     expect(calls).toHaveLength(2);
   });
 
-  it("stops and reports access lost on 403 not_member", async () => {
+  it("stops on 403 not_member; never having had access is not 'access lost'", async () => {
     const { stream, calls } = harness(() => apiError(403, "not_member"));
     stream.start();
     await flush();
     expect(stream.getSnapshot().connection).toBe("access_lost");
-    expect(linkView(stream.getSnapshot())).toBe("access_lost");
+    expect(linkView(stream.getSnapshot())).toBe("no_access");
     await vi.advanceTimersByTimeAsync(120_000);
     expect(calls).toHaveLength(1);
+  });
+
+  it("reports access lost on 403 after the stream showed the cooker", async () => {
+    const { stream } = harness((call, n) => {
+      if (n > 1) return apiError(403, "not_member");
+      const body = sseBody(call.init.signal);
+      body.write(statusEvent(status()));
+      body.close();
+      return body.response();
+    });
+    stream.start();
+    await vi.advanceTimersByTimeAsync(BACKOFF_MAX_MS);
+    expect(stream.getSnapshot().connection).toBe("access_lost");
+    expect(linkView(stream.getSnapshot())).toBe("access_lost");
   });
 
   it("aborts the request on stop and never reconnects", async () => {

@@ -5,6 +5,7 @@ import {
   formatDigits,
   minutesToDigits,
   normalizeDigits,
+  timerLabel,
 } from "./duration.ts";
 
 describe("duration", () => {
@@ -33,5 +34,13 @@ describe("duration", () => {
     expect(describeMinutes(0)).toBe("Off");
     expect(describeMinutes(90)).toBe("1 h 30 min");
     expect(describeMinutes(45)).toBe("45 min");
+  });
+});
+
+describe("timerLabel", () => {
+  it('says "Timer" without "left" when no timer is set', () => {
+    expect(timerLabel(true, 0)).toBe("Timer");
+    expect(timerLabel(false, 90)).toBe("Timer");
+    expect(timerLabel(true, 90)).toBe("Timer (1 h 30 min left)");
   });
 });

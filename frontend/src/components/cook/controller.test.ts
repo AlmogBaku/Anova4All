@@ -226,22 +226,72 @@ describe("CookController while heating", () => {
 });
 
 describe("auto-stop notice", () => {
-  it('shows "stopped automatically" until silenced with Stop', async () => {
-    vi.setSystemTime(new Date("2026-10-01T11:00:30Z"));
-    const ended = status({
+  const autoStopped = (alarm?: boolean) =>
+    status({
       cook: {
         id: "cook-1",
         started_at: "2026-10-01T10:00:00Z",
         auto_stop: true,
         ended_at: "2026-10-01T11:00:00Z",
         end_reason: "auto_stop",
+        ...(alarm ? { alarm } : {}),
       },
     });
-    const { c, api } = harness(ended);
+
+  it('shows "stopped automatically" until silenced with Stop', async () => {
+    vi.setSystemTime(new Date("2026-10-01T11:00:30Z"));
+    const { c, api } = harness(autoStopped(true));
     expect(c.getSnapshot().autoStopped).toBe(true);
-    api.stop.mockResolvedValueOnce(ended);
+    api.stop.mockResolvedValueOnce(autoStopped());
     await c.stop();
     expect(c.getSnapshot().autoStopped).toBe(false);
+  });
+
+  it("follows the server's alarm flag, so a reload or another user sees the silence", () => {
+    vi.setSystemTime(new Date("2026-10-01T11:00:30Z"));
+    // A fresh controller (a reload, or another member) after someone silenced it.
+    const { c } = harness(autoStopped());
+    expect(c.getSnapshot().autoStopped).toBe(false);
+    // Silenced elsewhere while this screen is open: the stream drops the flag.
+    c.setStatus(autoStopped(true));
+    expect(c.getSnapshot().autoStopped).toBe(true);
+    c.setStatus(autoStopped());
+    expect(c.getSnapshot().autoStopped).toBe(false);
+  });
+});
+
+describe("offline", () => {
+  const offline = () => ({ ...status({ online: false }), state: undefined });
+
+  it("clears an offline error once the cooker is back", async () => {
+    const { c, api } = harness(idle());
+    api.start.mockRejectedValueOnce(new ApiError(409, "device_offline"));
+    await c.start();
+    expect(c.getSnapshot().error).toMatch(/offline/i);
+    c.setStatus(offline());
+    expect(c.getSnapshot().error).toMatch(/offline/i);
+    c.setStatus(idle());
+    expect(c.getSnapshot().error).toBeNull();
+  });
+
+  it("keeps other errors when the cooker comes back", async () => {
+    const { c, api } = harness(idle());
+    api.start.mockRejectedValueOnce(new ApiError(409, "cook_in_progress"));
+    await c.start();
+    c.setStatus(offline());
+    c.setStatus(idle());
+    expect(c.getSnapshot().error).toMatch(/already heating/i);
+  });
+
+  it("shows the last known values while offline", () => {
+    const s = idle();
+    s.state = { ...s.state!, target_temperature: 65, unit: "f" };
+    const { c } = harness(s);
+    c.setStatus(offline());
+    expect(c.getSnapshot()).toMatchObject({
+      mode: "offline",
+      values: { temperature: 65, unit: "f" },
+    });
   });
 });
 

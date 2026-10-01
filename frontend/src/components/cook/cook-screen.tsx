@@ -3,7 +3,7 @@ import { ErrorAlert, Loading, Notice } from "@/components/status.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import type { LinkView } from "@/lib/api/device-stream.ts";
 import type { CookController, CookView } from "./controller.ts";
-import { describeMinutes } from "./duration.ts";
+import { timerLabel } from "./duration.ts";
 import {
   AutoStopField,
   DurationField,
@@ -131,11 +131,7 @@ export function CookScreen({
           />
         </div>
         <DurationField
-          label={
-            heating
-              ? `Timer (${describeMinutes(values.minutes)} left)`
-              : "Timer"
-          }
+          label={timerLabel(heating, values.minutes)}
           minutes={values.minutes}
           error={invalid.minutes}
           disabled={!canEdit}

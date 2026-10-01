@@ -30,3 +30,10 @@ export function describeMinutes(minutes: number): string {
   const m = minutes % 60;
   return [h ? `${h} h` : "", m ? `${m} min` : ""].filter(Boolean).join(" ");
 }
+
+/** The timer field's label: time left only while heating with a timer set. */
+export function timerLabel(heating: boolean, minutes: number): string {
+  return heating && minutes > 0
+    ? `Timer (${describeMinutes(minutes)} left)`
+    : "Timer";
+}

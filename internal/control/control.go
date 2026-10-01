@@ -55,10 +55,14 @@ type Service struct {
 
 	mu    sync.Mutex
 	locks map[string]*sync.Mutex // per id_card
+	// alarms maps a device to the auto-stopped cook whose alarm nobody silenced yet.
+	// The cooker can't report its alarm, so the server remembers it (in memory: after
+	// a restart the notice is gone and the cooker's own button still silences it).
+	alarms map[uuid.UUID]uuid.UUID
 }
 
 func New(st *store.Store, link Link, opts Options, log *zap.Logger) *Service {
-	return &Service{st: st, link: link, opts: opts, log: log, locks: map[string]*sync.Mutex{}}
+	return &Service{st: st, link: link, opts: opts, log: log, locks: map[string]*sync.Mutex{}, alarms: map[uuid.UUID]uuid.UUID{}}
 }
 
 func (s *Service) lock(idCard string) func() {
@@ -83,6 +87,8 @@ type CookInfo struct {
 	StopsAt   *time.Time `json:"stops_at,omitempty"`
 	EndedAt   *time.Time `json:"ended_at,omitempty"`
 	EndReason *string    `json:"end_reason,omitempty"`
+	// Alarm: this cook ended by auto-stop and nobody has silenced the alarm yet.
+	Alarm bool `json:"alarm,omitempty"`
 }
 
 // DeviceStatus is what the cook screen and the MCP tools show for one cooker.
@@ -147,6 +153,11 @@ func (s *Service) status(ctx context.Context, a store.Access) (DeviceStatus, err
 		return DeviceStatus{}, err
 	default:
 		ds.Cook = &CookInfo{ID: c.ID, StartedAt: c.StartedAt, AutoStop: c.AutoStop, EndedAt: c.EndedAt, EndReason: c.EndReason}
+		if c.EndedAt != nil {
+			s.mu.Lock()
+			ds.Cook.Alarm = s.alarms[a.ID] == c.ID
+			s.mu.Unlock()
+		}
 	}
 	return ds.WithState(ds.State), nil
 }
@@ -389,6 +400,7 @@ func (s *Service) Stop(ctx context.Context, user, deviceID uuid.UUID) (DeviceSta
 		return DeviceStatus{}, err
 	}
 	var ended []string
+	silenced := false
 	err = func() error {
 		defer unlock()
 		status, err := s.readStatus(ctx, dev)
@@ -402,6 +414,12 @@ func (s *Service) Stop(ctx context.Context, user, deviceID uuid.UUID) (DeviceSta
 		if err := s.run(ctx, dev, steps...); err != nil {
 			return err
 		}
+		if status != commands.LowWater {
+			s.mu.Lock()
+			_, silenced = s.alarms[a.ID]
+			delete(s.alarms, a.ID)
+			s.mu.Unlock()
+		}
 		closed, err := s.closeOpen(ctx, a.ID, store.EndStopped)
 		if closed {
 			ended = append(ended, store.EndStopped)
@@ -409,6 +427,9 @@ func (s *Service) Stop(ctx context.Context, user, deviceID uuid.UUID) (DeviceSta
 		return err
 	}()
 	s.notifyEnded(a, ended)
+	if silenced && len(ended) == 0 {
+		s.notifyChanged(a.IDCard) // streams re-read the cook and drop the notice
+	}
 	if err != nil {
 		return DeviceStatus{}, err
 	}
@@ -455,7 +476,13 @@ func (s *Service) AutoStop(ctx context.Context, idCard string, cookID uuid.UUID)
 		if err := s.run(ctx, dev, commands.StopDevice{}); err != nil {
 			return false, err
 		}
-		return s.st.CloseCook(ctx, c.ID, store.EndAutoStop)
+		closed, err := s.st.CloseCook(ctx, c.ID, store.EndAutoStop)
+		if closed {
+			s.mu.Lock()
+			s.alarms[d.ID] = c.ID
+			s.mu.Unlock()
+		}
+		return closed, err
 	}()
 	if closed {
 		s.log.Info("cook auto-stopped", zap.Stringer("device", d.ID))
