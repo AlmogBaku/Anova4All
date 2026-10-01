@@ -5,6 +5,7 @@ package wifi_test
 import (
 	"context"
 	"errors"
+	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -269,7 +270,7 @@ func TestManagerCloseReturns(t *testing.T) {
 func TestUnboundConnectionsPerIPAreCapped(t *testing.T) {
 	e := newEnv(t, envCfg{opts: wifi.Options{MaxUnboundPerIP: 2}})
 	e.dial(t, wifitest.Cooker{Key: wifitest.Key0})
-	e.waitBound(t, 2*time.Second) // bound: doesn't count
+	e.waitBound(t, 2500*time.Millisecond) // one check (1 s) plus slack, not the flood's queue // bound: doesn't count
 	p1 := e.dial(t, wifitest.Cooker{Key: wifitest.Key1})
 	e.dial(t, wifitest.Cooker{Key: wifitest.Key1})
 	eventually(t, 2*time.Second, "2 pending", func() bool { return len(e.m.Connections(id)) == 3 })
@@ -291,7 +292,7 @@ func TestUnboundConnectionsPerIPAreCapped(t *testing.T) {
 // every pool connection or the CPU.
 func TestKeyChecksAreBounded(t *testing.T) {
 	v := &slowVerifier{delay: 100 * time.Millisecond}
-	e := newEnv(t, envCfg{opts: wifi.Options{Verifier: v, MaxUnboundPerIP: 20}})
+	e := newEnv(t, envCfg{opts: wifi.Options{Verifier: v}, remoteIP: eachConnOwnAddress})
 	for i := 0; i < 6; i++ {
 		e.dial(t, wifitest.Cooker{Key: wifitest.Key1})
 	}
@@ -301,17 +302,48 @@ func TestKeyChecksAreBounded(t *testing.T) {
 	}
 }
 
+// One address flooding wrong keys must not take every key-check slot: a cooker
+// from another address still gets checked and bound while the flood runs.
+func TestOneAddressCannotStarveKeyChecks(t *testing.T) {
+	v := &slowVerifier{delay: time.Second}
+	var seen atomic.Int32
+	var realNext atomic.Bool
+	addr := func(net.Conn) string {
+		seen.Add(1)
+		if realNext.Load() {
+			return "203.0.113.2"
+		}
+		return "203.0.113.1"
+	}
+	e := newEnv(t, envCfg{opts: wifi.Options{Verifier: v, MaxUnboundPerIP: 20}, remoteIP: addr})
+	for i := 0; i < 8; i++ {
+		e.dial(t, wifitest.Cooker{Key: wifitest.Key1})
+	}
+	eventually(t, 2*time.Second, "flood accepted", func() bool { return seen.Load() == 8 })
+	eventually(t, 2*time.Second, "flood checking", func() bool { return v.now.Load() == 1 })
+	realNext.Store(true)
+	v.match.Store(true)
+	e.dial(t, wifitest.Cooker{Key: wifitest.Key0})
+	e.waitBound(t, 2*time.Second)
+	if got := v.peak.Load(); got > 2 {
+		t.Fatalf("%d key checks ran at once; want at most 2", got)
+	}
+}
+
+func eachConnOwnAddress(nc net.Conn) string { return nc.RemoteAddr().String() }
+
 type slowVerifier struct {
 	delay            time.Duration
 	now, peak, calls atomic.Int32
+	match            atomic.Bool // answer for keys other than Key1
 }
 
-func (v *slowVerifier) VerifyKey(ctx context.Context, _, _ string) (bool, error) {
+func (v *slowVerifier) VerifyKey(ctx context.Context, _, key string) (bool, error) {
 	n := v.now.Add(1)
 	for p := v.peak.Load(); n > p && !v.peak.CompareAndSwap(p, n); p = v.peak.Load() {
 	}
 	time.Sleep(v.delay)
 	v.now.Add(-1)
 	v.calls.Add(1)
-	return false, nil
+	return key != wifitest.Key1 && v.match.Load(), nil
 }

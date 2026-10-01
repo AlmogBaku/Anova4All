@@ -73,7 +73,8 @@ type envCfg struct {
 	tt       wifi.TestTimings
 	opts     wifi.Options // callbacks here override the recorder's
 	listener func(net.Listener) net.Listener
-	defaults bool // use production timings
+	remoteIP func(net.Conn) string // how the manager reads a connection's source address
+	defaults bool                  // use production timings
 }
 
 func newEnv(t *testing.T, c envCfg) *env {
@@ -99,6 +100,9 @@ func newEnv(t *testing.T, c envCfg) *env {
 	}
 	o.PendingTTL, o.MaxPending, o.Now = c.opts.PendingTTL, c.opts.MaxPending, c.opts.Now
 	o.MaxUnboundPerIP = c.opts.MaxUnboundPerIP
+	if c.remoteIP != nil {
+		o = wifi.WithRemoteIP(o, c.remoteIP)
+	}
 	if !c.defaults {
 		if c.tt == (wifi.TestTimings{}) {
 			c.tt = fast()

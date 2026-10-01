@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -30,16 +29,21 @@ func AdminURL() string {
 
 // LocalURL reports whether a postgres URL's host is loopback.
 func LocalURL(raw string) bool {
-	u, err := url.Parse(raw)
+	// Check the hosts pgx will dial, not the URL's: a ?host= parameter overrides it.
+	cfg, err := pgx.ParseConfig(raw)
 	if err != nil {
 		return false
 	}
-	h := u.Hostname()
-	if h == "localhost" {
-		return true
+	hosts := []string{cfg.Host}
+	for _, f := range cfg.Fallbacks {
+		hosts = append(hosts, f.Host)
 	}
-	ip := net.ParseIP(h)
-	return ip != nil && ip.IsLoopback()
+	for _, h := range hosts {
+		if ip := net.ParseIP(h); h != "localhost" && (ip == nil || !ip.IsLoopback()) {
+			return false
+		}
+	}
+	return true
 }
 
 // testPassword is set on anova_server in the local database only.

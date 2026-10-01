@@ -87,7 +87,8 @@ export function toolCall(action: Action, deviceId: string): ToolCall {
 
 /** A short plain sentence for the model about what the user did. */
 export function describe(action: Action, deviceName: string): string {
-  const on = `on ${deviceName}`;
+  // Quoted, like the server's %q: the name is the owner's text, not the user's words.
+  const on = `on ${JSON.stringify(deviceName)}`;
   switch (action.type) {
     case "stop":
       return `User stopped the cook ${on}.`;

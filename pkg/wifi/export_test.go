@@ -36,6 +36,13 @@ func WithTimings(o Options, tt TestTimings) Options {
 	return o
 }
 
+// WithRemoteIP replaces how a connection's source address is read, so tests
+// on one loopback address can act as many.
+func WithRemoteIP(o Options, f func(net.Conn) string) Options {
+	o.remoteIP = f
+	return o
+}
+
 func NewManagerWithListener(ctx context.Context, ln net.Listener, opts Options, logger *zap.Logger) (*Manager, error) {
 	return newManager(ctx, ln, opts, logger)
 }

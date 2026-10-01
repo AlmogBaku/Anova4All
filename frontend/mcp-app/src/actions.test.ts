@@ -92,10 +92,10 @@ describe("toolCall", () => {
 describe("describe", () => {
   it("writes one plain sentence per action", () => {
     expect(describeAction({ type: "stop" }, "Kitchen")).toBe(
-      "User stopped the cook on Kitchen.",
+      'User stopped the cook on "Kitchen".',
     );
     expect(describeAction({ type: "silence" }, "Kitchen")).toBe(
-      "User silenced the alarm on Kitchen.",
+      'User silenced the alarm on "Kitchen".',
     );
     expect(
       describeAction(
@@ -109,14 +109,14 @@ describe("describe", () => {
         "Kitchen",
       ),
     ).toBe(
-      "User started a cook on Kitchen at 57 °C with a 1 h 30 min timer and auto-stop.",
+      'User started a cook on "Kitchen" at 57 °C with a 1 h 30 min timer and auto-stop.',
     );
     expect(
       describeAction(
         { type: "update", temperature: 57.5, unit: "c", minutes: 0 },
         "Kitchen",
       ),
-    ).toBe("User set the target to 57.5 °C, the timer off on Kitchen.");
+    ).toBe('User set the target to 57.5 °C, the timer off on "Kitchen".');
   });
 });
 
@@ -137,7 +137,7 @@ describe("runAction", () => {
       arguments: { device_id: ID },
     });
     expect(host.updateModelContext).toHaveBeenCalledWith({
-      content: [{ type: "text", text: "User stopped the cook on Kitchen." }],
+      content: [{ type: "text", text: 'User stopped the cook on "Kitchen".' }],
     });
     expect(res).toEqual({ devices: [] });
     expect(host.callServerTool.mock.invocationCallOrder[0]).toBeLessThan(
@@ -154,7 +154,7 @@ describe("runAction", () => {
       content: [
         {
           type: "text",
-          text: "User set the timer to 30 min on Kitchen. It failed: The cooker is offline.",
+          text: 'User set the timer to 30 min on "Kitchen". It failed: The cooker is offline.',
         },
       ],
     });

@@ -41,7 +41,8 @@ type Options struct {
 	MaxUnboundPerIP int
 	Now             func() time.Time // optional, for tests
 
-	timings *timings // tests only (export_test.go)
+	timings  *timings              // tests only (export_test.go)
+	remoteIP func(net.Conn) string // tests only (export_test.go)
 }
 
 type entry struct {
@@ -67,7 +68,8 @@ type Manager struct {
 	entries map[*device]*entry
 	unbound map[string]int // remote IP → connections not bound yet
 
-	verifySem chan struct{} // bounds concurrent key checks (database + bcrypt)
+	verifySem chan struct{}            // bounds concurrent key checks (database + bcrypt)
+	verifying map[string]chan struct{} // remote IP → its key check in flight; closed when done
 }
 
 const (
@@ -119,6 +121,10 @@ func newManager(ctx context.Context, ln net.Listener, opts Options, logger *zap.
 		entries:   make(map[*device]*entry),
 		unbound:   make(map[string]int),
 		verifySem: make(chan struct{}, maxConcurrentVerify),
+		verifying: make(map[string]chan struct{}),
+	}
+	if m.opts.remoteIP == nil {
+		m.opts.remoteIP = remoteIP
 	}
 	m.ctx, m.cancel = context.WithCancel(ctx)
 	m.log.Info("listening for cookers", zap.Stringer("addr", ln.Addr()))
@@ -270,7 +276,7 @@ func (m *Manager) afterBind(d *device, newly bool, others []*device) {
 
 // handleConn runs one cooker connection to the end.
 func (m *Manager) handleConn(nc net.Conn) {
-	ip := remoteIP(nc)
+	ip := m.opts.remoteIP(nc)
 	m.mu.Lock()
 	if m.unbound[ip] >= m.opts.MaxUnboundPerIP {
 		m.mu.Unlock()
@@ -308,9 +314,7 @@ func (m *Manager) admit(d *device) (verified, ok bool) {
 	}
 	d.pollOnce(hctx)
 
-	vctx, vcancel := context.WithTimeout(m.ctx, verifyTimeout)
-	defer vcancel()
-	match, err := m.verify(vctx, d.IDCard(), key)
+	match, err := m.verify(d, key)
 	if err != nil {
 		d.log.Warn("key verification failed; connection stays pending", zap.Error(err))
 		match = false
@@ -318,15 +322,51 @@ func (m *Manager) admit(d *device) (verified, ok bool) {
 	return match, !d.c.closed()
 }
 
-// verify runs the key check, at most maxConcurrentVerify at a time.
-func (m *Manager) verify(ctx context.Context, idCard, key string) (bool, error) {
+// verify runs the key check: one at a time per remote address, and at most
+// maxConcurrentVerify overall, so one address can't starve everyone's checks
+// (bcrypt keeps a Pi 1 core busy). The timeout starts once it's d's address's turn.
+func (m *Manager) verify(d *device, key string) (bool, error) {
+	done, err := m.verifyTurn(d)
+	if err != nil {
+		return false, err
+	}
+	defer done()
+	ctx, cancel := context.WithTimeout(m.ctx, verifyTimeout)
+	defer cancel()
 	select {
 	case m.verifySem <- struct{}{}:
 	case <-ctx.Done():
 		return false, ctx.Err()
 	}
 	defer func() { <-m.verifySem }()
-	return m.opts.Verifier.VerifyKey(ctx, idCard, key)
+	return m.opts.Verifier.VerifyKey(ctx, d.IDCard(), key)
+}
+
+// verifyTurn waits until no other key check from d's address is in flight.
+func (m *Manager) verifyTurn(d *device) (done func(), err error) {
+	for {
+		m.mu.Lock()
+		busy, ok := m.verifying[d.ip]
+		if !ok {
+			mine := make(chan struct{})
+			m.verifying[d.ip] = mine
+			m.mu.Unlock()
+			return func() {
+				m.mu.Lock()
+				delete(m.verifying, d.ip)
+				m.mu.Unlock()
+				close(mine)
+			}, nil
+		}
+		m.mu.Unlock()
+		select {
+		case <-busy:
+		case <-d.Done():
+			return nil, errors.New("connection closed while waiting to check its key")
+		case <-m.ctx.Done():
+			return nil, m.ctx.Err()
+		}
+	}
 }
 
 // releaseLocked frees d's unbound slot, once.
