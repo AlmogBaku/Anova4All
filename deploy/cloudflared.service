@@ -1,0 +1,46 @@
+# Cloudflare Tunnel for the Anova4All HTTP API (locally-managed tunnel).
+# Install: `make deploy-tunnel` (see README, "Cloudflare Tunnel").
+# /etc/cloudflared/config.yml names the tunnel and its credentials JSON, which
+# is root-owned, mode 600. Nothing here holds a secret.
+# The binary is the plain `cloudflared-linux-arm` release asset (GOARM=5), at
+# /usr/local/bin/cloudflared: the armhf build is ARMv7 and won't run on a Pi 1.
+[Unit]
+Description=Cloudflare Tunnel for Anova4All
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# cloudflared signals readiness once a connection to the edge is up.
+Type=notify
+TimeoutStartSec=60
+ExecStart=/usr/local/bin/cloudflared tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+# Runs as root only so it can read the root-owned credentials. It gets no
+# capabilities and a read-only filesystem, and writes nothing to disk (logs go
+# to the journal).
+CapabilityBoundingSet=
+AmbientCapabilities=
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+# AF_NETLINK lets Go list network interfaces.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target
