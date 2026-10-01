@@ -1,38 +1,67 @@
-// src/app.tsx
-import {BrowserRouter as Router, Route, Routes} from 'react-router-dom';
+import { createBrowserRouter, Outlet } from "react-router";
+import { RouterProvider } from "react-router/dom";
+import { Layout } from "@/components/layout.tsx";
+import { ProtectedRoute } from "@/components/protected-route.tsx";
+import { AuthProvider } from "@/contexts/auth.tsx";
+import { BASENAME } from "@/lib/env.ts";
+import { AccountPage } from "@/pages/account.tsx";
+import {
+  ConfirmPage,
+  ForgotPasswordPage,
+  LoginPage,
+  ResetPasswordPage,
+  SignUpPage,
+} from "@/pages/auth.tsx";
+import { DeviceSettingsPage } from "@/pages/device-settings.tsx";
+import { DevicePage } from "@/pages/device.tsx";
+import { HomePage } from "@/pages/home.tsx";
+import { InvitePage } from "@/pages/invite.tsx";
+import { NotFoundPage, OAuthConsentPage } from "@/pages/misc.tsx";
+import { SetupPage } from "@/pages/setup.tsx";
 
-import Layout from '@/components/layout.tsx';
-import DeviceSetup from '@/components/device-setup.tsx';
-import {AnovaProvider} from "@/contexts/anova.tsx";
-import Home from "@/components/home.tsx";
-import ProtectedRoute from "@/components/protected-route.tsx";
-import {AuthProvider} from "@/contexts/auth.tsx";
-import {LoginForm} from '@/components/login-form.tsx';
-import {ForgotPasswordForm} from "@/components/forgot-password-form.tsx";
-import {ResetPasswordForm} from "@/components/reset-password-form.tsx";
-import {SignUpForm} from "@/components/sign-up-form.tsx";
+// Every route works as a deep link: GitHub Pages serves index.html as 404.html.
+const router = createBrowserRouter(
+  [
+    {
+      element: (
+        <AuthProvider>
+          <Outlet />
+        </AuthProvider>
+      ),
+      children: [
+        {
+          element: <Layout />,
+          children: [
+            { path: "login", element: <LoginPage /> },
+            { path: "sign-up", element: <SignUpPage /> },
+            { path: "forgot-password", element: <ForgotPasswordPage /> },
+            // Public: the reset link itself signs the user in.
+            { path: "reset-password", element: <ResetPasswordPage /> },
+            { path: "auth/confirm", element: <ConfirmPage /> },
+            {
+              element: <ProtectedRoute />,
+              children: [
+                { index: true, element: <HomePage /> },
+                { path: "setup", element: <SetupPage /> },
+                { path: "invite", element: <InvitePage /> },
+                { path: "devices/:deviceId", element: <DevicePage /> },
+                {
+                  path: "devices/:deviceId/settings",
+                  element: <DeviceSettingsPage />,
+                },
+                { path: "account", element: <AccountPage /> },
+                { path: "oauth/consent", element: <OAuthConsentPage /> },
+              ],
+            },
+            { path: "*", element: <NotFoundPage /> },
+          ],
+        },
+      ],
+    },
+  ],
+  { basename: BASENAME },
+);
 
-function App() {
-    return (
-        <Router basename={import.meta.env.VITE_BASE_ROUTE}>
-            <AuthProvider>
-                <AnovaProvider>
-                    <Layout>
-                        <Routes>
-                            <Route path="/login" element={<LoginForm/>}/>
-                            <Route path="/sign-up" element={<SignUpForm/>}/>
-                            <Route path="/forgot-password" element={<ForgotPasswordForm/>}/>
-                            <Route element={<ProtectedRoute/>}>
-                                <Route path="/reset-password" element={<ResetPasswordForm/>}/>
-                                <Route path="/" element={<Home/>}/>
-                                <Route path="/setup" element={<DeviceSetup/>}/>
-                            </Route>
-                        </Routes>
-                    </Layout>
-                </AnovaProvider>
-            </AuthProvider>
-        </Router>
-    );
+export function App() {
+  return <RouterProvider router={router} />;
 }
-
-export default App;

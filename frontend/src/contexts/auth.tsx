@@ -1,66 +1,68 @@
-import React, {createContext, useContext, useEffect, useState} from 'react'
-import {Session, User} from '@supabase/supabase-js'
-import {supabase} from '@/lib/supabase'
-import {useNavigate} from "react-router-dom";
+import type { Session, User } from "@supabase/supabase-js";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
+import { supabase } from "@/lib/supabase.ts";
 
-interface AuthContextType {
-    session: Session | null
-    user: User | null
-    loading: boolean
-    signOut: () => void
+interface AuthState {
+  session: Session | null;
+  user: User | null;
+  /** True until the stored session (or an auth link in the URL) has been read. */
+  loading: boolean;
+  /** Set after a password-reset link signed the user in. */
+  recovery: boolean;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const AuthContext = createContext<AuthState | null>(null);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({children}) => {
-    const [session, setSession] = useState<Session | null>(null)
-    const [user, setUser] = useState<User | null>(null)
-    const [loading, setLoading] = useState(true)
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<AuthState>({
+    session: null,
+    user: null,
+    loading: true,
+    recovery: false,
+  });
 
-    const navigate = useNavigate()
-
-    const signOut = async () => {
-        await supabase.auth.signOut();
-        navigate('/login');
-    };
-
-    useEffect(() => {
-        const getSession = async () => {
-            const {data: {session}} = await supabase.auth.getSession();
-            setSession(session)
-            setUser(session?.user ?? null)
-            setLoading(false)
-        }
-
-        getSession()
-
-        const {data: authListener} = supabase.auth.onAuthStateChange(
-            (_event, session) => {
-                setSession(session)
-                setUser(session?.user ?? null)
-                setLoading(false)
-            }
-        )
-
-        return () => {
-            authListener?.subscription.unsubscribe()
-        }
-    }, [])
-
-    const value = {
+  useEffect(() => {
+    let active = true;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!active) return;
+      setState((s) => ({
+        ...s,
+        session: data.session,
+        user: data.session?.user ?? null,
+        loading: false,
+      }));
+    });
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      setState((s) => ({
         session,
-        user,
-        loading,
-        signOut,
-    }
+        user: session?.user ?? null,
+        loading: false,
+        recovery:
+          event === "PASSWORD_RECOVERY"
+            ? true
+            : event === "SIGNED_OUT"
+              ? false
+              : s.recovery,
+      }));
+    });
+    return () => {
+      active = false;
+      data.subscription.unsubscribe();
+    };
+  }, []);
 
-    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={state}>{children}</AuthContext.Provider>;
 }
 
-export const useAuth = () => {
-    const context = useContext(AuthContext)
-    if (context === undefined) {
-        throw new Error('useAuth must be used within an AuthProvider')
-    }
-    return context
+// eslint-disable-next-line react-refresh/only-export-components
+export function useAuth(): AuthState {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
 }

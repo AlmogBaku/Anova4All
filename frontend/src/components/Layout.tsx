@@ -1,58 +1,48 @@
-import React, {useState} from 'react';
-import {TbLogout, TbMoon, TbSun, TbSunMoon} from "react-icons/tb";
-import {Link} from "react-router-dom";
-import {useTheme} from "@/contexts/theme.tsx";
-import {Button} from "@/components/ui/button.tsx";
-import {useAuth} from "@/contexts/auth.tsx";
+import { Link, NavLink, Outlet } from "react-router";
+import { Toaster } from "@/components/ui/sonner.tsx";
+import { useAuth } from "@/contexts/auth.tsx";
+import { cn } from "@/lib/utils.ts";
 
-interface LayoutProps {
-    children: React.ReactNode;
+const navClass = ({ isActive }: { isActive: boolean }) =>
+  cn(
+    "rounded-md px-2 py-1 text-sm hover:underline",
+    isActive && "font-semibold",
+  );
+
+export function Layout() {
+  const { user } = useAuth();
+  return (
+    <div className="min-h-svh bg-background text-foreground">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:p-2"
+      >
+        Skip to content
+      </a>
+      <header className="border-b">
+        <nav
+          aria-label="Main"
+          className="mx-auto flex max-w-3xl items-center gap-4 px-4 py-3"
+        >
+          <Link to="/" className="font-semibold">
+            Anova4All
+          </Link>
+          {user && (
+            <div className="ml-auto flex items-center gap-2">
+              <NavLink to="/" end className={navClass}>
+                Cookers
+              </NavLink>
+              <NavLink to="/account" className={navClass}>
+                Account
+              </NavLink>
+            </div>
+          )}
+        </nav>
+      </header>
+      <main id="main" className="mx-auto max-w-3xl px-4 py-6">
+        <Outlet />
+      </main>
+      <Toaster position="bottom-center" />
+    </div>
+  );
 }
-
-const Layout: React.FC<LayoutProps> = ({children}) => {
-    const {theme, setTheme} = useTheme();
-    const [lastMajorTheme, setLastMajorTheme] = useState<"dark" | "light">(
-        theme === 'light' ? 'light' : 'dark'
-    );
-    const {user, signOut} = useAuth();
-
-    const handleThemeChange = () => {
-        if (theme === 'system') {
-            const nextTheme = lastMajorTheme === 'dark' ? 'light' : 'dark';
-            setTheme(nextTheme);
-            setLastMajorTheme(nextTheme);
-        } else {
-            setLastMajorTheme(theme);
-            setTheme('system');
-        }
-    };
-
-    return <div className="flex h-screen flex-col p-3">
-        <header className="flex items-center justify-between bg-card p-2 mb-3 shadow-md rounded-lg">
-            <Link to="/" className="flex items-center flex-1 font-bold font-mono text-lg pl-2">
-                <img src={`${import.meta.env.BASE_URL}logo.svg`} className={"h-12 mr-3"} alt="Anova4All logo"/>
-                Anova 4 All
-            </Link>
-            <nav className="flex items-center gap-2">
-                {user && (
-                    <Button variant="ghost" size="icon" asChild onClick={signOut}>
-                        <TbLogout className="h-7 w-7"/>
-                    </Button>
-                )}
-
-                <Button variant="ghost" size="icon" onClick={handleThemeChange}>
-                    {theme === 'light' && <TbSun className="h-7 w-7"/>}
-                    {theme === 'dark' && <TbMoon className="h-7 w-7"/>}
-                    {theme === 'system' && <TbSunMoon className="h-7 w-7"/>}
-                    <span className="sr-only">Toggle theme</span>
-                </Button>
-            </nav>
-        </header>
-
-        <main className="flex-1 overflow-y-auto">
-            {children}
-        </main>
-    </div>;
-}
-
-export default Layout;
