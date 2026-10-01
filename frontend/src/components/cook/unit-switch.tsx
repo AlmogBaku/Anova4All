@@ -51,7 +51,7 @@ export function UnitSwitch({
           key={u.value}
           value={u.value}
           aria-label={u.name}
-          className="relative cursor-pointer rounded-full text-[0.8125rem] leading-none font-medium tracking-normal text-ink-soft outline-none transition-colors duration-180 before:absolute before:-inset-y-2 before:inset-x-0 hover:text-ink focus-visible:shadow-[0_0_0_2px_var(--paper),0_0_0_4px_var(--heat)] disabled:cursor-not-allowed disabled:hover:text-ink-soft data-[state=checked]:text-ink motion-reduce:transition-none"
+          className="relative cursor-pointer rounded-full text-[0.8125rem] leading-none font-medium tracking-normal text-ink-soft outline-none transition-colors duration-180 before:absolute before:-inset-y-2 before:inset-x-0 hover:text-ink focus-visible:shadow-[0_0_0_2px_var(--paper),0_0_0_4px_var(--ink)] disabled:cursor-not-allowed disabled:hover:text-ink-soft data-[state=checked]:text-ink motion-reduce:transition-none"
         >
           {u.label}
         </RadioGroup.Item>

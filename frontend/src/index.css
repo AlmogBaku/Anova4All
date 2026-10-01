@@ -108,12 +108,6 @@
   --radius-xl: calc(var(--radius) * 2);
 }
 
-/* Display numerals: feather-light, tight. */
-@utility font-condensed {
-  font-weight: 200;
-  letter-spacing: -0.05em;
-}
-
 /* Small labels: quiet small caps. */
 @utility caps {
   font-weight: 500;
@@ -124,10 +118,6 @@
 /* A hairline between card sections. */
 @utility perforation {
   border-top: 1px solid var(--rail-hi);
-}
-
-@utility torn-edge {
-  display: none;
 }
 
 @layer base {

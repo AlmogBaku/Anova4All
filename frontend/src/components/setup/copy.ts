@@ -123,9 +123,7 @@ export const WIFI = {
   current: "Current network",
   continue: "Continue",
   ssidLabel: "Network",
-  ssidAria: "Wi-Fi name",
   passwordLabel: "Password",
-  passwordAria: "Wi-Fi password",
   rules: [
     "2.4 GHz networks only, WPA or WPA2.",
     "The network name must be visible, not hidden.",

@@ -273,9 +273,6 @@ export function Dial({
         ref={center}
         className="pointer-events-none absolute inset-0 grid place-content-center pb-4 text-center"
       >
-        <p className="text-[0.6875rem] font-medium tracking-[0.08em] text-ink-soft uppercase">
-          {active ? "Set to" : "Water"}
-        </p>
         <p
           data-roll
           className={cn(

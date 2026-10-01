@@ -355,9 +355,15 @@ func TestPublicHostAcceptedOnLoopbackListener(t *testing.T) {
 	e := newEnvWith(t, envOpts{publicURL: "https://anova.example.test/mcp"})
 	tok := e.sign.App(t, uuid.New())
 	for host, want := range map[string]int{
-		"anova.example.test": http.StatusOK,
-		"localhost":          http.StatusOK,
-		"evil.example.test":  http.StatusForbidden,
+		"anova.example.test":           http.StatusOK,
+		"localhost":                    http.StatusOK,
+		"ANOVA.example.test:443":       http.StatusOK,
+		"127.0.0.1:8000":               http.StatusOK,
+		"[::1]:8000":                   http.StatusOK,
+		"evil.example.test":            http.StatusForbidden,
+		"anova.example.test.evil.test": http.StatusForbidden,
+		"192.168.1.208":                http.StatusForbidden,
+		"localhost.evil.test":          http.StatusForbidden,
 	} {
 		req, _ := http.NewRequest(http.MethodPost, e.base+"/mcp", strings.NewReader(initBody))
 		req.Host = host

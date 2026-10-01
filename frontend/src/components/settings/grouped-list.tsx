@@ -1,3 +1,4 @@
+import * as React from "react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -61,13 +62,15 @@ export function ListItem({
   onClick,
   role,
   "aria-label": ariaLabel,
+  ...props
 }: {
   className?: string;
   children: ReactNode;
   onClick?: () => void;
   role?: string;
   "aria-label"?: string;
-}) {
+} & React.ComponentPropsWithRef<"div"> &
+  React.ComponentPropsWithRef<"button">) {
   const Comp = onClick ? "button" : "div";
   return (
     <Comp
@@ -80,6 +83,7 @@ export function ListItem({
           "w-full cursor-pointer text-left transition-colors hover:bg-well active:scale-[0.99]",
         className,
       )}
+      {...props}
     >
       {children}
     </Comp>

@@ -586,7 +586,7 @@ function InlineField({
 }: { label: string } & ComponentProps<typeof Input>) {
   const id = useId();
   return (
-    <div className="mt-2 flex h-13 items-center gap-2.5 rounded-2xl border border-hairline bg-paper px-3.5 transition-[border-color] focus-within:border-heat focus-within:ring-4 focus-within:ring-[var(--glow)]">
+    <div className="mt-2 flex h-13 items-center gap-2.5 rounded-2xl border border-hairline bg-paper px-3.5 transition-[border-color] focus-within:border-ink focus-within:ring-4 focus-within:ring-ink/20">
       <label
         htmlFor={id}
         className="w-[4.625rem] shrink-0 text-[0.8125rem] text-ink-soft"

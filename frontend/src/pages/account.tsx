@@ -95,11 +95,14 @@ function PasswordSheet({
 function ConnectedAppsSheet({
   open,
   onOpenChange,
+  apps,
+  onReload,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  apps: ReturnType<typeof useAsync<Awaited<ReturnType<typeof oauth.apps>>>>;
+  onReload: () => void;
 }) {
-  const apps = useAsync("apps", () => oauth.apps());
   const revoke = useAction(async (clientId: string) => {
     await oauth.revoke(clientId);
     return true;
@@ -146,7 +149,7 @@ function ConnectedAppsSheet({
                       onConfirm={() =>
                         void revoke
                           .run(a.clientId)
-                          .then((ok) => ok && apps.reload())
+                          .then((ok) => ok && onReload())
                       }
                     />
                   </ListItemEnd>
@@ -288,7 +291,12 @@ export function AccountPage() {
       </section>
 
       <PasswordSheet open={passwordOpen} onOpenChange={setPasswordOpen} />
-      <ConnectedAppsSheet open={appsOpen} onOpenChange={setAppsOpen} />
+      <ConnectedAppsSheet
+        open={appsOpen}
+        onOpenChange={setAppsOpen}
+        apps={apps}
+        onReload={() => apps.reload()}
+      />
     </div>
   );
 }
