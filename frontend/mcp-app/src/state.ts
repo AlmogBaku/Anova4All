@@ -65,6 +65,8 @@ export type View =
       timerRunning: boolean;
       /** Minutes left when the timer runs, else the set length (0 = none). */
       timerMinutes: number;
+      /** The timer is set but waiting for the water to reach the target. */
+      timerWaiting: boolean;
       autoStop: boolean;
       stopsAt: string | null;
       notice: string | null;
@@ -157,6 +159,7 @@ export function deriveView(data: CardData, now: number): View {
       ...base,
       timerRunning: st.timer_running,
       timerMinutes: st.timer_value,
+      timerWaiting: !!open?.timer_waiting,
       autoStop: !!open?.auto_stop,
       stopsAt: open?.stops_at ?? null,
     };

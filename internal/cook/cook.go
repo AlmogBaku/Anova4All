@@ -1,6 +1,7 @@
-// Package cook watches cooker state and events and decides when a cook ends on its own:
-// it calls control.AutoStop when an auto-stop cook's timer finishes, and
-// control.CloseIfIdle when heating stops from the cooker's buttons.
+// Package cook watches cooker state and events and acts on them: it calls
+// control.StartWaitingTimer when the water reaches the set point (a cook's timer waits
+// for it, as in the Anova app), control.AutoStop when an auto-stop cook's timer finishes,
+// and control.CloseIfIdle when heating stops from the cooker's buttons.
 //
 // It writes no rows and sends no cooker commands itself; internal/control does both.
 // No deadline is stored: every decision comes from the cooker's latest timer reading
@@ -26,6 +27,7 @@ import (
 // Control is the part of internal/control this package calls (implemented by *control.Service).
 type Control interface {
 	AutoStop(ctx context.Context, idCard string, cookID uuid.UUID) error
+	StartWaitingTimer(ctx context.Context, idCard string) error
 	CloseIfIdle(ctx context.Context, idCard string) error
 }
 
@@ -44,9 +46,16 @@ const (
 type job int
 
 const (
-	jobAutoStop job = iota + 1 // the timer finished: stop an open auto-stop cook
-	jobClose                   // heating stopped: close the open cook if the cooker is idle
+	jobAutoStop   job = iota + 1 // the timer finished: stop an open auto-stop cook
+	jobClose                     // heating stopped: close the open cook if the cooker is idle
+	jobStartTimer                // the water reached the set point: start a waiting timer
 )
+
+// timerReady: heating at the set point with a set timer that isn't running, so a waiting
+// timer may start. control.StartWaitingTimer checks the cook really has one waiting.
+func timerReady(st wifi.DeviceState) bool {
+	return st.Status == commands.Running && !st.TimerRunning && st.TimerValue > 0 && control.Reached(st)
+}
 
 // cooker is the per-id_card state. Fields are guarded by Service.mu.
 type cooker struct {
@@ -103,6 +112,8 @@ func (s *Service) OnBound(dev wifi.AnovaDevice) {
 		s.enqueueLocked(dev.IDCard(), c, jobClose) // heating may have stopped while we were away
 	case st.TimerValue == 0:
 		s.enqueueLocked(dev.IDCard(), c, jobAutoStop) // heating with the timer at 0: it ended
+	case timerReady(st):
+		s.enqueueLocked(dev.IDCard(), c, jobStartTimer) // reached the set point while we were away
 	}
 }
 
@@ -128,17 +139,27 @@ func (s *Service) OnState(idCard string, st wifi.DeviceState) {
 	if st.Status == commands.Running && st.TimerValue == 0 && prev.TimerRunning && prev.TimerValue > 0 {
 		s.enqueueLocked(idCard, c, jobAutoStop)
 	}
+	// Only on becoming ready, so readings after a manual timer stop don't each re-check.
+	if timerReady(st) && !timerReady(prev) {
+		s.enqueueLocked(idCard, c, jobStartTimer)
+	}
 }
 
-// OnEvent handles a cooker event. The timer-finish event is a live report from the cooker.
+// OnEvent handles a cooker event. The timer-finish and temp-reached events are live reports from the cooker.
 func (s *Service) OnEvent(idCard string, ev wifi.AnovaEvent) {
-	if ev.Type != wifi.EventTypeTimeFinish {
+	var j job
+	switch ev.Type {
+	case wifi.EventTypeTimeFinish:
+		j = jobAutoStop
+	case wifi.EventTypeTempReached:
+		j = jobStartTimer
+	default:
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if c := s.cookerLocked(idCard); c != nil {
-		s.enqueueLocked(idCard, c, jobAutoStop)
+		s.enqueueLocked(idCard, c, j)
 	}
 }
 
@@ -189,24 +210,31 @@ func (s *Service) work(idCard string, c *cooker) {
 			if err := s.ctl.CloseIfIdle(s.ctx, idCard); err != nil && s.ctx.Err() == nil {
 				s.log.Warn("close idle cook", zap.Error(err))
 			}
+		case jobStartTimer:
+			s.retry("start waiting timer", func() error { return s.ctl.StartWaitingTimer(s.ctx, idCard) })
 		}
 	}
 }
 
 // autoStop stops the open cook if it has auto-stop on, retrying on errors, once per cook.
 func (s *Service) autoStop(idCard string, c *cooker) {
+	s.retry("auto-stop", func() error { return s.tryAutoStop(idCard, c) })
+}
+
+// retry runs op until it succeeds, Retries times more at most.
+func (s *Service) retry(what string, op func() error) {
 	wait := Backoff
 	for attempt := 0; ; attempt++ {
-		err := s.tryAutoStop(idCard, c)
+		err := op()
 		if err == nil || errors.Is(err, control.ErrDeviceOffline) || s.ctx.Err() != nil {
 			// Offline: the next bind brings a fresh read that re-checks.
 			return
 		}
 		if attempt == Retries {
-			s.log.Error("auto-stop failed", zap.Int("attempts", attempt+1), zap.Error(err))
+			s.log.Error(what+" failed", zap.Int("attempts", attempt+1), zap.Error(err))
 			return
 		}
-		s.log.Warn("auto-stop failed, retrying", zap.Error(err))
+		s.log.Warn(what+" failed, retrying", zap.Error(err))
 		select {
 		case <-s.ctx.Done():
 			return

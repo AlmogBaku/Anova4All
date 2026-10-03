@@ -130,15 +130,136 @@ func TestStartRunsEveryStepAndRecordsAutoStop(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The fake is already in °C: a repeated "set unit" flips some real cookers, so none is sent.
-	want := []string{"set temp 57.0", "set timer 60", "start", "start time"}
+	// The water is at 25 °C, so the timer is set but waits for the set point.
+	want := []string{"set temp 57.0", "stop time", "set timer 60", "start"}
 	if got := cookCmds(c); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("commands %v, want %v", got, want)
 	}
-	if ds.Cook == nil || !ds.Cook.AutoStop || ds.Cook.EndedAt != nil {
+	if ds.Cook == nil || !ds.Cook.AutoStop || !ds.Cook.TimerWaiting || ds.Cook.StopsAt != nil || ds.Cook.EndedAt != nil {
 		t.Fatalf("cook %+v", ds.Cook)
 	}
 	if n := openCooks(t, dev); n != 1 {
 		t.Fatalf("%d open cooks", n)
+	}
+}
+
+// hot is an idle cooker whose water is already at 57 °C.
+func hot() *wifitest.State {
+	return &wifitest.State{Status: "stopped", Temp: 57, SetTemp: 40, Unit: "c"}
+}
+
+func TestStartWithWaterAtSetPointStartsTimer(t *testing.T) {
+	for _, temp := range []float64{56.6, 57, 62} { // just below, at, and above the set point
+		e := newEnv(t)
+		alice := storetest.User(t, "alice")
+		dev, _, c := e.paired(t, alice, &wifitest.State{Status: "stopped", Temp: temp, SetTemp: 40, Unit: "c"})
+
+		ds, err := e.ctl.Start(context.Background(), alice, dev, control.StartCook{Temperature: 57, Unit: commands.Celsius, Minutes: ptr(60)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"set temp 57.0", "stop time", "set timer 60", "start", "start time"}
+		if got := cookCmds(c); strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Fatalf("water %.1f: commands %v, want %v", temp, got, want)
+		}
+		if ds.Cook == nil || ds.Cook.TimerWaiting {
+			t.Fatalf("water %.1f: cook %+v", temp, ds.Cook)
+		}
+	}
+}
+
+func TestWaitingTimerStartsAtSetPoint(t *testing.T) {
+	e := newEnv(t)
+	alice := storetest.User(t, "alice")
+	dev, id, c := e.paired(t, alice, nil)
+	ctx := context.Background()
+	if _, err := e.ctl.Start(ctx, alice, dev, control.StartCook{Temperature: 57, Unit: commands.Celsius, Minutes: ptr(60), AutoStop: true}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Still heating up: nothing to start.
+	c.SetState(func(s *wifitest.State) { s.Temp = 56.4 })
+	if err := e.ctl.StartWaitingTimer(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	if n := c.Count("start time"); n != 0 {
+		t.Fatalf("timer started %d times below the set point", n)
+	}
+
+	c.SetState(func(s *wifitest.State) { s.Temp = 56.5 })
+	if err := e.ctl.StartWaitingTimer(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	if n := c.Count("start time"); n != 1 {
+		t.Fatalf("timer started %d times at the set point", n)
+	}
+	ds, err := e.ctl.Status(ctx, alice, dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ds.Cook == nil || ds.Cook.TimerWaiting || ds.Cook.StopsAt == nil {
+		t.Fatalf("cook %+v", ds.Cook)
+	}
+
+	// Once started, a timer stopped from the cooker's buttons stays stopped.
+	c.SetState(func(s *wifitest.State) { s.TimerRunning = false })
+	if err := e.ctl.StartWaitingTimer(ctx, id); err != nil || c.Count("start time") != 1 {
+		t.Fatalf("restarted a stopped timer: err=%v", err)
+	}
+}
+
+func TestWaitingTimerStartedFromButtonsClearsFlag(t *testing.T) {
+	e := newEnv(t)
+	alice := storetest.User(t, "alice")
+	dev, id, c := e.paired(t, alice, nil)
+	ctx := context.Background()
+	if _, err := e.ctl.Start(ctx, alice, dev, control.StartCook{Temperature: 57, Unit: commands.Celsius, Minutes: ptr(60)}); err != nil {
+		t.Fatal(err)
+	}
+	c.SetState(func(s *wifitest.State) { s.TimerRunning = true })
+	if err := e.ctl.StartWaitingTimer(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	if n := c.Count("start time"); n != 0 {
+		t.Fatalf("sent start time %d times to a running timer", n)
+	}
+	if n := storetest.Count(t, `select count(*) from public.cooks where device_id = $1 and timer_waiting`, dev); n != 0 {
+		t.Fatal("still waiting")
+	}
+}
+
+func TestUpdateDuringPreheat(t *testing.T) {
+	e := newEnv(t)
+	alice := storetest.User(t, "alice")
+	dev, id, c := e.paired(t, alice, nil)
+	ctx := context.Background()
+	if _, err := e.ctl.Start(ctx, alice, dev, control.StartCook{Temperature: 57, Unit: commands.Celsius}); err != nil {
+		t.Fatal(err)
+	}
+
+	// A timer added while heating up waits too, and auto-stop accepts a waiting timer.
+	ds, err := e.ctl.Update(ctx, alice, dev, control.UpdateCook{Minutes: ptr(45)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ds.Cook.TimerWaiting || c.Count("start time") != 0 {
+		t.Fatalf("cook %+v, commands %v", ds.Cook, cookCmds(c))
+	}
+	waitFor(t, "poll", func() bool { d, _ := e.mgr.Bound(id); return d.State().TimerValue == 45 })
+	if ds, err = e.ctl.Update(ctx, alice, dev, control.UpdateCook{AutoStop: ptr(true)}); err != nil || !ds.Cook.AutoStop {
+		t.Fatalf("auto-stop on a waiting timer: err=%v cook=%+v", err, ds.Cook)
+	}
+	// A waiting timer hasn't finished, even if a caller thinks so.
+	if err := e.ctl.AutoStop(ctx, id, ds.Cook.ID); err != nil || c.Count("stop") != 0 {
+		t.Fatalf("auto-stopped a waiting timer: err=%v", err)
+	}
+	// Changing the length keeps it waiting.
+	if ds, err = e.ctl.Update(ctx, alice, dev, control.UpdateCook{Minutes: ptr(50)}); err != nil || !ds.Cook.TimerWaiting {
+		t.Fatalf("err=%v cook=%+v", err, ds.Cook)
+	}
+	// Clearing it ends the wait.
+	if ds, err = e.ctl.Update(ctx, alice, dev, control.UpdateCook{Minutes: ptr(0)}); err != nil || ds.Cook.TimerWaiting {
+		t.Fatalf("err=%v cook=%+v", err, ds.Cook)
 	}
 }
 
@@ -175,7 +296,7 @@ func TestStartClosesLeftoverRowAsManual(t *testing.T) {
 	e := newEnv(t)
 	alice := storetest.User(t, "alice")
 	dev, _, _ := e.paired(t, alice, nil)
-	old, err := e.st.InsertCook(context.Background(), dev, &alice, true)
+	old, err := e.st.InsertCook(context.Background(), dev, &alice, true, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +320,7 @@ func TestStartClosesLeftoverRowAsManual(t *testing.T) {
 func TestStartTimerFailureStopsHeater(t *testing.T) {
 	e := newEnv(t)
 	alice := storetest.User(t, "alice")
-	dev, _, c := e.paired(t, alice, nil)
+	dev, _, c := e.paired(t, alice, hot())
 	c.SetResponder(func(cmd string, n int) (wifitest.Reply, bool) {
 		if cmd == "start time" {
 			return wifitest.Reply{Drop: true}, true
@@ -309,7 +430,7 @@ func TestUpdateWhileIdleSendsNothing(t *testing.T) {
 func TestUpdateMinutesMovesDeadline(t *testing.T) {
 	e := newEnv(t)
 	alice := storetest.User(t, "alice")
-	dev, id, c := e.paired(t, alice, nil)
+	dev, id, c := e.paired(t, alice, hot())
 	ctx := context.Background()
 	if _, err := e.ctl.Start(ctx, alice, dev, control.StartCook{Temperature: 57, Unit: commands.Celsius, Minutes: ptr(60), AutoStop: true}); err != nil {
 		t.Fatal(err)
@@ -362,7 +483,7 @@ func TestUpdateCookStartedFromButtonsCreatesRow(t *testing.T) {
 func TestAutoStopLeavesAlarmAndStopSilencesIt(t *testing.T) {
 	e := newEnv(t)
 	alice := storetest.User(t, "alice")
-	dev, id, c := e.paired(t, alice, nil)
+	dev, id, c := e.paired(t, alice, hot())
 	ctx := context.Background()
 	ds, err := e.ctl.Start(ctx, alice, dev, control.StartCook{Temperature: 57, Unit: commands.Celsius, Minutes: ptr(1), AutoStop: true})
 	if err != nil {
@@ -409,7 +530,7 @@ func TestAutoStopLeavesAlarmAndStopSilencesIt(t *testing.T) {
 func TestSilenceIsSharedByEveryReader(t *testing.T) {
 	e := newEnv(t)
 	alice, bob := storetest.User(t, "alice"), storetest.User(t, "bob")
-	dev, id, c := e.paired(t, alice, nil)
+	dev, id, c := e.paired(t, alice, hot())
 	storetest.AddMember(t, dev, bob)
 	ctx := context.Background()
 	ds, err := e.ctl.Start(ctx, alice, dev, control.StartCook{Temperature: 57, Unit: commands.Celsius, Minutes: ptr(1), AutoStop: true})

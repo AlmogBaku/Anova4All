@@ -56,6 +56,7 @@ token with `client_id` get `401`. On `401`, refresh the session once and retry.
     "started_at": "…",
     "auto_stop": true,
     "stops_at": "…",                // only while open, auto_stop on and timer running
+    "timer_waiting": true,          // open cook whose timer waits for the set point; omitted when false
     "ended_at": "…",                // closed cooks only
     "end_reason": "auto_stop",      // auto_stop | stopped | manual
     "alarm": true                   // ended by auto-stop and not silenced yet; omitted when false
@@ -99,9 +100,16 @@ Ranges: 25–100 °C, 77–211 °F, timer 0–6000 minutes.
 `minutes` and `auto_stop` are optional; `auto_stop` needs `minutes > 0`.
 Refused with `cook_in_progress` while heating.
 
+Timer start: as in the Anova app, the timer is set at Start but counts down only once
+the water reaches the set point (within 0.5 °C / 1 °F below it, or anywhere above it).
+Until then the open cook has `timer_waiting: true`, `timer_running` is false and there is
+no `stops_at`; the server starts the timer when a reading (or the cooker's temp-reached
+event) shows the water there. Stopping the timer from the cooker afterwards is left alone.
+
 `UpdateCook`: any of `{"temperature", "unit", "minutes", "auto_stop"}`; `temperature`
-and `unit` go together. `minutes` sets and starts the timer (`0` stops it and turns
-auto-stop off). `auto_stop: true` needs a running timer or `minutes`. Refused with
+and `unit` go together. `minutes` sets the timer and starts it, or leaves it waiting while the water is
+below the set point (`0` stops it and turns auto-stop off). `auto_stop: true` needs a
+running or waiting timer, or `minutes`. Refused with
 `no_active_cook` when not heating, so an update never starts the heater.
 
 Stop: stops heating and the timer and silences the alarm (not a low-water alarm). Works

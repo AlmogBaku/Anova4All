@@ -30,6 +30,7 @@ select throws_ok($$ update public.cooks set ended_at = now(), end_reason = 'time
 select throws_ok($$ update public.cooks set ended_at = now() where ended_at is null $$,
   '23514', null, 'ended_at requires end_reason');
 select is((select auto_stop from public.cooks where ended_at is null), false, 'auto_stop defaults to off');
+select is((select timer_waiting from public.cooks where ended_at is null), false, 'timer_waiting defaults to off');
 select is((select name from public.devices where id_card = 'anova f00000000000000000000000'), 'Kitchen 🍲 cooker', 'sanity');
 
 select * from finish();

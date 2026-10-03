@@ -637,6 +637,11 @@ function Heating({
           {shown.minutes === 0 ? "None" : formatMinutes(shown.minutes)}
         </output>
       </Stepper>
+      {view.timerWaiting && shown.minutes > 0 && (
+        <p className="muted small" style={{ padding: "0 0.25rem" }}>
+          Timer starts at {formatNumber(view.target)} {unitLabel(view.unit)}
+        </p>
+      )}
       <AutoStop
         checked={shown.autoStop && shown.minutes > 0}
         disabled={busy || shown.minutes === 0}

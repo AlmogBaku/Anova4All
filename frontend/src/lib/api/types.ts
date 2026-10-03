@@ -29,6 +29,8 @@ export interface Cook {
   auto_stop: boolean;
   /** Only while open, auto_stop on and the timer running. */
   stops_at?: string;
+  /** The timer is set but waiting for the water to reach the target temperature before starting. Open cooks only. */
+  timer_waiting?: boolean;
   /** Closed cooks only. */
   ended_at?: string;
   end_reason?: CookEndReason;

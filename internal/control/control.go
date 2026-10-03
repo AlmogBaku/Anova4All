@@ -29,6 +29,19 @@ const (
 
 const opTimeout = 20 * time.Second
 
+// The water counts as at the set point within this much below it (or anywhere above it).
+const reachedC, reachedF = 0.5, 1.0
+
+// Reached reports whether the water is at the set point, so a waiting timer may start.
+// Water hotter than the set point counts: the cooker can't cool it.
+func Reached(st wifi.DeviceState) bool {
+	tol := reachedC
+	if st.Unit == commands.Fahrenheit {
+		tol = reachedF
+	}
+	return st.CurrentTemperature >= st.TargetTemperature-tol
+}
+
 // Link is the part of the cooker registry control needs (implemented by *wifi.Manager).
 type Link interface {
 	Bound(idCard string) (wifi.AnovaDevice, bool)
@@ -85,8 +98,10 @@ type CookInfo struct {
 	StartedAt time.Time  `json:"started_at"`
 	AutoStop  bool       `json:"auto_stop"`
 	StopsAt   *time.Time `json:"stops_at,omitempty"`
-	EndedAt   *time.Time `json:"ended_at,omitempty"`
-	EndReason *string    `json:"end_reason,omitempty"`
+	// TimerWaiting: the timer is set and starts when the water reaches the set point.
+	TimerWaiting bool       `json:"timer_waiting,omitempty"`
+	EndedAt      *time.Time `json:"ended_at,omitempty"`
+	EndReason    *string    `json:"end_reason,omitempty"`
 	// Alarm: this cook ended by auto-stop and nobody has silenced the alarm yet.
 	Alarm bool `json:"alarm,omitempty"`
 }
@@ -152,7 +167,8 @@ func (s *Service) status(ctx context.Context, a store.Access) (DeviceStatus, err
 	case err != nil:
 		return DeviceStatus{}, err
 	default:
-		ds.Cook = &CookInfo{ID: c.ID, StartedAt: c.StartedAt, AutoStop: c.AutoStop, EndedAt: c.EndedAt, EndReason: c.EndReason}
+		ds.Cook = &CookInfo{ID: c.ID, StartedAt: c.StartedAt, AutoStop: c.AutoStop, TimerWaiting: c.TimerWaiting && c.EndedAt == nil,
+			EndedAt: c.EndedAt, EndReason: c.EndReason}
 		if c.EndedAt != nil {
 			s.mu.Lock()
 			ds.Cook.Alarm = s.alarms[a.ID] == c.ID
@@ -301,20 +317,21 @@ func (s *Service) Start(ctx context.Context, user, deviceID uuid.UUID, in StartC
 		}
 		steps = append(steps, commands.SetTargetTemperature{Temperature: in.Temperature, Unit: in.Unit})
 		if in.Minutes != nil {
-			steps = append(steps, commands.SetTimer{Minutes: *in.Minutes})
+			steps = append(steps, commands.StopTimer{}, commands.SetTimer{Minutes: *in.Minutes})
 		}
 		steps = append(steps, commands.StartDevice{})
 		if err := s.run(ctx, dev, steps...); err != nil {
 			return err
 		}
+		waiting := false
 		if in.Minutes != nil && *in.Minutes > 0 {
-			if err := s.run(ctx, dev, commands.StartTimer{}); err != nil {
+			if waiting, err = s.startTimerAtSetPoint(ctx, dev); err != nil {
 				// Don't leave it heating with no row: auto-stop would never fire.
 				_ = s.run(ctx, dev, commands.StopDevice{})
 				return err
 			}
 		}
-		_, err = s.st.InsertCook(ctx, a.ID, &user, in.AutoStop)
+		_, err = s.st.InsertCook(ctx, a.ID, &user, in.AutoStop, waiting)
 		return err
 	}()
 	s.notifyEnded(a, ended)
@@ -347,12 +364,20 @@ func (s *Service) Update(ctx context.Context, user, deviceID uuid.UUID, in Updat
 		if status != commands.Running {
 			return ErrNoActiveCook
 		}
+		c, err := s.st.OpenCook(ctx, a.ID)
+		if errors.Is(err, store.ErrNotFound) { // started from the cooker's buttons
+			c, err = s.st.InsertCook(ctx, a.ID, nil, false, false)
+		}
+		if err != nil {
+			return err
+		}
+		st := dev.State()
 		if in.AutoStop != nil && *in.AutoStop && in.Minutes == nil {
-			st := dev.State()
-			if !st.TimerRunning || st.TimerValue == 0 {
+			if st.TimerValue == 0 || !st.TimerRunning && !c.TimerWaiting {
 				return invalid("auto_stop needs a timer")
 			}
 		}
+		waiting := c.TimerWaiting
 		var steps []commands.Command
 		if in.Temperature != nil {
 			if steps, err = s.unitSteps(ctx, dev, *in.Unit); err != nil {
@@ -361,23 +386,30 @@ func (s *Service) Update(ctx context.Context, user, deviceID uuid.UUID, in Updat
 			steps = append(steps, commands.SetTargetTemperature{Temperature: *in.Temperature, Unit: *in.Unit})
 		}
 		if in.Minutes != nil {
-			if *in.Minutes > 0 {
+			switch {
+			case *in.Minutes > 0 && st.TimerRunning:
 				steps = append(steps, commands.SetTimer{Minutes: *in.Minutes}, commands.StartTimer{})
-			} else {
+			case *in.Minutes > 0:
+				steps = append(steps, commands.SetTimer{Minutes: *in.Minutes})
+			default:
 				steps = append(steps, commands.StopTimer{}, commands.SetTimer{Minutes: 0})
+				waiting = false
 			}
 		}
 		if err := s.run(ctx, dev, steps...); err != nil {
 			return err
 		}
-		s.log.Info("cook updated", zap.Stringer("device", a.ID), zap.Stringer("user", user), zap.Strings("commands", lines(steps)))
-
-		c, err := s.st.OpenCook(ctx, a.ID)
-		if errors.Is(err, store.ErrNotFound) { // started from the cooker's buttons
-			c, err = s.st.InsertCook(ctx, a.ID, nil, false)
+		if in.Minutes != nil && *in.Minutes > 0 && !st.TimerRunning {
+			// A new timer during preheat waits for the set point too.
+			if waiting, err = s.startTimerAtSetPoint(ctx, dev); err != nil {
+				return err
+			}
 		}
-		if err != nil {
-			return err
+		s.log.Info("cook updated", zap.Stringer("device", a.ID), zap.Stringer("user", user), zap.Strings("commands", lines(steps)))
+		if waiting != c.TimerWaiting {
+			if err := s.st.SetCookTimerWaiting(ctx, c.ID, waiting); err != nil {
+				return err
+			}
 		}
 		autoStop := c.AutoStop
 		if in.AutoStop != nil {
@@ -466,8 +498,8 @@ func (s *Service) AutoStop(ctx context.Context, idCard string, cookID uuid.UUID)
 		if err != nil {
 			return false, err
 		}
-		if c.ID != cookID || !c.AutoStop {
-			return false, nil
+		if c.ID != cookID || !c.AutoStop || c.TimerWaiting {
+			return false, nil // a waiting timer hasn't run yet, so it can't have finished
 		}
 		dev, ok := s.link.Bound(idCard)
 		if !ok {
@@ -495,6 +527,63 @@ func (s *Service) AutoStop(ctx context.Context, idCard string, cookID uuid.UUID)
 	if closed {
 		s.log.Info("cook auto-stopped", zap.Stringer("device", d.ID))
 		s.notifyEnded(store.Access{Device: d}, []string{store.EndAutoStop})
+	}
+	return err
+}
+
+// StartWaitingTimer starts the open cook's waiting timer if a fresh read shows the water
+// at the set point. It is a no-op if no timer is waiting.
+func (s *Service) StartWaitingTimer(ctx context.Context, idCard string) error {
+	ctx, cancel := context.WithTimeout(ctx, opTimeout)
+	defer cancel()
+	unlock := s.lock(idCard)
+	var d store.Device
+	started, err := func() (bool, error) {
+		defer unlock()
+		var err error
+		d, err = s.st.DeviceByIDCard(ctx, idCard)
+		if errors.Is(err, store.ErrNotFound) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		c, err := s.st.OpenCook(ctx, d.ID)
+		if errors.Is(err, store.ErrNotFound) {
+			return false, nil
+		}
+		if err != nil || !c.TimerWaiting {
+			return false, err
+		}
+		dev, ok := s.link.Bound(idCard)
+		if !ok {
+			return false, ErrDeviceOffline
+		}
+		status, err := s.readStatus(ctx, dev)
+		if err != nil || status != commands.Running {
+			return false, err // heating stopped: the cook is closed elsewhere
+		}
+		for _, cmd := range []commands.Command{commands.GetTimerStatus{}, commands.GetTemperatureUnit{}, commands.GetTargetTemperature{}, commands.GetCurrentTemperature{}} {
+			if _, err := s.send(ctx, dev, cmd); err != nil {
+				return false, err
+			}
+		}
+		st := dev.State() // now holds the reads above
+		switch {
+		case st.TimerRunning || st.TimerValue == 0:
+			// Started from the cooker's buttons, or cleared there: nothing left to wait for.
+		case !Reached(st):
+			return false, nil
+		default:
+			if err := s.run(ctx, dev, commands.StartTimer{}); err != nil {
+				return false, err
+			}
+		}
+		return true, s.st.SetCookTimerWaiting(ctx, c.ID, false)
+	}()
+	if started {
+		s.log.Info("cook timer started", zap.Stringer("device", d.ID))
+		s.notifyChanged(idCard)
 	}
 	return err
 }
@@ -710,6 +799,19 @@ func (s *Service) send(ctx context.Context, dev wifi.AnovaDevice, cmd commands.C
 		return nil, fmt.Errorf("cooker command %T: %w", cmd, err)
 	}
 	return v, nil
+}
+
+// startTimerAtSetPoint starts the set timer if the water is at the set point, and reports
+// whether it is left waiting (internal/cook starts it later). The water temperature is read
+// fresh: after a unit change the cached one is in the old unit.
+func (s *Service) startTimerAtSetPoint(ctx context.Context, dev wifi.AnovaDevice) (waiting bool, err error) {
+	if _, err := s.send(ctx, dev, commands.GetCurrentTemperature{}); err != nil {
+		return false, err
+	}
+	if !Reached(dev.State()) {
+		return true, nil
+	}
+	return false, s.run(ctx, dev, commands.StartTimer{})
 }
 
 // lines is what a cook operation sent, for the log. Cook steps never carry the key.

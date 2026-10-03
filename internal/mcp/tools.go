@@ -131,7 +131,8 @@ func (s *server) addTools() {
 	s.add(&sdk.Tool{
 		Name:  ToolStart,
 		Title: "Start a cook",
-		Description: "Starts heating to a temperature, optionally with a timer. With auto_stop the cooker stops " +
+		Description: "Starts heating to a temperature, optionally with a timer. The timer starts when the water " +
+			"reaches the temperature, as in the Anova app. With auto_stop the cooker stops " +
 			"heating when the timer ends (the alarm still sounds). Refused with cook_in_progress if the cooker " +
 			"is already heating: use anova_update_cook instead.",
 		InputSchema: &jsonschema.Schema{Type: "object", AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
@@ -153,7 +154,7 @@ func (s *server) addTools() {
 		Name:  ToolUpdate,
 		Title: "Change the cook",
 		Description: "Changes the cook that is running: the temperature (with unit), the timer (minutes sets " +
-			"and starts it; 0 clears it) and auto_stop. Pass only what changes. Refused with no_active_cook if " +
+			"it, starting it once the water is at temperature; 0 clears it) and auto_stop. Pass only what changes. Refused with no_active_cook if " +
 			"the cooker isn't heating: it never starts the heater, use anova_start_cook for that.",
 		InputSchema: &jsonschema.Schema{Type: "object", AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 			Properties: map[string]*jsonschema.Schema{
@@ -162,8 +163,8 @@ func (s *server) addTools() {
 				"unit": {Type: "string", Enum: []any{"c", "f"}, Description: `Unit of temperature, "c" or "f". Required with temperature. ` +
 					`The cooker's display switches to this unit, so use the unit anova_status reports unless the user asks for the other one.`},
 				"minutes": {Type: "integer", Minimum: ptr(0.0), Maximum: ptr(6000.0),
-					Description: "New timer length in minutes (0–6000); it restarts the timer. 0 clears the timer and turns auto_stop off."},
-				"auto_stop": {Type: "boolean", Description: "Turn stopping at the timer's end on or off. Needs a running timer."},
+					Description: "New timer length in minutes (0–6000); it restarts the timer (during preheat it waits for the temperature). 0 clears the timer and turns auto_stop off."},
+				"auto_stop": {Type: "boolean", Description: "Turn stopping at the timer's end on or off. Needs a running or waiting timer."},
 			}},
 		Annotations: &sdk.ToolAnnotations{Title: "Change the cook", IdempotentHint: true, OpenWorldHint: boolPtr(false)},
 		Meta:        ui,
@@ -464,6 +465,8 @@ func summary(ds control.DeviceStatus) string {
 	switch {
 	case st.TimerRunning:
 		fmt.Fprintf(&b, "; timer running, %d min left", st.TimerValue)
+	case st.TimerValue > 0 && ds.Cook != nil && ds.Cook.TimerWaiting:
+		fmt.Fprintf(&b, "; timer set to %d min, starts when the water reaches %.1f °%s", st.TimerValue, st.TargetTemperature, unit)
 	case st.TimerValue > 0:
 		fmt.Fprintf(&b, "; timer set to %d min, not running", st.TimerValue)
 	}

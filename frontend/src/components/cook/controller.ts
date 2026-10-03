@@ -49,6 +49,8 @@ export interface CookView {
   autoStopped: boolean;
   /** ISO time the cooker stops on its own. */
   stopsAt?: string;
+  /** The timer is set but waiting for the water to reach the target temperature. Heating mode only. */
+  timerWaiting?: boolean;
 }
 
 export interface CookApi {
@@ -106,11 +108,12 @@ const isValid = (i: Invalid) => !i.temperature && !i.minutes && !i.autoStop;
 
 function serverValues(s: DeviceStatus | null, st = s?.state): CookValues {
   if (!st) return DEFAULTS;
+  const openCook = s?.cook && !s.cook.ended_at ? s.cook : undefined;
   return {
     temperature: st.target_temperature,
     unit: st.unit,
-    minutes: st.timer_running ? st.timer_value : 0,
-    autoStop: !!(s?.cook && !s.cook.ended_at && s.cook.auto_stop),
+    minutes: st.timer_running || openCook?.timer_waiting ? st.timer_value : 0,
+    autoStop: !!openCook?.auto_stop,
   };
 }
 
@@ -407,6 +410,8 @@ export class CookController {
       !!cook.ended_at &&
       !!cook.alarm &&
       this.now() - Date.parse(cook.ended_at) < AUTO_STOP_NOTICE_MS;
+    const openCook =
+      mode === "heating" && cook && !cook.ended_at ? cook : undefined;
     return {
       mode,
       values,
@@ -416,7 +421,8 @@ export class CookController {
       invalid: this.invalid,
       error: this.error,
       autoStopped,
-      stopsAt: mode === "heating" ? cook?.stops_at : undefined,
+      stopsAt: openCook?.stops_at,
+      timerWaiting: openCook?.timer_waiting,
     };
   }
 

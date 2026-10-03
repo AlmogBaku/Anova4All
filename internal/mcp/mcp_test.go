@@ -538,9 +538,13 @@ func TestCookToolsGoThroughControl(t *testing.T) {
 	if r.isError {
 		t.Fatalf("start: %s", r.text)
 	}
-	want := []string{"set temp 57.0", "set timer 60", "start", "start time"}
+	// The water is cold: the timer waits for the set point.
+	want := []string{"set temp 57.0", "stop time", "set timer 60", "start"}
 	if got := cookCmds(conn); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("commands %v, want %v", got, want)
+	}
+	if !strings.Contains(r.text, "timer set to 60 min, starts when the water reaches 57.0 °C") {
+		t.Fatalf("start text %q", r.text)
 	}
 	if len(r.res.Devices) != 1 || r.res.Devices[0].ID != dev || r.res.Devices[0].Cook == nil || !r.res.Devices[0].Cook.AutoStop {
 		t.Fatalf("start result %+v", r.res.Devices)
@@ -556,7 +560,7 @@ func TestCookToolsGoThroughControl(t *testing.T) {
 	if r.isError {
 		t.Fatalf("update: %s", r.text)
 	}
-	if got := cookCmds(conn)[before:]; strings.Join(got, ",") != "set timer 30,start time" {
+	if got := cookCmds(conn)[before:]; strings.Join(got, ",") != "set timer 30" { // still waiting
 		t.Fatalf("update commands %v", got)
 	}
 

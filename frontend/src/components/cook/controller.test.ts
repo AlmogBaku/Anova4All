@@ -232,6 +232,17 @@ describe("CookController while heating", () => {
       values: { autoStop: true, minutes: 30 },
     });
   });
+
+  it("shows timer_waiting and the set timer value during preheat", () => {
+    const s = heating({ timer_running: false, timer_value: 45 });
+    s.cook = { ...s.cook!, auto_stop: true, timer_waiting: true };
+    const { c } = harness(s);
+    expect(c.getSnapshot()).toMatchObject({
+      timerWaiting: true,
+      values: { autoStop: true, minutes: 45 },
+      stopsAt: undefined,
+    });
+  });
 });
 
 describe("auto-stop notice", () => {

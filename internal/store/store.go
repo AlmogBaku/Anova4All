@@ -40,8 +40,10 @@ type Cook struct {
 	DeviceID  uuid.UUID
 	StartedAt time.Time
 	AutoStop  bool
-	EndedAt   *time.Time
-	EndReason *string
+	// TimerWaiting: the timer is set but waits for the water to reach the set point.
+	TimerWaiting bool
+	EndedAt      *time.Time
+	EndReason    *string
 }
 
 // End reasons (must match the cooks.end_reason check constraint).
@@ -223,11 +225,11 @@ func (s *Store) TouchLastSeen(ctx context.Context, deviceID uuid.UUID) error {
 	return err
 }
 
-const cookCols = `id, device_id, started_at, auto_stop, ended_at, end_reason`
+const cookCols = `id, device_id, started_at, auto_stop, timer_waiting, ended_at, end_reason`
 
 func scanCook(row pgx.Row) (Cook, error) {
 	var c Cook
-	err := row.Scan(&c.ID, &c.DeviceID, &c.StartedAt, &c.AutoStop, &c.EndedAt, &c.EndReason)
+	err := row.Scan(&c.ID, &c.DeviceID, &c.StartedAt, &c.AutoStop, &c.TimerWaiting, &c.EndedAt, &c.EndReason)
 	return c, err
 }
 
@@ -266,9 +268,9 @@ func (s *Store) OpenCooks(ctx context.Context) ([]Cook, error) {
 }
 
 // InsertCook opens a cook row. startedBy is nil for a cook started from the cooker's buttons.
-func (s *Store) InsertCook(ctx context.Context, deviceID uuid.UUID, startedBy *uuid.UUID, autoStop bool) (Cook, error) {
-	c, err := scanCook(s.pool.QueryRow(ctx, `insert into public.cooks (device_id, started_by, auto_stop) values ($1, $2, $3)
-		returning `+cookCols, deviceID, startedBy, autoStop))
+func (s *Store) InsertCook(ctx context.Context, deviceID uuid.UUID, startedBy *uuid.UUID, autoStop, timerWaiting bool) (Cook, error) {
+	c, err := scanCook(s.pool.QueryRow(ctx, `insert into public.cooks (device_id, started_by, auto_stop, timer_waiting) values ($1, $2, $3, $4)
+		returning `+cookCols, deviceID, startedBy, autoStop, timerWaiting))
 	if err != nil {
 		return Cook{}, fmt.Errorf("insert cook: %w", err)
 	}
@@ -278,6 +280,12 @@ func (s *Store) InsertCook(ctx context.Context, deviceID uuid.UUID, startedBy *u
 // SetCookAutoStop changes the auto-stop flag of an open cook.
 func (s *Store) SetCookAutoStop(ctx context.Context, cookID uuid.UUID, on bool) error {
 	_, err := s.pool.Exec(ctx, `update public.cooks set auto_stop = $2 where id = $1 and ended_at is null`, cookID, on)
+	return err
+}
+
+// SetCookTimerWaiting changes the timer-waiting flag of an open cook.
+func (s *Store) SetCookTimerWaiting(ctx context.Context, cookID uuid.UUID, on bool) error {
+	_, err := s.pool.Exec(ctx, `update public.cooks set timer_waiting = $2 where id = $1 and ended_at is null`, cookID, on)
 	return err
 }
 

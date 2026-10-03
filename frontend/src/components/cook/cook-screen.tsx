@@ -178,6 +178,11 @@ export function CookScreen({
           disabled={!canEdit}
           onChange={(m) => controller.editMinutes(m)}
         />
+        {heating && view.timerWaiting && (
+          <p className="px-1 text-[0.8125rem] text-ink-soft">
+            Timer starts at {values.temperature} °{values.unit.toUpperCase()}
+          </p>
+        )}
         <AutoStopField
           checked={values.autoStop}
           disabled={!canEdit || values.minutes === 0}

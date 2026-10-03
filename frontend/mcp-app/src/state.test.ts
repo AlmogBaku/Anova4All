@@ -87,6 +87,7 @@ describe("deriveView", () => {
       unit: "c",
       timerRunning: true,
       timerMinutes: 90,
+      timerWaiting: false,
       autoStop: true,
       stopsAt: "2026-10-01T13:30:00Z",
       notice: null,
@@ -99,7 +100,40 @@ describe("deriveView", () => {
     });
     d.state!.status = "running";
     expect(deriveView(data({ devices: [d], deviceId: ID }), NOW)).toMatchObject(
-      { kind: "heating", autoStop: false, stopsAt: null, timerMinutes: 0 },
+      {
+        kind: "heating",
+        autoStop: false,
+        stopsAt: null,
+        timerMinutes: 0,
+        timerWaiting: false,
+      },
+    );
+  });
+
+  it("shows timer_waiting during preheat with a set timer", () => {
+    const d = device({
+      cook: {
+        id: "c1",
+        started_at: "2026-10-01T11:00:00Z",
+        auto_stop: true,
+        timer_waiting: true,
+      },
+    });
+    Object.assign(d.state!, {
+      status: "running",
+      current_temperature: 45,
+      timer_running: false,
+      timer_value: 60,
+    });
+    expect(deriveView(data({ devices: [d], deviceId: ID }), NOW)).toMatchObject(
+      {
+        kind: "heating",
+        timerRunning: false,
+        timerMinutes: 60,
+        timerWaiting: true,
+        autoStop: true,
+        stopsAt: null,
+      },
     );
   });
 

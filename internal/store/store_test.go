@@ -74,7 +74,7 @@ func TestClaimAndVerify(t *testing.T) {
 		t.Fatalf("unknown id card: ok=%v err=%v", ok, err)
 	}
 	storetest.AddMember(t, d1.ID, bob)
-	if _, err := st.InsertCook(ctx, d1.ID, &alice, false); err != nil {
+	if _, err := st.InsertCook(ctx, d1.ID, &alice, false, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -147,11 +147,11 @@ func TestAccessAndCooks(t *testing.T) {
 		t.Fatalf("eve lists %d devices", len(list))
 	}
 
-	c, err := st.InsertCook(ctx, d.ID, &alice, true)
+	c, err := st.InsertCook(ctx, d.ID, &alice, true, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.InsertCook(ctx, d.ID, nil, false); err == nil {
+	if _, err := st.InsertCook(ctx, d.ID, nil, false, false); err == nil {
 		t.Fatal("second open cook allowed")
 	}
 	if closed, err := st.CloseCook(ctx, c.ID, store.EndAutoStop); !closed || err != nil {
