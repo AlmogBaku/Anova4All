@@ -34,7 +34,7 @@ The only way to keep using an Anova Wi-Fi 1 after the cloud shut down.
 
 ## Constraints
 
-- Keep the name "Anova4All" (the README also writes it "Anova for All"). There is an existing simple logo at `.github/logo.svg`.
+- Keep the name "Anova4All", written as one word. There is an existing simple logo at `.github/logo.svg`.
 - Support light and dark themes, following the system setting.
 - Celsius and Fahrenheit are both first-class. The limits are 25–100 °C (77–211 °F) and 0–6000 min.
 - Bluetooth setup needs a browser with Web Bluetooth, which means Chrome on Android or desktop. iOS Safari can't run setup, but it can still control cooks.

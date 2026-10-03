@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src=".github/logo.svg" width="48" alt="Anova4All logo">
-
-# Anova for All
+# <img src=".github/logo.svg" height="44" align="center" alt=""> Anova4All
 
 **Anova killed the cloud for its Wi-Fi sous vide. This brings it back, and lets Claude or ChatGPT cook with it.**
 
@@ -17,11 +15,6 @@
 <img src=".github/screenshot.jpg" width="300" alt="The Anova4All cook screen on a phone, heating to 57 °C with a 1.5-hour timer and auto-stop on">
 
 </div>
-
-> [!IMPORTANT]
-> **Why this exists:** Anova shut down the cloud service behind the Precision Cooker Wi-Fi (the first generation). The
-> cooker still heats water perfectly well, but the official app can no longer reach it, so a working cooker became
-> a brick on the counter.
 
 Anova4All replaces that cloud. The cooker connects to an Anova4All server instead of Anova's, and you control it from
 an AI assistant over MCP, or from a web app on your phone or desktop. You don't need to patch DNS or open the cooker.
