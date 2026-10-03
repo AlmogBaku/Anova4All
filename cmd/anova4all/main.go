@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -187,7 +188,7 @@ func run(ctx context.Context, cfg *viper.Viper, logger *zap.Logger) error {
 		logger.Info("http server started", zap.String("addr", addr), zap.Bool("tls", tls))
 		return nil
 	}
-	if err := serve(fmt.Sprintf("127.0.0.1:%d", cfg.GetInt("rest_server_port")), false); err != nil {
+	if err := serve(net.JoinHostPort(cfg.GetString("rest_server_host"), strconv.Itoa(cfg.GetInt("rest_server_port"))), false); err != nil {
 		return err
 	}
 	if p := cfg.GetInt("rest_server_tls_port"); p > 0 {
@@ -244,6 +245,7 @@ func loadConfig() *viper.Viper {
 	v.AutomaticEnv()
 	v.SetDefault("env", "prod")
 	v.SetDefault("anova_server_port", 8080)
+	v.SetDefault("rest_server_host", "127.0.0.1")
 	v.SetDefault("rest_server_port", 8000)
 	v.SetDefault("rest_server_tls_port", -1)
 	v.SetDefault("rest_server_tls_cert", "")
