@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Design brief — Anova4All hosted, reliable, redesigned</title>
+<style>
+  :root{--ink:#1d1f23;--mute:#5b6270;--line:#d9dde3;--bg:#fbfbfa;--card:#fff;--accent:#0b6bcb;--warn:#a15c00;--ok:#1d7a3a;--yours:#6b3fb8}
+  *{box-sizing:border-box}
+  body{margin:0;font:15.5px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+  main{max-width:980px;margin:0 auto;padding:40px 24px 120px}
+  h1{font-size:28px;line-height:1.2;margin:0 0 6px}
+  .sub{color:var(--mute);margin:0 0 28px}
+  h2{font-size:20px;margin:44px 0 10px;padding-top:14px;border-top:1px solid var(--line)}
+  h3{font-size:16px;margin:24px 0 6px}
+  p,li{max-width:76ch}
+  code{font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;background:#f0f2f5;padding:1px 5px;border-radius:4px}
+  nav.toc{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:14px;margin-bottom:8px}
+  nav.toc a{color:var(--accent);text-decoration:none}
+  .fig{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin:14px 0}
+  .fig svg{width:100%;height:auto;display:block}
+  .walk{color:var(--mute);font-size:14px;margin:8px 0 0}
+  table{border-collapse:collapse;width:100%;font-size:14px;background:var(--card)}
+  th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+  th{background:#f3f5f8;font-weight:600}
+  .dec{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:14px 0}
+  .dec h3{margin:0 0 4px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+  .tag{font-size:11.5px;font-weight:600;letter-spacing:.02em;padding:2px 8px;border-radius:99px;border:1px solid}
+  .tag.yours{color:var(--yours);border-color:#cdb8ef;background:#f6f1fd}
+  .tag.mine{color:var(--accent);border-color:#b5d3f3;background:#eef6fe}
+  .tag.open{color:var(--warn);border-color:#f0cf9f;background:#fff6e8}
+  .ctx{color:var(--mute);margin:4px 0 10px}
+  .hint{font-size:12.5px;color:var(--mute);margin:2px 0 6px}
+  .opts{display:flex;flex-direction:column;gap:6px}
+  .opt{all:unset;cursor:pointer;display:block;border:1px solid var(--line);border-radius:8px;padding:8px 11px;background:#fafbfc}
+  .opt:hover{border-color:#b9c2cf}
+  .opt[aria-expanded=true]{border-color:var(--accent);background:#f2f8ff}
+  .opt b{font-weight:600}
+  .opt .chosen{color:var(--ok);font-weight:600;font-size:12.5px;margin-left:6px}
+  .panel{display:none;border-left:3px solid var(--accent);margin:4px 0 4px 10px;padding:6px 12px;background:#fff;font-size:14px}
+  .panel.show{display:block}
+  .panel dt{font-weight:600;margin-top:4px}
+  .panel dd{margin:0 0 2px}
+  details.comp{background:var(--card);border:1px solid var(--line);border-radius:8px;margin:8px 0;padding:8px 12px}
+  details.comp summary{cursor:pointer;font-weight:600}
+  .callout{border:1px solid #f0cf9f;background:#fff9ef;border-radius:8px;padding:10px 14px;margin:14px 0}
+  .lockq{border:2px solid var(--accent);border-radius:10px;padding:14px 16px;background:#f2f8ff;margin-top:30px}
+  ul.tight li{margin:2px 0}
+</style>
+</head>
+<body>
+<main>
+<p class="sub" style="border:1px solid currentColor;padding:.75rem"><strong>Superseded in part (2026-10-01).</strong> The approved plan simplified this brief and added MCP access. Where they differ, the Decisions in <code>dazzling-tumbling-ripple.md</code> win: pairing has no key-must-change rule, no server-side Bluetooth linking, membership is read per command (no 15 s cache), and Claude/ChatGPT access over MCP is added.</p>
+<h1>Anova4All: hosted, reliable, redesigned</h1>
+<p class="sub">Design brief to lock before the plan is written. Examples use made-up data (alice@example.com, cooker <code>anova a3-demo0001</code>).</p>
+<nav class="toc">
+  <a href="#problem">Problem</a><a href="#current">Current state</a><a href="#defects">Defects &amp; fixes</a><a href="#solution">Proposed solution</a>
+  <a href="#traces">Traces</a><a href="#decisions">Decisions</a><a href="#risks">Risks</a>
+  <a href="#changes">Behavior changes</a><a href="#nongoals">Non-goals</a><a href="#open">Open questions</a>
+</nav>
+
+<h2 id="problem">Problem</h2>
+<p>Anova shut down the cloud for the original Wi-Fi sous-vide cooker (the 900W "A3"). Anova4All stands in for that cloud: the cooker dials into our server over TCP and the browser controls it. Today it only works for one household, and it is unreliable:</p>
+<ul class="tight">
+  <li><b>Commands get lost or crossed.</b> After one slow reply, every later reply gets matched to the wrong command (seen live as "parse error in GetTimerStatus"). A connection that hits a read error stays "alive" and every command after it times out.</li>
+  <li><b>The UI lies or goes blank.</b> Live updates on the multi-user branch never arrive: subscribers are keyed by database ID, broadcasts by the cooker's ID card. When the cooker is offline the screen shows an empty <code>°F</code> instead of saying so.</li>
+  <li><b>Setup fails silently.</b> Bluetooth writes over 20 bytes get cut, so Wi-Fi details arrive truncated. A cancelled scan shows nothing. No screen explains how to get the cooker ready.</li>
+  <li><b>The multi-user branch (<code>feat/store</code>) can't run.</b> It crashes at startup (two route patterns conflict), crashes on requests (wrong user-ID type), and its database rule lets a user rewrite the ownership and key of their own devices.</li>
+  <li><b>A finished timer doesn't stop cooking.</b> The cooker only beeps and keeps heating.</li>
+</ul>
+<p>Why now: you want other Anova Wi-Fi owners to use it. They need to sign up, set up a cooker without help, and trust that it does what the screen says.</p>
+
+<h2 id="current">Current state</h2>
+<ul class="tight">
+  <li><b>Running today (master, on the Pi):</b> Go server, no login. The browser stores the cooker's ID and key in localStorage and calls <code>/api/devices/:device_id/*</code>. The UI is served from the Pi and from GitHub Pages.</li>
+  <li><b>Cooker link</b> (<code>pkg/wifi</code>): the cooker connects to TCP 8080. <code>connection.go</code> holds one pending-reply slot with a 10 s timeout. <code>device.go</code> polls 6 commands every 2 s. <code>manager.go</code> tracks devices by ID card.</li>
+  <li><b>Live updates</b> (<code>internal/rest/sse.go</code>): one goroutine per message per subscriber, no de-duplication, no initial state.</li>
+  <li><b>Multi-user branch</b> (<code>feat/store</code>): Supabase login in the browser. Go checks Supabase tokens with a shared secret (<code>JWT_SECRET</code>). Postgres through sqlx/lib-pq, schema in <code>init.sql</code> (<code>devices.user_id</code>, RLS). Pairing in <code>internal/store/store.go</code>. Frontend moved to Bun, Tailwind 4 and shadcn, still on React 18.</li>
+  <li><b>Setup</b> (<code>frontend/src/components/device-setup.tsx</code>, <code>lib/client/ble/*</code>): Web Bluetooth sends <code>server para</code>, <code>wifi para</code>, <code>set number</code>; no chunking; listeners leak on timeout.</li>
+  <li><b>New Supabase project</b> is live and empty. It signs login tokens with ES256 keys published as a key list (JWKS). The database URL uses the session pooler (IPv4), which the Pi needs.</li>
+</ul>
+
+<h2 id="defects">Defects found, and the fix for each</h2>
+<p>From reading <code>feat/store</code>. Line numbers refer to that branch. "Seen" means we hit it on the real cooker. Every fix below is a requirement, and each one gets a test that fails before the fix.</p>
+
+<h3>A. Cooker link: <code>pkg/wifi/connection.go</code></h3>
+<table>
+<tr><th>#</th><th>Where</th><th>Defect</th><th>Effect</th><th>Fix</th></tr>
+<tr><td>A1</td><td>:89–135, :171</td><td>One pending-reply slot (<code>responseQueue</code>) with a 10 s timeout. A timed-out command leaves its reply in flight, so the next command reads it.</td><td><b>Seen:</b> every reply shifts by one ("parse error in GetTimerStatus", target temperature read as the timer value). It lasts until the link drops.</td><td>One writer goroutine. Exactly one command in flight. Each command carries an expected-reply validator. After a timeout, a drain window (≈1 s) discards the late reply before the next command is sent.</td></tr>
+<tr><td>A2</td><td>:90, :92, :140–171</td><td><code>responseQueue</code> is set and cleared under <code>cmdLock</code>, but <code>listen()</code> reads it with no lock.</td><td>Data race. A reply can land on a channel that was just set to nil or replaced, and be lost or misrouted. <code>-race</code> would flag it.</td><td>Reply routing is owned by a single goroutine that holds the pending command. No shared mutable fields.</td></tr>
+<tr><td>A3</td><td>:181–200</td><td>Reads use a single <code>Read(1024)</code>, which assumes one TCP read is one message. Only a trailing <code>0x16</code> is stripped.</td><td>Two messages in one read decode as garbage. A message split across reads fails to decode. Both kill the link (see A5).</td><td><code>bufio.Reader.ReadBytes(0x16)</code>. Frame first, then decode.</td></tr>
+<tr><td>A4</td><td>:112</td><td>Inverted check: it cancels only when the flush error is <i>not</i> EOF/closed.</td><td>A closed socket leaves the connection "alive". Every later command waits the full 10 s.</td><td>Any write error closes the connection and goes through the single disconnect path.</td></tr>
+<tr><td>A5</td><td>:143–148, :184–188</td><td>A decode error or a non-EOF read error makes <code>listen()</code> return without cancelling the context.</td><td><b>Seen:</b> a zombie link. The device stays registered and nothing is read again. Every command times out until the process restarts.</td><td>The read loop owns the context. Any exit from it cancels the context, and cancelling closes the socket.</td></tr>
+<tr><td>A6</td><td>:58–62, :146</td><td>On cancel, <code>close(responseQueue)</code> runs while <code>listen()</code> may still send on it.</td><td>Panic: send on closed channel.</td><td>No channel closes across goroutines. Pending commands fail through context cancellation.</td></tr>
+<tr><td>A7</td><td>—</td><td>No read or write deadlines.</td><td>A half-open TCP connection (the cooker lost power or Wi-Fi) is never noticed.</td><td><code>SetWriteDeadline</code> per write. Liveness from the heartbeat (B2). TCP keepalive at 15 s.</td></tr>
+<tr><td>A8</td><td>:155–165</td><td>The event callback runs inline on the read goroutine.</td><td>A slow subscriber stalls all reads, so commands time out.</td><td>Events go onto a buffered channel and are handled off the read loop.</td></tr>
+</table>
+
+<h3>B. Device, manager, server: <code>pkg/wifi/device.go</code>, <code>manager.go</code>, <code>server.go</code></h3>
+<table>
+<tr><th>#</th><th>Where</th><th>Defect</th><th>Effect</th><th>Fix</th></tr>
+<tr><td>B1</td><td>device.go:137–163</td><td>The heartbeat sends 6 commands back to back every 2 s, each with up to 10 s timeout. User commands queue behind them.</td><td><b>Seen:</b> Start, Stop and set temperature take seconds or time out. A single slow reply makes the backlog grow.</td><td>A priority queue: user commands go before polls. One poll pass per tick, skipped while a pass is still running or user commands are waiting. 3 s per-command timeout.</td></tr>
+<tr><td>B2</td><td>device.go:158–160</td><td>Heartbeat failures are only logged.</td><td>A dead cooker looks online forever.</td><td>3 consecutive failed polls close the connection, giving offline within about 6 s.</td></tr>
+<tr><td>B3</td><td>device.go:75</td><td><code>%e</code> instead of <code>%w</code>.</td><td>Handshake errors print as junk and can't be unwrapped.</td><td><code>%w</code>.</td></tr>
+<tr><td>B4</td><td>device.go:73–76; server.go:117–131</td><td>A failed handshake doesn't close the connection. <code>handleConnection</code> then blocks on <i>server</i> shutdown, not on the connection's end.</td><td>Goroutine and socket leak per failed or ended connection. On a Pi with 512 MB it piles up across reconnects.</td><td>The handshake fails, so the connection closes. The handler returns when the connection context ends.</td></tr>
+<tr><td>B5</td><td>device.go:78–83; manager.go:124–145</td><td>On a reconnect, the old device's disconnect callback calls <code>LoadAndDelete(idCard)</code>, which removes the <i>new</i> device.</td><td><b>Seen:</b> after a Wi-Fi blip the cooker is connected but shows offline until it reconnects again.</td><td>Compare and delete: only remove the entry if it still points to this device instance.</td></tr>
+<tr><td>B6</td><td>manager.go:131–133</td><td>Callbacks are set after the device has started its heartbeat and its context watcher.</td><td>The first state changes, or an immediate disconnect, are dropped.</td><td>Pass callbacks to the constructor before any goroutine starts.</td></tr>
+<tr><td>B7</td><td>device.go:185–219, :221–246</td><td>State and event callbacks run while holding <code>stateChangeMu</code>.</td><td>A callback that reads <code>State()</code> deadlocks. A slow subscriber blocks polling.</td><td>Copy the state under the lock, then call back after unlocking.</td></tr>
+<tr><td>B8</td><td>device.go:191–209</td><td>Unchecked type assertions on decoded replies. <code>SetTargetTemperature</code> and <code>SetTimer</code> share cases with getters whose types differ.</td><td>A misrouted reply (A1) becomes a <b>panic</b> that kills the process.</td><td>Checked assertions. A reply of the wrong type is rejected, never applied.</td></tr>
+<tr><td>B9</td><td>device.go:225–240</td><td>Unknown events, such as <code>change temp</code> or <code>user changed</code>, return an error. <code>time finish</code> only flips <code>TimerRunning</code>.</td><td>Changes made on the cooker's buttons only show up at the next poll. Auto-stop has no event to hook.</td><td>Handle every event the protocol defines, and forward <code>time finish</code> to the auto-stop service.</td></tr>
+<tr><td>B10</td><td>device.go:295</td><td><code>String()</code> includes the secret key.</td><td>The key leaks into any log line that formats the device.</td><td>Remove it. The key is never logged.</td></tr>
+<tr><td>B11</td><td>server.go:95–109</td><td>The accept loop exits on the first non-timeout error.</td><td>One transient error, such as running out of file descriptors, and no cooker can connect until a restart.</td><td>Back off and continue. Exit only on <code>net.ErrClosed</code>.</td></tr>
+</table>
+
+<h3>C. Live stream: <code>internal/rest/sse.go</code> and the browser client</h3>
+<table>
+<tr><th>#</th><th>Where</th><th>Defect</th><th>Effect</th><th>Fix</th></tr>
+<tr><td>C1</td><td>sse.go:29 vs :63, :79; wifi.go:35</td><td>Subscribers are keyed by the URL's database UUID. Broadcasts are keyed by the cooker's ID card.</td><td><b>No live update is ever delivered</b> on <code>feat/store</code>.</td><td>Key both sides by device UUID, resolving the ID card to the UUID once per connection.</td></tr>
+<tr><td>C2</td><td>sse.go:53–55, :41–42</td><td>A goroutine per event per subscriber. Disconnect closes the channel while those goroutines may still send.</td><td>Panic on send to a closed channel, plus goroutine growth on every state tick.</td><td>A per-subscriber buffer (16) with a non-blocking drop-oldest send. Never close from the sender side.</td></tr>
+<tr><td>C3</td><td>sse.go:79–87 with device.go:212</td><td>Every poll reply broadcasts the full state, about 3 per second, even when nothing changed.</td><td>Wasted traffic, and React re-renders that reset half-typed inputs.</td><td>Send only when the state changes (compare with the last state sent).</td></tr>
+<tr><td>C4</td><td>sse.go:106–124</td><td>No initial state. <code>WriteHeader</code> is sent before the Flusher check. No <code>X-Accel-Buffering</code>. 30 s ping.</td><td><b>Seen:</b> blank <code>°F</code> until the first change. The stream silently stalls behind proxies.</td><td>Send state and online status immediately. Check the Flusher first. 15 s ping.</td></tr>
+<tr><td>C5</td><td>client.ts:198–217; device.ts:118–150</td><td>A non-OK <code>onopen</code> is only logged. Any error aborts and closes, and <code>subscribeToEvents</code> recurses straight away with no backoff and the same, possibly expired, token.</td><td>A tight reconnect loop when the token expires or the server is down. The UI shows stale data as if it were live.</td><td>Exponential backoff (1→30 s) with jitter. Refresh the token on 401. An explicit <code>connection</code> state that the UI displays.</td></tr>
+<tr><td>C6</td><td>device.ts:128–133</td><td>Online/offline changes mutate <code>_state</code> without calling the change handler.</td><td>The UI never shows "Cooker offline".</td><td>Treat online/offline as state changes.</td></tr>
+<tr><td>C7</td><td>device.ts:12–17, :40</td><td><code>stop()</code> only sets a flag that's checked after the next event. The open stream is never aborted.</td><td>Switching devices or signing out leaks streams, each with a stale token.</td><td><code>stop()</code> aborts the stream's AbortController.</td></tr>
+</table>
+
+<h3>D. HTTP server, auth and data: <code>cmd/anova4all/main.go</code>, <code>internal/rest/*</code>, <code>internal/store/store.go</code></h3>
+<table>
+<tr><th>#</th><th>Where</th><th>Defect</th><th>Effect</th><th>Fix</th></tr>
+<tr><td>D1</td><td>wifi.go:13, :16 vs device_handlers.go:29–31</td><td><code>:device_id</code> and <code>:deviceID</code> wildcards under the same prefix, and <code>GET /api/devices</code> registered twice.</td><td><b>gin panics at startup.</b> The branch can't run.</td><td>One wildcard name. Drop the device list endpoint; the list comes from Supabase.</td></tr>
+<tr><td>D2</td><td>device_handlers.go:52, :80, :106</td><td><code>userID.(string)</code>, but the middleware stores a <code>uuid.UUID</code>.</td><td>Panic on pair, unpair or list.</td><td>One typed helper, <code>userIDFrom(c)</code>.</td></tr>
+<tr><td>D3</td><td>wifi.go:201</td><td><code>timer.(int)</code>, but <code>GetTimerStatus</code> decodes to <code>TimerStatus</code>.</td><td>Panic on <code>GET /timer</code>.</td><td>Use the decoded type.</td></tr>
+<tr><td>D4</td><td>auth.go:52–58</td><td>HS256 with <code>JWT_SECRET</code> only.</td><td>Every token from the new project (ES256) is rejected.</td><td>Verify against the JWKS (see decisions). Check <code>iss</code>, <code>aud</code> and <code>exp</code>.</td></tr>
+<tr><td>D5</td><td>auth.go:15–36, :84–88</td><td><code>adminAuth</code> skips auth for any private IP.</td><td>On a public server behind a router, every forwarded request comes from a LAN IP, so it bypasses auth.</td><td>Remove it.</td></tr>
+<tr><td>D6</td><td>auth.go:122–139; device_handlers.go:145</td><td>Ownership is checked by listing all the user's devices and looping, once per request, including every poll.</td><td>A Pi-to-Frankfurt round trip on every command.</td><td>One membership query plus a 15 s cache.</td></tr>
+<tr><td>D7</td><td>store.go:97–153</td><td>Pairing compares against a hash taken at connect time, then <code>time.Sleep</code>-retries and re-reads the key.</td><td>Pairing right after setup usually fails the first attempt. A wrong key costs 3+ seconds and isn't rate-limited.</td><td>Read the key from the live cooker once, compare in constant time, rate-limit (see decisions).</td></tr>
+<tr><td>D8</td><td>init.sql</td><td><code>GRANT UPDATE ON devices TO authenticated</code> with a USING-only policy.</td><td>A user can rewrite <code>user_id</code>, <code>id_card</code> and <code>secret_key</code> of their own rows, for example to hand a device to someone else.</td><td>Column grants: only <code>name</code> and the auto-stop flag. pgTAP test.</td></tr>
+<tr><td>D9</td><td>main.go:39–45, :73–75</td><td>Manager and service creation errors are logged and execution continues.</td><td>A nil-pointer panic one line later.</td><td>Fatal on error.</td></tr>
+<tr><td>D10</td><td>main.go:89–97</td><td>The TLS server runs in the foreground.</td><td>Signals are never handled. No graceful shutdown, so cookers and streams are cut mid-command.</td><td>All servers run in goroutines. On a signal, shut down HTTP and TLS, then the manager, then the pool.</td></tr>
+<tr><td>D11</td><td>service.go:51–55</td><td><code>AllowAllOrigins</code> with <code>AllowCredentials</code>.</td><td>Any site can call the API.</td><td>A <code>CORS_ORIGINS</code> allow-list.</td></tr>
+<tr><td>D12</td><td>all handlers</td><td>Raw <code>err.Error()</code> with status 500.</td><td>The UI can't tell offline from timeout from forbidden, so it shows generic errors.</td><td>Typed codes: <code>device_offline</code>, <code>timeout</code>, <code>not_member</code>, <code>key_mismatch</code>, <code>rate_limited</code>.</td></tr>
+<tr><td>D13</td><td>store.go:54, :87</td><td><code>go handleDeviceConnected(context.Background())</code>, with no timeout, logging through the <code>log</code> package.</td><td>A DB hang leaks goroutines. Logs bypass zap.</td><td>A context with timeout, and zap.</td></tr>
+</table>
+
+<h3>E. Bluetooth setup in the browser: <code>lib/client/ble/client.ts</code>, <code>commands.ts</code>, <code>components/device-setup.tsx</code></h3>
+<table>
+<tr><th>#</th><th>Where</th><th>Defect</th><th>Effect</th><th>Fix</th></tr>
+<tr><td>E1</td><td>client.ts:100–101</td><td>The whole command is written in one <code>writeValueWithoutResponse</code>. The cooker's characteristic takes 20 bytes per write.</td><td><b>Seen:</b> <code>wifi para 2 MyNetwork pass… WPA2PSK AES</code> (well over 20 bytes) arrives truncated. Wi-Fi setup "succeeds" but the cooker never joins.</td><td>Split into 20-byte chunks, about 30 ms apart, terminated by <code>\r</code>.</td></tr>
+<tr><td>E2</td><td>client.ts:162–186, :148–155</td><td>Each command calls <code>startNotifications()</code> again and adds a listener. On timeout the listener is never removed, and the timeout timer is never cleared.</td><td>Listeners pile up. A late reply resolves a <i>later</i> command, the same off-by-one as A1. Over a setup run it becomes unpredictable.</td><td>Start notifications once at connect. A single listener feeds a line buffer. The pending command resolves on <code>\r</code>. Timeout clears both.</td></tr>
+<tr><td>E3</td><td>client.ts:91–96</td><td>The lock is replaced before the previous holder releases. Two callers waiting on the same promise both proceed.</td><td>Two commands in flight interleave their replies.</td><td>A real FIFO operation queue.</td></tr>
+<tr><td>E4</td><td>client.ts:29–35</td><td>The <code>idCard</code> getter fires an async fetch and returns <code>undefined</code>.</td><td>Setup can pair with an empty ID card (device-setup.tsx:53 reads it right after connect).</td><td><code>connect()</code> returns the ID card, read with <code>get id card</code>, and setup refuses to continue without it.</td></tr>
+<tr><td>E5</td><td>—</td><td>No <code>gattserverdisconnected</code> handler.</td><td>A dropped link surfaces as "Command timed out" after 8 s, with no reconnect.</td><td>Typed <code>BleDisconnected</code> error. One automatic reconnect, then resume the step.</td></tr>
+<tr><td>E6</td><td>client.ts:66–83</td><td><code>disconnect()</code> only runs on the happy path, and calls <code>device.forget()</code>.</td><td>After a failure the cooker stays connected to the browser and stops advertising, so the next scan finds nothing until a power cycle. <code>forget()</code> forces the permission prompt every time.</td><td>Always disconnect (in a <code>finally</code> and on page unload). No <code>forget()</code>.</td></tr>
+<tr><td>E7</td><td>device-setup.tsx:38–40</td><td>Scan errors are only logged.</td><td>Cancelled picker, Bluetooth off, or an unsupported browser all show nothing.</td><td>Map <code>NotFoundError</code>, <code>SecurityError</code> and <code>NotSupportedError</code> to specific guidance.</td></tr>
+<tr><td>E8</td><td>device-setup.tsx:83–93</td><td>With "Reset secret key" unchecked, pairing is skipped entirely, yet it reports "Setup complete".</td><td>A configured cooker the user can't control.</td><td>Removed. Every setup writes a fresh key and pairs.</td></tr>
+<tr><td>E9</td><td>device-setup.tsx:67–100</td><td>One <code>try</code> around every step. Any failure drops back to the form and the next attempt redoes everything.</td><td>A failure at "pair" re-writes Wi-Fi and the key. That may make the cooker reconnect and lose the race again.</td><td>A step machine with steps that are safe to repeat. Retry resumes at the failed step.</td></tr>
+<tr><td>E10</td><td>device-setup.tsx:91; commands.ts:70–71</td><td>No check that the cooker reached our server before pairing. SSID and password aren't validated, though <code>wifi para</code> is space-separated.</td><td>Pairing fails with "secret mismatch" when the real cause is that the cooker isn't online. An SSID with a space silently breaks.</td><td>After writing, wait (up to 60 s, with progress) for the cooker to dial in, then pair. Reject spaces and non-printable ASCII up front, and say why.</td></tr>
+<tr><td>E11</td><td>anova.tsx:86–90</td><td>The server address comes from <code>/api/server_info</code>, which reports the Pi's LAN IP, and is cached in localStorage forever.</td><td>Remote cookers are pointed at <code>192.168.x.x</code> and never dial in. A changed IP is never picked up.</td><td>Fetch fresh on each setup. The server reports its configured public address. Reject <code>.local</code> and private IPs for remote use.</td></tr>
+</table>
+
+<h3>F. Bluetooth on the server: <code>pkg/ble/ble.go</code>, <code>internal/rest/ble.go</code> (kept for internal use only; see decision "Server-side linking")</h3>
+<table>
+<tr><th>#</th><th>Where</th><th>Defect</th><th>Effect</th><th>Fix</th></tr>
+<tr><td>F1</td><td>ble.go:75–89</td><td><code>[16]byte(anovaUUID)</code> on a 2-byte slice.</td><td>Panic on connect.</td><td><code>bluetooth.New16BitUUID(0xFFE0/0xFFE1)</code>.</td></tr>
+<tr><td>F2</td><td>ble.go:108–121</td><td>No chunking. A reply is read with a single <code>Read</code> of 20 bytes, not via notifications.</td><td>Same truncation as E1, and replies over 20 bytes are cut.</td><td>Chunked writes and a notification line buffer.</td></tr>
+<tr><td>F3</td><td>ble.go:42–47; rest/ble.go</td><td>The scan timeout closes <code>devChan</code> while the scan callback may still send. Each REST call scans and connects again, and never disconnects.</td><td>Panic, and the cooker is left connected (it stops advertising).</td><td>Guarded channel, a context timeout, and <code>defer Disconnect</code>. One shared Bluetooth session per request instead of scan-per-call.</td></tr>
+<tr><td>F4</td><td>rest/ble.go routes + auth.go:84–88</td><td>The <code>/api/ble/*</code> routes are protected only by <code>adminAuth</code>. It lets any private IP through, and they share the public listener.</td><td>Once the API is port-forwarded, anyone reaching it through the router counts as "local". They could rewrite the cooker's server, key or Wi-Fi from the internet.</td><td>Move them to a separate internal listener (see decision). Never registered on the public router.</td></tr>
+</table>
+
+<h3>G. Cooker server once it's public: new requirements, not current defects</h3>
+<p>Scale: a hobby service for tens of users at most. These are the few things that keep connections dependable once port 8080 is open to the internet. Production-scale hardening (per-IP limits, adaptive polling, metrics, watchdogs) is deliberately left out.</p>
+<table>
+<tr><th>#</th><th>Weakness</th><th>Effect without it</th><th>Requirement</th></tr>
+<tr><td>G1</td><td>A second connection with an existing ID card replaces the first one (manager.go:124).</td><td>Anyone can kick a real cooker offline and take its commands. A cooker reconnecting from a stale socket can also knock out its own live connection.</td><td>A newcomer replaces the live connection only if its key (<code>get number</code>) matches the stored one. If not, it's parked as "unclaimed" and gets no commands.</td></tr>
+<tr><td>G2</td><td>No frame size limit and no handshake deadline.</td><td>A junk or half-open client holds a goroutine and unbounded memory forever.</td><td>Frames over 1 KB close the connection. The handshake must finish within 10 s.</td></tr>
+<tr><td>G3</td><td>A timeout on a user command is final.</td><td>One lost packet means "failed" in the UI even though the cooker is fine.</td><td>Commands that are safe to repeat (set temperature, set timer, reads) retry once. Start and stop re-read the status instead of resending blindly.</td></tr>
+<tr><td>G4</td><td>Commands to an offline cooker aren't defined.</td><td>Requests hang.</td><td>Fail immediately with <code>device_offline</code>. Nothing is queued.</td></tr>
+<tr><td>G5</td><td>The process isn't restarted on a crash.</td><td>One panic means everyone is offline until you SSH in.</td><td>systemd <code>Restart=always</code>. <code>/health</code> lists connected cookers.</td></tr>
+</table>
+
+<p><b>Outcome:</b> one hosted server that many owners sign up to. Each owner pairs their cooker through a guided setup, shares it with their household by link, and controls it reliably. An optional auto-stop ends cooking when the timer runs out.</p>
+<h3>Requirements</h3>
+<ul class="tight">
+  <li>Sign up, confirm email, sign in and reset password, all from the browser through Supabase Auth.</li>
+  <li>A person sees and controls only the cookers they own or were invited to. The database enforces this, not just the UI.</li>
+  <li><b>Pairing only happens in the browser, next to the cooker.</b> The browser connects over Bluetooth, which only works within a few metres, and writes a fresh key. The server then checks that the live cooker reports that same key. There is no way to pair remotely.</li>
+  <li><b>Setup has to feel smooth.</b> One guided flow from power-up to cooking. Bluetooth hiccups are retried automatically. A failed step can be retried on its own, without starting over. Every wait shows progress, and every failure names the fix.</li>
+  <li>Owners invite members with a one-time link (expires in 7 days). Members control the cooker; only owners rename, invite, remove members or unpair.</li>
+  <li><b>Scale:</b> tens of users at most. Prefer the simplest fix that makes connections dependable; no production-scale machinery.</li>
+  <li><b>Every defect A1–F4 above is fixed, plus G1–G5</b>, each with a test that fails before the fix: a fake TCP cooker for A–B, an SSE harness for C, handler tests for D, a fake GATT characteristic for E. Go tests run with <code>-race</code>.</li>
+  <li>Commands never get crossed. A dead link is noticed within about 6 s and the UI says "Cooker offline". It recovers without a page reload.</li>
+  <li>Setup explains how to get the cooker ready, checks Wi-Fi details before sending them, and tells you which step failed and what to do.</li>
+  <li>Auto-stop is per cook and off by default. When on, the server sends stop at timer end and the alarm keeps sounding. It survives a server restart.</li>
+  <li>Redesigned UI (setup, cook screen, device settings, sign-in, invite), built with the impeccable design process.</li>
+  <li><b>Compatibility:</b> none. Clean cut-over from master. On deploy you sign up and re-pair the cooker. The Pi keeps a backup of the old build for rollback.</li>
+</ul>
+
+<div class="fig">
+<svg viewBox="0 0 900 330" role="img" aria-label="Architecture: browser talks to Supabase for auth and data, and to the Go server for live control; the cooker dials into the Go server; the Go server reads and writes Supabase Postgres">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#5b6270"/></marker></defs>
+  <style>.b{fill:#fff;stroke:#9aa3b1;stroke-width:1.2}.n{fill:#eef6fe;stroke:#0b6bcb;stroke-width:1.6}.t{font:600 14px -apple-system,Segoe UI,sans-serif;fill:#1d1f23}.s{font:12px -apple-system,Segoe UI,sans-serif;fill:#5b6270}.l{stroke:#5b6270;stroke-width:1.3;fill:none}.e{font:11.5px -apple-system,Segoe UI,sans-serif;fill:#3a4150}</style>
+  <rect class="b" x="20" y="120" width="170" height="90" rx="10"/><text class="t" x="105" y="152" text-anchor="middle">Browser</text><text class="s" x="105" y="172" text-anchor="middle">React 19 UI</text><text class="s" x="105" y="190" text-anchor="middle">Web Bluetooth (setup)</text>
+  <rect class="b" x="360" y="20" width="200" height="96" rx="10"/><text class="t" x="460" y="50" text-anchor="middle">Supabase</text><text class="s" x="460" y="70" text-anchor="middle">Auth (sign-up, tokens, JWKS)</text><text class="s" x="460" y="88" text-anchor="middle">Postgres + RLS</text><text class="s" x="460" y="106" text-anchor="middle">devices · members · invites · cooks</text>
+  <rect class="n" x="360" y="200" width="200" height="96" rx="10"/><text class="t" x="460" y="230" text-anchor="middle">Go server (Pi)</text><text class="s" x="460" y="250" text-anchor="middle">REST + live stream (SSE)</text><text class="s" x="460" y="268" text-anchor="middle">command queue · auto-stop</text><text class="s" x="460" y="286" text-anchor="middle">pairing check</text>
+  <rect class="b" x="720" y="200" width="160" height="96" rx="10"/><text class="t" x="800" y="238" text-anchor="middle">Cooker</text><text class="s" x="800" y="258" text-anchor="middle">Anova 900W Wi-Fi</text><text class="s" x="800" y="276" text-anchor="middle">dials in, TCP 8080</text>
+  <path class="l" d="M190,140 C270,100 290,80 358,72" marker-end="url(#a)"/><text class="e" x="205" y="96">sign-in, device list,</text><text class="e" x="205" y="110">rename, invites (RLS)</text>
+  <path class="l" d="M190,190 C270,230 290,245 358,248" marker-end="url(#a)"/><text class="e" x="200" y="262">commands + live state</text><text class="e" x="200" y="276">with login token</text>
+  <path class="l" d="M718,248 L562,248" marker-end="url(#a)"/><text class="e" x="590" y="240">cooker dials in</text>
+  <path class="l" d="M460,198 L460,118" marker-end="url(#a)"/><text class="e" x="468" y="150">server role:</text><text class="e" x="468" y="164">ownership, cooks</text><text class="e" x="468" y="178">checks JWKS</text>
+  <path class="l" d="M105,210 C110,315 700,320 790,298" stroke-dasharray="5 4" marker-end="url(#a)"/><text class="e" x="330" y="322">setup only: Bluetooth writes Wi-Fi + server address + key</text>
+</svg>
+<p class="walk">The browser signs in with Supabase and reads its own devices straight from the database, which only returns rows you're allowed to see. For anything live it calls the Go server with the same login token. Go holds the cooker connections, checks your membership, and records ownership and cooks in the database.</p>
+</div>
+
+<h3>Components</h3>
+<p class="hint">Click a component to see what changes inside it.</p>
+<details class="comp"><summary>Database (Supabase migrations)</summary>
+<ul class="tight">
+<li><code>devices</code>: id, id_card, key fingerprint, name, next-cook auto-stop flag, last seen.</li>
+<li><code>device_members</code>: (device, user, role owner|member). One owner per device.</li>
+<li><code>device_invites</code>: hashed one-time token, expiry, used-by.</li>
+<li><code>cooks</code>: start, end, auto-stop, timer deadline, end reason. One open cook per device.</li>
+<li>Row-level security on every table. Helper functions live in a private schema. Clients may update only <code>name</code> and the auto-stop flag. Three narrow database functions: create invite, accept invite, unpair.</li>
+<li>A dedicated <code>anova_server</code> login role with explicit grants and policies, never the superuser.</li>
+<li>Access-rule tests (pgTAP) run against a local Supabase in Docker.</li></ul></details>
+<details class="comp"><summary>Go: login check, authorization, store</summary>
+<ul class="tight">
+<li>Verifies Supabase tokens against the project's published ES256 keys (<code>golang-jwt/v5</code> + <code>MicahParks/keyfunc/v3</code>). Removes <code>JWT_SECRET</code> and the "LAN IPs skip login" admin check.</li>
+<li>Store rewritten on <code>jackc/pgx/v5</code> (<code>pgxpool</code>, small pool, statement timeout, retry at startup).</li>
+<li>Membership is checked with one query, cached briefly.</li>
+<li>Pairing endpoint checks the key against the live cooker, with rate limits.</li></ul></details>
+<details class="comp"><summary>Go: cooker link (<code>pkg/wifi</code>) and live stream</summary>
+<ul class="tight">
+<li>Messages are split on the protocol's end byte, not on network reads.</li>
+<li>One command in flight at a time, user commands ahead of polling. A reply counts only if it fits the command. After a timeout, the late reply is thrown away.</li>
+<li>Read/write deadlines. Any read error, or 3 missed heartbeats, closes the link.</li>
+<li>Reconnect-safe device registry. Callbacks run outside locks.</li>
+<li>Live stream: keyed by device id, current state sent on connect, sends only on change, explicit online/offline/cook-ended events, never blocks.</li></ul></details>
+<details class="comp"><summary>Go: auto-stop service</summary>
+<p>Opens a cook when heating starts and closes it when it stops. Detects timer end from any of: the cooker's "time finish" event, polling (timer was counting down, now 0, still heating), or after a restart the stored deadline has passed. Sends one prioritized stop with retries and records why the cook ended.</p></details>
+<details class="comp"><summary>Frontend</summary>
+<ul class="tight">
+<li>Dependency refresh: React 19, latest supabase-js (publishable key), Vite 7, react-router 7, shadcn re-init.</li>
+<li>Data access split: Supabase for auth, devices, members and invites; Go for live state and commands.</li>
+<li>Connection state shown everywhere: connecting / live / server offline / cooker offline.</li>
+<li>Bluetooth setup client rebuilt:
+<ul>
+<li>One operation at a time, written in 20-byte chunks.</li>
+<li>Replies are buffered until a full line arrives.</li>
+<li>Each command times out and is retried twice.</li>
+<li>One automatic reconnect if the link drops.</li>
+<li>Always disconnects at the end, so the cooker advertises again.</li>
+</ul></li>
+<li>Setup is a step machine. Each step is safe to repeat, so "Retry" resumes from the failed step. It confirms the model with <code>get id card</code> before writing anything.</li>
+<li>Redesign through impeccable. The visual direction is chosen with you before any visual code.</li></ul></details>
+<details class="comp"><summary>Deploy</summary>
+<ul class="tight">
+<li>Pi build for armv6. Env file with the server-role database URL, mode 600.</li>
+<li>Router forwards public TCP 8080 to the Pi so other people's cookers can reach it.</li>
+<li>GitHub Pages build points at the Pi API. CORS allow-list instead of "allow all".</li></ul></details>
+
+<h2 id="traces">Traces</h2>
+<p>The same scenario through every role, then one withheld action, one round trip and one refusal.</p>
+<h3>Scenario: Alice (owner) invites Bob (member); Eve is another user; Mallory is not signed in</h3>
+<table>
+<tr><th>Step</th><th>Browser</th><th>Supabase (RLS)</th><th>Go server</th><th>Cooker</th></tr>
+<tr><td>Alice pairs <code>a3-demo0001</code></td><td>Bluetooth: Wi-Fi details, server IP, new key. Then <code>POST /api/devices/pair</code></td><td>untouched (Go writes)</td><td>Waits for the cooker to dial in, reads its key live, matches, makes Alice owner</td><td>Reconnects to Wi-Fi and dials in</td></tr>
+<tr><td>Alice creates invite</td><td><code>rpc create_device_invite</code> → link</td><td>Only the owner may. Stores the token hash and returns the token once</td><td>untouched</td><td>untouched</td></tr>
+<tr><td>Bob opens link</td><td>Signs up (confirm email), then <code>rpc accept_device_invite</code></td><td>Checks hash, expiry, unused. Adds Bob as member</td><td>untouched</td><td>untouched</td></tr>
+<tr><td>Bob lists devices</td><td><code>from('devices').select()</code></td><td>Returns <code>a3-demo0001</code> (Bob is a member)</td><td>untouched</td><td>untouched</td></tr>
+<tr><td>Eve lists devices</td><td>same call</td><td>Returns nothing</td><td>untouched</td><td>untouched</td></tr>
+<tr><td>Eve calls Go directly</td><td><code>POST /api/devices/{id}/start</code></td><td>untouched</td><td>Membership lookup finds nothing → <b>403 not_member</b></td><td>untouched</td></tr>
+<tr><td>Mallory (no login)</td><td>any call</td><td><code>anon</code> has no access</td><td><b>401</b></td><td>untouched</td></tr>
+</table>
+<h3>Withheld action: Bob tries to unpair or rename</h3>
+<p>The <code>rpc unpair_device</code> function checks owner inside and refuses. An <code>update devices set name=…</code> matches no row under the owner-only policy, and the UI hides both buttons for members. Bob can still start, stop, and set temperature, timer and auto-stop.</p>
+<h3>Round trip: Bob starts a 90-minute cook with auto-stop</h3>
+<ol class="tight">
+<li>Bob turns on "Stop cooking when timer ends" (sets the next-cook flag) and presses Start. Go puts the commands at the front of the queue: set timer, start.</li>
+<li>The cooker reports it's heating. Go opens a cook, copies auto-stop = on, and stores the deadline. The live stream shows "Stops at 14:30" to Alice and Bob.</li>
+<li>The Pi restarts at 13:00. On reconnect Go finds the open cook and keeps watching.</li>
+<li>At 14:30 the timer ends (event or poll). Go sends stop with retries, records end reason = timer, and sends "cook ended". The cooker beeps and the UI says "Stopped by timer, alarm sounding" with a Silence button.</li>
+</ol>
+<h3>Refusal: Eve tries to claim Alice's cooker by guessing</h3>
+<p>Eve posts <code>pair {id_card: a3-demo0001, key: guess}</code>. Go asks the live cooker for its key. It doesn't match, so Go returns <b>key_mismatch</b>. After 5 tries in 10 minutes (per user, per IP and per device) Go returns <b>rate_limited</b>. Keys are 10 characters of a–z0–9, so guessing is hopeless.</p>
+
+<h2 id="decisions">Decisions</h2>
+<p class="hint">Purple <span class="tag yours">yours</span> = your call (already answered unless marked open). Blue <span class="tag mine">mine</span> = technical, decided from the code and docs. Click an option to see its details.</p>
+<div id="decs"></div>
+
+<h2 id="risks">Risks</h2>
+<ul class="tight">
+  <li><b>Home IP changes break remote cookers.</b> The cooker stores a raw IP (it can't use DNS names in <code>server para</code>). If your public IP changes, every remote cooker needs setup again. Mitigation: a README note now, a static IP or VM later.</li>
+  <li><b>Pi 1 B+ capacity.</b> Single core, 512 MB. Fine for dozens of cookers. The server stays stateless apart from the live connections, so a move needs no code change.</li>
+  <li><b>Supabase free tier.</b> The built-in email sender only sends a few emails per hour, so sign-ups can stall. Add SMTP before going public. The project pauses after a week without activity (live traffic should keep it awake).</li>
+  <li><b>Pi to Frankfurt latency</b> on every membership check. Hence the short cache, which means a removed member keeps control for up to 15 s.</li>
+  <li><b>Exact cooker setup steps</b> aren't documented by Anova (manual behind a login). The copy is verified on your cooker before release.</li>
+  <li><b>Public port 8080</b> exposes the cooker protocol to the internet. Anyone can connect a fake "cooker". It can only register an unowned ID card and can't control anything.</li>
+</ul>
+
+<h2 id="changes">Behavior changes</h2>
+<ul class="tight">
+  <li>Everyone must sign in. The open API and the browser-stored cooker key go away.</li>
+  <li>The GitHub Pages UI stops working until it's rebuilt against the new API.</li>
+  <li>The device list comes from Supabase. Only live data comes from the Pi.</li>
+  <li>Pairing always happens in the browser over Bluetooth with a fresh key. The "reset key" checkbox, which skipped pairing, is removed, and nobody can pair remotely or from iOS.</li>
+  <li>A cooker that reconnects with a different key is parked as "unclaimed" until someone re-pairs it (question 1).</li>
+  <li>New: members, invite links, auto-stop, explicit offline state.</li>
+</ul>
+
+<h2 id="nongoals">Non-goals</h2>
+<ul class="tight">
+  <li>Supporting other models (Nano, Pro, 3.0, Bluetooth-only 800W).</li>
+  <li>Native apps, or iOS Bluetooth (Safari has no Web Bluetooth).</li>
+  <li>Push notifications, recipes, cook history UI beyond the last end reason.</li>
+  <li>Custom SMTP setup (noted as a step before going public).</li>
+  <li>A legacy no-login mode, or migrating master's localStorage settings.</li>
+  <li>Moving off the Pi.</li>
+  <li>Offering server-side Bluetooth linking to other users. It stays an internal tool (see decision "Server-side linking").</li>
+</ul>
+
+<h2 id="open">Open questions</h2>
+<div class="dec">
+<h3>1. A cooker reconnects with a different key: what happens to access? <span class="tag yours">yours · decided</span></h3>
+<p class="ctx"><b>Decided: suspend, and restore if the owner re-pairs.</b> Access stays tied to the stored key. A connection with an unknown key is parked as "unclaimed" (same mechanism as G1), and members see "Cooker was set up again — re-pair to control it". If the original key comes back, nothing changes. If the previous owner pairs the new key, the members are kept. If another user pairs it, everyone else is removed. Nobody's access is deleted just because a connection showed up.</p>
+<div class="opts" data-group="q1"></div>
+</div>
+
+<div class="lockq">
+<b>Lock this design?</b> Nothing is open. Click any decision to check its reasoning.
+</div>
+</main>
+
+<script>
+const DECS = [
+ {t:"Hosting and tenancy", who:"yours", ctx:"Who runs servers, and who signs up.", opts:[
+  {n:"One hosted server on the Pi, many users", c:true, how:"Other owners' cookers dial into your server, and they sign up in the browser.", g:"Zero setup for other owners. One place to fix bugs.", x:"You run a public service on a Pi 1. Home-IP and capacity risks.", e:"Medium.", r:"Yes, the server can move to a VM without code changes."},
+  {n:"Each owner self-hosts", how:"Everyone runs their own server and Supabase.", g:"No shared risk.", x:"Too high a bar for most owners.", e:"Low for you, high for them.", r:"Yes."}]},
+ {t:"Sign-in", who:"yours", ctx:"The new project signs tokens with ES256. Email confirmation is on, using the built-in sender.", opts:[
+  {n:"Supabase Auth, sign-up from the browser", c:true, how:"supabase-js sign-up, confirmation and reset flows.", g:"No auth code to own. Password reset works.", x:"Built-in emails are limited per hour until SMTP is added.", e:"Low.", r:"Yes."},
+  {n:"Auth built into Go", how:"Users and sessions in our database.", g:"No external dependency.", x:"We own password storage, resets and email.", e:"High.", r:"Costly."}]},
+ {t:"Where live control goes", who:"yours", ctx:"The browser needs live state and must send commands.", opts:[
+  {n:"Browser → Go directly (REST + live stream)", c:true, how:"Login token in the Authorization header. Go checks membership.", g:"Lowest latency, and the code already exists.", x:"The Pi must be publicly reachable over HTTPS (it already is).", e:"Low.", r:"Yes."},
+  {n:"Through Supabase Realtime and a command table", how:"Go publishes state to Supabase and reads commands from it.", g:"Browser only talks to Supabase.", x:"Extra hop and latency, and a new command queue to build.", e:"High.", r:"Yes."}]},
+ {t:"How Go checks login tokens", who:"mine", ctx:"The project publishes its signing keys (JWKS, ES256). The current code uses a shared secret, which this project doesn't issue.", opts:[
+  {n:"Verify locally against the cached JWKS", c:true, how:"golang-jwt/v5 + MicahParks/keyfunc/v3 (auto-refresh). Checks issuer, audience 'authenticated' and expiry.", g:"Fast, no network per request, rotation-safe.", x:"A revoked session stays valid until the token expires (1 h default).", e:"Low.", r:"Yes."},
+  {n:"Ask Supabase /auth/v1/user on every request", how:"HTTP call per request.", g:"Instant revocation.", x:"Pi-to-Frankfurt round trip on every command. Fails if Supabase is down.", e:"Low.", r:"Yes."}]},
+ {t:"Who reads and writes which data", who:"mine", ctx:"RLS lets the browser query directly. Go needs to write ownership and cooks.", opts:[
+  {n:"Browser via RLS; Go via a dedicated anova_server role", c:true, how:"The browser reads devices, members and invites under policies and updates only name and the auto-stop flag. Go uses its own role with explicit policies, never the superuser.", g:"The database enforces access. Go can't drop tables.", x:"Two access paths to reason about.", e:"Medium.", r:"Yes."},
+  {n:"Everything through Go", how:"The browser never queries Supabase data.", g:"One access path.", x:"Throws away RLS, and every list or rename needs an endpoint.", e:"Medium.", r:"Yes."}]},
+ {t:"Pairing", who:"yours", ctx:"You need the person standing next to the cooker. Bluetooth range proves that. The server-side check proves the cooker they reached is the one dialling in.", opts:[
+  {n:"Browser over Bluetooth writes a fresh key; Go confirms against the live cooker", c:true, how:"The browser runs setup over Bluetooth, writes a newly generated key, then calls POST /api/devices/pair {id_card, key}. Go reads the key from the live cooker, compares in constant time, and rate-limits per user, IP and device.", g:"Requires being physically there. Correct right after setup. Proves the cooker is online. Simple to rate-limit.", x:"One more endpoint, and Go writes ownership. Needs a phone or laptop with Web Bluetooth (Chrome on Android or desktop; not iOS).", e:"Low.", r:"Yes."},
+  {n:"Pair remotely with the existing key (the old 'reset key' checkbox)", how:"The user types or keeps a key and pairs without Bluetooth.", g:"Works from anywhere, and on iOS.", x:"No proof of being there. Anyone who ever learnt the key can claim the cooker.", e:"Low.", r:"Yes."},
+  {n:"Postgres function from the browser", how:"A SECURITY DEFINER function compares against the stored hash.", g:"No Go endpoint.", x:"The hash is stale right after setup. Needs its own lockout table to stop guessing.", e:"Medium.", r:"Yes."}]},
+ {t:"Server-side linking (internal only)", who:"yours", ctx:"You want to keep linking a cooker from the server's own Bluetooth (pkg/ble, /api/ble/*) for your own use. Nobody else may reach it. Today it sits on the public listener behind a check that treats every forwarded request as 'local' (F4).", opts:[
+  {n:"Separate internal listener, off by default, plus admin credentials", c:true, how:"An INTERNAL_ADDR setting bound to the LAN (e.g. 192.168.1.208:8001, so it's reachable from your home network) starts a second HTTP server that carries only /internal/ble/*. It is never port-forwarded, and requires ADMIN_USERNAME/PASSWORD with no IP bypass. When unset, the routes don't exist. Linking writes the server address and a fresh key over the server's Bluetooth, then claims the device for a given user email through the same claim function the pair endpoint uses. The public listener never registers these routes.", g:"Unreachable from the internet by construction, not by an IP check. Reuses the same claim path, so ownership rules stay identical.", x:"A second listener to configure. The Pi 1 B+ has no built-in Bluetooth, so it needs a USB dongle, and the Pi build must drop -tags no_ble.", e:"Low–medium.", r:"Yes."},
+  {n:"Same listener, admin-only, no IP bypass", how:"Keep /api/ble/* on the public server behind basic auth only.", g:"No second listener.", x:"It's on the internet. One leaked password lets anyone reconfigure the cooker.", e:"Low.", r:"Yes."},
+  {n:"CLI command only", how:"anova4all link --user … runs on the Pi over SSH.", g:"No HTTP surface at all.", x:"No UI. Needs SSH.", e:"Low.", r:"Yes."}]},
+ {t:"Making the Bluetooth setup reliable", who:"mine", ctx:"Writes over 20 bytes get cut, listeners leak on timeout, a dropped link fails silently, and any failure restarts everything. Web Bluetooth is the only browser option; no library speaks this cooker's protocol.", opts:[
+  {n:"Rebuild the Web Bluetooth client and run setup as a step machine", c:true, how:"Operation queue with one write in flight. 20-byte chunks. Line-buffered notification replies. 3 s timeout and 2 retries per command. One auto-reconnect on gattserverdisconnected. Steps are safe to repeat, so retry resumes where it failed. Always disconnect at the end. Unit tests use a fake GATT characteristic.", g:"Removes the truncation and silent-failure classes. Retry doesn't redo finished steps.", x:"Rewrites lib/client/ble and device-setup.", e:"Medium.", r:"Yes."},
+  {n:"Patch the current client", how:"Add chunking and a cleanup in finally.", g:"Smaller diff.", x:"A dropped link and partial progress still mean starting over.", e:"Low.", r:"Yes."}]},
+ {t:"Sharing", who:"yours", ctx:"Households share a cooker.", opts:[
+  {n:"Owner + members, one-time invite links (7 days)", c:true, how:"device_members with roles. Token hash in device_invites. Database functions to create and accept.", g:"Each person has their own login. Access can be revoked.", x:"Two more tables and policies.", e:"Medium.", r:"Yes."},
+  {n:"Single owner", how:"devices.user_id only.", g:"Simplest.", x:"Households share one password.", e:"Low.", r:"Yes."}]},
+ {t:"Cooker link: making commands reliable", who:"mine", ctx:"No existing library speaks this protocol. The fix lives in pkg/wifi.", opts:[
+  {n:"Framed reads, one command in flight, typed reply check, drain after timeout", c:true, how:"bufio split on 0x16. Priority queue (user commands before polling). 3 s timeout. Read/write deadlines. 3 missed heartbeats closes the link.", g:"Removes crossed replies and zombie links at the root. Testable with a fake cooker.", x:"Rewrites the core of connection.go.", e:"Medium.", r:"Yes."},
+  {n:"Patch the current single-slot design", how:"Add locks and shorter timeouts.", g:"Smaller diff.", x:"Crossed replies remain possible.", e:"Low.", r:"Yes."}]},
+ {t:"Auto-stop", who:"yours", ctx:"A finished timer only beeps.", opts:[
+  {n:"Per cook, off by default, server stops, alarm keeps sounding, survives restarts", c:true, how:"cooks table plus a next-cook flag. Timer end from the event, polling, or a passed deadline after a restart. One prioritized stop with retries.", g:"Works with the browser closed.", x:"New service and table.", e:"Medium.", r:"Yes."}]},
+ {t:"Database driver and migrations", who:"yours", ctx:"The session pooler on port 5432 allows prepared statements.", opts:[
+  {n:"pgx/v5 pgxpool; Supabase CLI migrations; pgTAP tests on local Docker", c:true, how:"Small pool (4), statement timeout. supabase/migrations + db push. supabase test db locally.", g:"The current standard Go driver. Access-rule tests never touch production.", x:"Docker must be running for those tests.", e:"Low.", r:"Yes."}]},
+ {t:"Frontend", who:"yours", ctx:"The new publishable key needs current supabase-js. The stack is React 18.", opts:[
+  {n:"Full dependency refresh, then redesign with impeccable", c:true, how:"React 19, Vite 7, react-router 7, shadcn re-init. Visual direction chosen with you before visual code.", g:"Current stack, and one pass for the redesign.", x:"Upgrade churn before visible progress.", e:"Medium.", r:"Yes."},
+  {n:"Minimal bump", how:"Only supabase-js.", g:"Less churn.", x:"The redesign builds on an aging stack.", e:"Low.", r:"Yes."}]},
+ {t:"Compatibility with master", who:"yours", ctx:"Only you run master today.", opts:[
+  {n:"Clean cut-over", c:true, how:"Deploy, sign up, re-pair. Pi backup kept for rollback.", g:"No legacy paths.", x:"5 minutes at the cooker.", e:"Low.", r:"Yes, via the backup."},
+  {n:"Keep a no-login legacy mode", how:"An env flag serves the old open API.", g:"Self-hosters without Supabase keep working.", x:"Two auth paths to maintain. Risky if enabled on a public server.", e:"Medium.", r:"Yes."}]},
+ {t:"Making the server reachable for other cookers", who:"mine", ctx:"The router forwards only 9800 (UI and API) today.", opts:[
+  {n:"Forward public TCP 8080 to the Pi; server_info reports the public IP", c:true, how:"OpenWrt uci redirect.", g:"Remote cookers can connect.", x:"Cookers store a raw IP, so an IP change breaks them.", e:"Low.", r:"Yes."}]}
+];
+const Q1 = [
+ {n:"Suspend access; the same owner re-pairing restores members, anyone else starts fresh", c:true, how:"On a key change Go marks the device unclaimed and keeps a record of the previous owner and members. Commands are refused until someone pairs. If the previous owner pairs, members are restored; otherwise they're removed.", g:"Safe for a second-hand sale, painless when the owner just fixes Wi-Fi.", x:"A little more state (previous-owner record).", e:"Low.", r:"Yes."},
+ {n:"Wipe all access on any key change", how:"Delete members and invites. Whoever pairs next owns it.", g:"Simplest and safest.", x:"The owner fixing Wi-Fi has to re-invite the household.", e:"Low.", r:"Yes."},
+ {n:"Keep access until someone else pairs", how:"Old members keep control. Ownership changes only when a different user pairs.", g:"No disruption.", x:"After a sale the old household can still control the cooker until the buyer pairs.", e:"Low.", r:"Yes."}
+];
+function optHTML(o,i,gid){
+  const id=`${gid}-${i}`;
+  return `<button class="opt" aria-expanded="false" aria-controls="${id}"><b>${o.n}</b>${o.c?'<span class="chosen">✓ chosen</span>':''}${o.rec?'<span class="chosen">recommended</span>':''}</button>
+  <div class="panel" id="${id}"><dl><dt>How</dt><dd>${o.how}</dd><dt>Gains</dt><dd>${o.g}</dd><dt>Costs</dt><dd>${o.x}</dd><dt>Effort / risk</dt><dd>${o.e}</dd><dt>Reversible?</dt><dd>${o.r}</dd></dl></div>`;
+}
+const host=document.getElementById('decs');
+DECS.forEach((d,k)=>{
+  const el=document.createElement('div');el.className='dec';
+  el.innerHTML=`<h3>${k+1}. ${d.t} <span class="tag ${d.who}">${d.who}</span></h3><p class="ctx">${d.ctx}</p><div class="opts">${d.opts.map((o,i)=>optHTML(o,i,'d'+k)).join('')}</div>`;
+  host.appendChild(el);
+});
+document.querySelector('[data-group=q1]').innerHTML=Q1.map((o,i)=>optHTML(o,i,'q1')).join('');
+document.addEventListener('click',e=>{
+  const b=e.target.closest('.opt'); if(!b) return;
+  const p=document.getElementById(b.getAttribute('aria-controls'));
+  const open=b.getAttribute('aria-expanded')==='true';
+  b.setAttribute('aria-expanded',String(!open)); p.classList.toggle('show',!open);
+});
+</script>
+</body>
+</html>

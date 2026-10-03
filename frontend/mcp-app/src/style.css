@@ -1,0 +1,777 @@
+/*
+ * Copper Ring, in plain CSS for the MCP Apps card: a soft paper card with a
+ * hairline, a 270° temperature ring and controls in warm wells. Copper (--heat)
+ * means "heating now": the state dot, the ring's arc and the Stop key.
+ *
+ * The card is the app's own world: its paper and ink are the app's colours
+ * (frontend/src/index.css), not the host's. The host's theme picks light or
+ * dark (see the dark block below), host style variables still set the type
+ * scale and the sans fallback, and the page itself stays transparent so the
+ * host draws whatever sits around it.
+ */
+:root {
+  color-scheme: light;
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
+  --font-weight-normal: 400;
+  --font-weight-semibold: 600;
+  --font-text-md-size: 1rem;
+  --font-text-md-line-height: 1.5;
+  --font-text-sm-size: 0.875rem;
+
+  --steel: #f6f2ee;
+  --rail: #ddd3ca;
+  --rail-hi: #ece4dc;
+  --paper: #fffdfb;
+  --well: #f4eee8;
+  --ink: #1d1814;
+  --ink-soft: #776b61;
+  --heat: #c25429;
+  --heat-hi: #e8834a;
+  --heat-ink: #fffdfb;
+  --danger: #b3261e;
+  --thumb: #ffffff;
+  --unit-thumb: var(--paper);
+  /*
+   * Geist is bundled and registered from bytes (font.ts), since the iframe
+   * CSP blocks font URLs. The rest of the stack only shows if that fails.
+   */
+  --font-card: "Geist Variable", "Geist", var(--font-sans);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/*
+ * Dark, the kitchen at night. The host's theme wins (useHostStyles sets
+ * data-theme on the root); without one, the viewer's system setting decides.
+ * Explicit selectors, not light-dark(): the build lowers light-dark() to a
+ * media query, which would ignore the host's theme.
+ */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --steel: #110e0c;
+  --rail: #3a322b;
+  --rail-hi: #2a241f;
+  --paper: #1a1613;
+  --well: #231e1a;
+  --ink: #f4ede6;
+  --ink-soft: #a89b90;
+  --heat: #e57f4c;
+  --heat-hi: #f2a26c;
+  --heat-ink: #1a1613;
+  --danger: #f2867b;
+  --thumb: #f4ede6;
+  --unit-thumb: #3a322b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --steel: #110e0c;
+    --rail: #3a322b;
+    --rail-hi: #2a241f;
+    --paper: #1a1613;
+    --well: #231e1a;
+    --ink: #f4ede6;
+    --ink-soft: #a89b90;
+    --heat: #e57f4c;
+    --heat-hi: #f2a26c;
+    --heat-ink: #1a1613;
+    --danger: #f2867b;
+    --thumb: #f4ede6;
+    --unit-thumb: #3a322b;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-text-md-size);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--font-text-md-line-height);
+  color: var(--ink);
+  background: transparent;
+  caret-color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Room around the card for focus rings. */
+.card {
+  max-width: 44rem;
+  padding: 0.25rem;
+  font-family: var(--font-card);
+}
+
+.line {
+  margin: 0;
+}
+
+.muted {
+  color: var(--ink-soft);
+}
+
+.small {
+  font-size: 0.8125rem;
+}
+
+.danger {
+  color: var(--danger);
+}
+
+/* --- The card --------------------------------------------------------- */
+
+/* One elevation: a hairline. The host draws the surface around it. */
+.panel {
+  container-type: inline-size;
+  padding: 1rem;
+  border: 1px solid var(--rail-hi);
+  border-radius: 1.125rem;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 1.75rem;
+}
+
+.head h1 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dot {
+  flex-shrink: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink-soft) 50%, transparent);
+  transition:
+    background-color 300ms ease-out,
+    box-shadow 300ms ease-out;
+}
+
+.dot[data-tone="heat"] {
+  background: var(--heat);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--heat) 18%, transparent);
+}
+
+.dot[data-tone="off"] {
+  background: var(--rail);
+}
+
+.spinner {
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  margin-left: auto;
+  color: var(--ink-soft);
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.body {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+/* Wide: the ring on the left, the controls beside it. */
+@container (min-width: 520px) {
+  .body {
+    grid-template-columns: 13rem minmax(0, 1fr);
+    align-items: center;
+    gap: 1.5rem;
+  }
+}
+
+/* --- The ring --------------------------------------------------------- */
+
+.ring {
+  position: relative;
+  width: 100%;
+  max-width: 12.5rem;
+  margin: 0 auto;
+  aspect-ratio: 1;
+}
+
+.ring svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.ring circle {
+  fill: none;
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+
+.ring .track {
+  stroke: var(--rail-hi);
+}
+
+.ring .fill {
+  stroke: var(--ink-soft);
+  stroke-opacity: 0.35;
+  transition: stroke-dasharray 700ms var(--ease-out);
+}
+
+.ring[data-tone="heat"] .fill {
+  stroke: url(#ring-heat);
+  stroke-opacity: 1;
+}
+
+/* The target: a paper knob ringed in ink, distinct from the copper arc. */
+.ring .knob {
+  fill: var(--paper);
+  stroke: var(--ink);
+  stroke-width: 2.5;
+  transition:
+    cx 700ms var(--ease-out),
+    cy 700ms var(--ease-out);
+}
+
+.ring-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+}
+
+.reading {
+  margin: 0;
+  font-size: 3.5rem;
+  font-weight: 200;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.ring[data-tone="off"] .reading {
+  color: var(--ink-soft);
+}
+
+.reading .unit {
+  margin-left: 0.125rem;
+  font-size: 0.32em;
+  font-weight: 300;
+  letter-spacing: 0;
+  vertical-align: top;
+  color: var(--ink-soft);
+}
+
+.set {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  margin: 0.375rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The knob, in miniature: the key to which mark is the target. */
+.knob-mark {
+  width: 0.5625rem;
+  height: 0.5625rem;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  background: var(--paper);
+}
+
+/* With the unit switch in the gap, the numbers ride a little higher. */
+.ring:has(.unit-switch) .ring-center {
+  padding-bottom: 1rem;
+}
+
+/* °C | °F in the ring's open bottom: a well track, a paper thumb. */
+.unit-switch {
+  position: absolute;
+  left: 50%;
+  top: 84%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 6rem;
+  height: 2rem;
+  padding: 0.125rem;
+  border-radius: 999px;
+  background: var(--well);
+  box-shadow: inset 0 0 0 1px var(--rail-hi);
+  transform: translate(-50%, -50%);
+}
+
+.unit-thumb {
+  position: absolute;
+  top: 0.125rem;
+  bottom: 0.125rem;
+  left: 0.125rem;
+  width: calc(50% - 0.125rem);
+  border-radius: 999px;
+  background: var(--unit-thumb);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.14),
+    0 0 0 0.5px rgb(0 0 0 / 0.05);
+  transition: transform 180ms var(--ease-out);
+}
+
+.unit-switch[data-unit="f"] .unit-thumb {
+  transform: translateX(100%);
+}
+
+.unit-switch button {
+  position: relative;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+/* A 44 px tall target around the 28 px segment. */
+.unit-switch button::before {
+  content: "";
+  position: absolute;
+  inset: -0.5rem 0;
+}
+
+.unit-switch button:hover:not(:disabled),
+.unit-switch button[aria-checked="true"] {
+  color: var(--ink);
+}
+
+.unit-switch button:not(:disabled):active {
+  transform: none;
+}
+
+.unit-switch[aria-disabled] {
+  opacity: 0.45;
+}
+
+.unit-switch button:disabled {
+  opacity: 1;
+}
+
+/* Sits in the ring's open bottom. */
+.caption {
+  position: absolute;
+  left: 50%;
+  bottom: 0.25rem;
+  margin: 0;
+  transform: translateX(-50%);
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Controls --------------------------------------------------------- */
+
+.controls,
+.start {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+  min-width: 0;
+  height: 3.5rem;
+  padding: 0.375rem;
+  border-radius: 1.1rem;
+  background: var(--well);
+}
+
+.stepper[data-disabled] {
+  opacity: 0.6;
+}
+
+.stepper-value {
+  display: grid;
+  justify-items: center;
+  min-width: 0;
+  flex: 1;
+}
+
+.stepper-caption {
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  color: var(--ink-soft);
+}
+
+.value {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  min-width: 0;
+  font-size: 1.375rem;
+  font-weight: 300;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.value-unit {
+  margin-left: 0.1em;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--ink-soft);
+}
+
+/* °C / °F set high, at cap height, like the ring's unit. */
+.value-unit.sup {
+  align-self: flex-start;
+  padding-top: 0.15rem;
+  line-height: 1;
+}
+
+/* Typeable values sit flush in the well, no box of their own. */
+.value input {
+  /* Sized to its text (set inline), so the unit sits right after it. */
+  width: 4.6ch;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  /* 16 px+ stops mobile browsers zooming into the field on focus. */
+  font-size: max(16px, 1em);
+  letter-spacing: inherit;
+  /* Flush right, against the unit. */
+  text-align: right;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.value input::-webkit-inner-spin-button,
+.value input::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.value input::placeholder {
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  letter-spacing: 0;
+  opacity: 1;
+}
+
+.value input:placeholder-shown {
+  width: 7ch !important;
+  text-align: center;
+}
+
+.value input[aria-invalid] {
+  color: var(--danger);
+}
+
+/* − and +: paper keys in the well. */
+.key {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 1px solid var(--rail-hi);
+  border-radius: 0.9rem;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.key svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.key:hover:not(:disabled) {
+  border-color: var(--rail);
+}
+
+/* Auto-stop: label left, switch right. */
+.check {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  padding: 0 0.25rem;
+  cursor: pointer;
+}
+
+.check:has(input:disabled) {
+  cursor: not-allowed;
+}
+
+.check-text {
+  display: grid;
+  line-height: 1.3;
+}
+
+.check-title {
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+/* The app's round switch on a native checkbox (role="switch"). */
+input.switch {
+  appearance: none;
+  position: relative;
+  flex-shrink: 0;
+  width: 3.125rem;
+  height: 1.875rem;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--rail);
+  cursor: inherit;
+  transition: background-color 150ms ease-out;
+}
+
+input.switch::after {
+  content: "";
+  position: absolute;
+  top: 0.1875rem;
+  left: 0.1875rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: var(--thumb);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  transition: transform 150ms var(--ease-out);
+}
+
+input.switch:checked {
+  background: linear-gradient(135deg, var(--heat-hi), var(--heat));
+}
+
+input.switch:checked::after {
+  transform: translateX(1.25rem);
+}
+
+input.switch:disabled {
+  opacity: 0.45;
+}
+
+/* --- Keys ------------------------------------------------------------- */
+
+button {
+  font: inherit;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+  transition:
+    transform 120ms ease-out,
+    background-color 120ms ease-out,
+    border-color 120ms ease-out,
+    color 120ms ease-out,
+    filter 120ms ease-out;
+}
+
+button:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0 1.25rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.big-pill {
+  width: 100%;
+  min-height: 3rem;
+  margin-top: 0.25rem;
+  font-size: 1rem;
+}
+
+.pill.ink {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.pill.ink:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ink) 88%, transparent);
+}
+
+/* Stop: the copper key, only ever shown while heating. */
+.pill.heat {
+  background: linear-gradient(135deg, var(--heat-hi), var(--heat));
+  color: var(--heat-ink);
+}
+
+.pill.heat:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.pill.outline {
+  border-color: var(--rail);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.pill.outline:hover:not(:disabled) {
+  background: var(--well);
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+/* --- Notes ------------------------------------------------------------ */
+
+.well-note {
+  padding: 0.75rem 1rem;
+  border-radius: 1.1rem;
+  background: var(--well);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.well-note p {
+  margin: 0;
+}
+
+.well-note strong {
+  font-weight: 500;
+}
+
+.well-note.split {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.alert {
+  margin: 0;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  border-radius: 0.9rem;
+  color: var(--danger);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+/* --- Picking a cooker ------------------------------------------------- */
+
+.choices {
+  list-style: none;
+  display: grid;
+  gap: 0.375rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+}
+
+.choices button {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 0.9rem;
+  background: var(--well);
+  color: var(--ink);
+  text-align: left;
+}
+
+.choices button:hover {
+  background: var(--rail-hi);
+}
+
+.choice-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+/* Every control: a 2 px copper ring, 2 px clear of it. */
+:focus-visible {
+  outline: 2px solid var(--heat);
+  outline-offset: 2px;
+}
+
+.value input:focus-visible {
+  outline-offset: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  button:not(:disabled):active {
+    transform: none;
+  }
+}

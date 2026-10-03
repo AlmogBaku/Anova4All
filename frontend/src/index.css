@@ -1,3 +1,201 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@import "tw-animate-css";
+
+@import "@fontsource-variable/geist/wght.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Copper Ring. Warm porcelain ground, soft white cards with hairlines, feather-
+ * light Geist numerals. Copper (--heat) is reserved for "heating now" and the
+ * primary action's state.
+ */
+:root {
+  --radius: 0.875rem;
+  --steel: #f6f2ee; /* the page ground */
+  --steel-deep: #efe9e3;
+  --rail: #ddd3ca;
+  --rail-hi: #ece4dc; /* hairlines */
+  --paper: #fffdfb; /* cards */
+  --well: #f4eee8; /* insets: steppers, segments */
+  --ink: #1d1814;
+  --ink-soft: #776b61;
+  --heat: #c25429;
+  --heat-hi: #e8834a;
+  --heat-ink: #fffdfb;
+  --glow: rgb(214 108 58 / 0.2);
+  --ticket-shadow:
+    0 0 0 1px var(--rail-hi), 0 1px 0 rgb(255 255 255 / 0.7) inset,
+    0 1px 2px rgb(60 30 10 / 0.05), 0 24px 48px -32px rgb(60 30 10 / 0.3);
+
+  --background: var(--steel);
+  --foreground: var(--ink);
+  --card: var(--paper);
+  --card-foreground: var(--ink);
+  --popover: var(--paper);
+  --popover-foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: var(--paper);
+  --secondary: var(--well);
+  --secondary-foreground: var(--ink);
+  --muted: var(--well);
+  --muted-foreground: var(--ink-soft);
+  --accent: var(--well);
+  --accent-foreground: var(--ink);
+  --destructive: #b3261e;
+  --border: var(--rail-hi);
+  --input: var(--rail);
+  --ring: var(--heat);
+}
+
+.dark {
+  --steel: #110e0c;
+  --steel-deep: #0c0a08;
+  --rail: #3a322b;
+  --rail-hi: #2a241f;
+  --paper: #1a1613;
+  --well: #231e1a;
+  --ink: #f4ede6;
+  --ink-soft: #a89b90;
+  --heat: #e57f4c;
+  --heat-hi: #f2a26c;
+  --heat-ink: #1a1613;
+  --glow: rgb(240 140 80 / 0.14);
+  --ticket-shadow:
+    0 0 0 1px var(--rail-hi), 0 1px 0 rgb(255 255 255 / 0.03) inset,
+    0 24px 48px -28px rgb(0 0 0 / 0.7);
+
+  --destructive: #f2867b;
+}
+
+@theme inline {
+  --font-sans:
+    "Geist Variable", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji";
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-steel: var(--steel);
+  --color-rail: var(--rail);
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-heat: var(--heat);
+  --color-heat-ink: var(--heat-ink);
+  --color-heat-hi: var(--heat-hi);
+  --color-well: var(--well);
+  --color-hairline: var(--rail-hi);
+  --shadow-ticket: var(--ticket-shadow);
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) * 2);
+  --radius-xl: calc(var(--radius) * 2);
+}
+
+/* Small labels: quiet small caps. */
+@utility caps {
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* A hairline between card sections. */
+@utility perforation {
+  border-top: 1px solid var(--rail-hi);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    color-scheme: light;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+    font-feature-settings: "ss01";
+  }
+
+  /* Native feel: controls don't select text or zoom on double-tap, and press down. */
+  button,
+  a,
+  [role="switch"],
+  [role="radio"],
+  label {
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
+  }
+  button:not(:disabled):active,
+  [role="radio"]:active {
+    transform: scale(0.97);
+  }
+  button {
+    transition-property:
+      transform, background-color, color, border-color, box-shadow, opacity;
+    transition-duration: 120ms;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    background-image: radial-gradient(
+      60rem 30rem at 20% -8rem,
+      var(--glow),
+      transparent 70%
+    );
+    background-attachment: fixed;
+    font-feature-settings: "tnum" 0;
+    caret-color: var(--ink);
+    scrollbar-color: var(--rail) var(--steel);
+  }
+
+  ::selection {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--heat);
+    outline-offset: 2px;
+  }
+
+  a {
+    text-underline-offset: 0.2em;
+    text-decoration-thickness: 1.5px;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

@@ -15,4 +15,28 @@ research/*.txt
 .DS_Store
 dist/
 
-./anova4all
+
+# secrets — never commit
+.env
+.env.*
+*.env
+!.env.example
+
+# captures and local artifacts
+research/
+/out33.csv
+/output.csv
+/anova4all
+*.tsbuildinfo
+
+# built MCP card (placeholder.html is committed)
+internal/mcp/ui/app.html
+
+# impeccable question logs
+.impeccable/questions/*.log
+
+# local deploy files, targets and notes, and the Supabase CA for docker compose
+/local.mk
+/AGENTS.local.md
+/certs/
+/deploy/

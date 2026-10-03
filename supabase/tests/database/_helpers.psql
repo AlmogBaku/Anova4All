@@ -1,0 +1,116 @@
+-- Shared pgTAP helpers. Included (\ir) from every test file inside its
+-- transaction, so everything here is rolled back with the test.
+create extension if not exists pgtap with schema extensions;
+
+create schema if not exists tests;
+grant usage on schema tests to anon, authenticated, anova_server;
+
+-- Creates a synthetic confirmed user and returns its id.
+create or replace function tests.create_user(p_email text)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := gen_random_uuid();
+begin
+  insert into auth.users (instance_id, id, aud, role, email, encrypted_password,
+                          email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+                          created_at, updated_at, is_anonymous)
+  values ('00000000-0000-0000-0000-000000000000', v_id, 'authenticated', 'authenticated',
+          p_email, '', now(), '{"provider":"email","providers":["email"]}', '{}',
+          now(), now(), false);
+  return v_id;
+end;
+$$;
+
+create or replace function tests.user_id(p_email text)
+returns uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$ select id from auth.users where email = p_email $$;
+
+-- Switch to role authenticated with the given claims (local to the transaction).
+create or replace function tests.set_claims(p_email text, p_extra jsonb default '{}')
+returns void
+language plpgsql
+set search_path = ''
+as $$
+begin
+  perform set_config('role', 'authenticated', true);
+  perform set_config('request.jwt.claims', (
+    jsonb_build_object(
+      'sub', tests.user_id(p_email)::text,
+      'email', p_email,
+      'role', 'authenticated',
+      'aud', 'authenticated',
+      'is_anonymous', false,
+      'aal', 'aal1',
+      'session_id', gen_random_uuid()::text
+    ) || p_extra)::text, true);
+end;
+$$;
+
+-- A first-party browser session.
+create or replace function tests.authenticate_as(p_email text)
+returns void language sql set search_path = ''
+as $$ select tests.set_claims(p_email) $$;
+
+-- An OAuth 2.1 app (MCP) token after the access-token hook.
+create or replace function tests.authenticate_as_app(p_email text)
+returns void language sql set search_path = ''
+as $$ select tests.set_claims(p_email, '{"aud":"anova4all-mcp","client_id":"9a8b7c6d-0000-4000-8000-000000000001"}') $$;
+
+-- client_id present but aud left as authenticated (hook bypassed/misconfigured).
+create or replace function tests.authenticate_as_app_unhooked(p_email text)
+returns void language sql set search_path = ''
+as $$ select tests.set_claims(p_email, '{"client_id":"9a8b7c6d-0000-4000-8000-000000000001"}') $$;
+
+-- An anonymous sign-in session.
+create or replace function tests.authenticate_as_anonymous(p_email text)
+returns void language sql set search_path = ''
+as $$ select tests.set_claims(p_email, '{"is_anonymous":true}') $$;
+
+create or replace function tests.authenticate_as_anon()
+returns void
+language plpgsql
+set search_path = ''
+as $$
+begin
+  perform set_config('role', 'anon', true);
+  perform set_config('request.jwt.claims', '{"role":"anon"}', true);
+end;
+$$;
+
+create or replace function tests.clear_authentication()
+returns void
+language plpgsql
+set search_path = ''
+as $$
+begin
+  perform set_config('role', 'postgres', true);
+  perform set_config('request.jwt.claims', '', true);
+end;
+$$;
+
+grant execute on all functions in schema tests to anon, authenticated, anova_server;
+
+-- Synthetic fixture: alice owns the cooker, bob is a member, eve is unrelated.
+select tests.create_user('alice@example.test');
+select tests.create_user('bob@example.test');
+select tests.create_user('eve@example.test');
+
+insert into public.devices (id, id_card, key_hash, owner_id)
+values ('d0000000-0000-4000-8000-000000000001',
+        'anova f00000000000000000000000',
+        extensions.crypt('testkey000', extensions.gen_salt('bf')),
+        tests.user_id('alice@example.test'));
+
+insert into public.device_members (device_id, user_id)
+values ('d0000000-0000-4000-8000-000000000001', tests.user_id('bob@example.test'));
+
+insert into public.cooks (device_id, started_by, auto_stop)
+values ('d0000000-0000-4000-8000-000000000001', tests.user_id('bob@example.test'), true);

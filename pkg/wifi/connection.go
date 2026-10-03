@@ -7,213 +7,385 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"go.uber.org/zap"
 	"io"
 	"net"
 	"strings"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 )
 
-type EventCallback func(ctx context.Context, event AnovaEvent) error
+// Errors returned by device commands. Callers should test with errors.Is.
+var (
+	// ErrOffline means the link to the cooker is closed (or closed while the command was pending).
+	ErrOffline = errors.New("wifi: device offline")
+	// ErrTimeout means the cooker sent no reply to the command in time.
+	ErrTimeout = errors.New("wifi: command timed out")
+	// ErrUnexpectedReply means the cooker replied, but never with a reply that fits the command.
+	ErrUnexpectedReply = errors.New("wifi: unexpected reply")
+	// ErrRejected means the cooker answered "invalid command".
+	ErrRejected = errors.New("wifi: command rejected by device")
+	// ErrUnsupported means the command cannot be sent over Wi-Fi.
+	ErrUnsupported = errors.New("wifi: command not supported over wifi")
+	// ErrFrameTooLarge means the cooker sent more than maxFrame bytes without a valid frame.
+	ErrFrameTooLarge = errors.New("wifi: frame too large")
+)
 
-type AnovaConnection interface {
-	SendCommand(ctx context.Context, message string) (string, error)
-	SetEventCallback(callback EventCallback)
-	Close() error
-	Context() context.Context
-	Name(deviceID string)
+const (
+	// maxFrame caps the bytes accepted without a valid frame (a valid frame is at most 259 bytes).
+	maxFrame  = 1024
+	frameEnd  = 0x16
+	frameHead = 'h'
+
+	replyBuffer = 8
+	eventBuffer = 32
+	userQueue   = 16
+	pollQueue   = 8
+)
+
+// timings holds every timeout of the link. Tests shorten them via export_test.go.
+type timings struct {
+	command   time.Duration // per command reply timeout
+	drain     time.Duration // discard window after a timeout (late replies)
+	write     time.Duration // per write deadline
+	liveness  time.Duration // no frame for this long closes the link
+	poll      time.Duration // poll pass interval
+	handshake time.Duration // overall handshake deadline
+	maxMisses int           // consecutive no-reply timeouts that close the link
+	keepAlive time.Duration // TCP keepalive period
 }
-type connection struct {
-	conn          net.Conn
-	reader        *bufio.Reader
-	writer        *bufio.Writer
-	eventCallback EventCallback
-	responseQueue chan *AnovaMessage
-	cmdLock       sync.Mutex
-	listenCtx     context.Context
-	listenCancel  context.CancelFunc
-	logger        *zap.SugaredLogger
+
+func defaultTimings() timings {
+	return timings{
+		command:   3 * time.Second,
+		drain:     time.Second,
+		write:     3 * time.Second,
+		liveness:  6 * time.Second,
+		poll:      2 * time.Second,
+		handshake: 10 * time.Second,
+		maxMisses: 3,
+		keepAlive: 30 * time.Second,
+	}
 }
 
-func NewAnovaConnection(ctx context.Context, conn net.Conn, logger *zap.Logger) AnovaConnection {
-	if logger == nil {
-		logger = zap.NewNop()
-	}
-	logger = logger.Named("wifi_connection")
+type priority int
 
-	ctx, cancel := context.WithCancel(ctx)
-	c := &connection{
-		conn:         conn,
-		reader:       bufio.NewReader(conn),
-		writer:       bufio.NewWriter(conn),
-		listenCtx:    ctx,
-		listenCancel: cancel,
-		logger:       logger.Sugar(),
+const (
+	prioUser priority = iota
+	prioPoll
+)
+
+type result struct {
+	val any
+	err error
+}
+
+type request struct {
+	line   string
+	decode func(string) (any, error)
+	done   chan result // buffered(1): the writer never blocks on it
+	ctx    context.Context
+}
+
+func (r *request) reply(v any, err error) { r.done <- result{v, err} }
+
+// conn is one TCP link to a cooker.
+//
+// Goroutines: readLoop (owns reads, routes frames, closes on any read error or
+// liveness timeout) and writeLoop (owns writes, runs one command at a time,
+// user queue ahead of poll queue). Nothing but close() closes channels, and it
+// only closes done (guarded by sync.Once), so there are no close/send races.
+type conn struct {
+	nc  net.Conn
+	t   timings
+	log *zap.Logger
+
+	user    chan *request
+	poll    chan *request
+	replies chan string
+	events  chan AnovaEvent
+
+	done      chan struct{}
+	closeOnce sync.Once
+	errMu     sync.Mutex
+	err       error
+
+	misses int // writeLoop only
+}
+
+func newConn(nc net.Conn, t timings, log *zap.Logger) *conn {
+	c := &conn{
+		nc:      nc,
+		t:       t,
+		log:     log,
+		user:    make(chan *request, userQueue),
+		poll:    make(chan *request, pollQueue),
+		replies: make(chan string, replyBuffer),
+		events:  make(chan AnovaEvent, eventBuffer),
+		done:    make(chan struct{}),
 	}
-	go func() {
-		c.listen()
-	}()
-	go func() {
-		select {
-		case <-ctx.Done():
-			if c.responseQueue != nil {
-				close(c.responseQueue)
-			}
-			if err := c.conn.Close(); err != nil {
-				c.logger.With("error", err).Error("Error closing connection")
-			}
-		}
-	}()
+	go c.readLoop()
+	go c.writeLoop()
 	return c
 }
 
-func (ac *connection) Context() context.Context {
-	return ac.listenCtx
+// close tears the link down once. Safe from any goroutine.
+func (c *conn) close(err error) {
+	c.closeOnce.Do(func() {
+		c.errMu.Lock()
+		c.err = err
+		c.errMu.Unlock()
+		close(c.done)
+		_ = c.nc.Close()
+		c.log.Debug("link closed", zap.Error(err))
+	})
 }
 
-func (ac *connection) Name(deviceID string) {
-	if ac.logger != nil {
-		ac.logger = ac.logger.With("device", deviceID)
-	}
-}
-
-func (ac *connection) SendCommand(ctx context.Context, message string) (string, error) {
+func (c *conn) closed() bool {
 	select {
-	case <-ac.listenCtx.Done():
-		return "", errors.New("connection closed")
+	case <-c.done:
+		return true
 	default:
-	}
-
-	ac.cmdLock.Lock()
-	ac.responseQueue = make(chan *AnovaMessage, 1)
-	defer func() {
-		defer ac.cmdLock.Unlock()
-		ac.responseQueue = nil
-	}()
-
-	anovaMsg := AnovaMessage(message)
-	encoded, err := (&anovaMsg).MarshalBinary()
-	if err != nil {
-		return "", fmt.Errorf("encoding error: %w", err)
-	}
-
-	_, err = ac.writer.Write(encoded)
-	if err != nil {
-		return "", fmt.Errorf("write error: %w", err)
-	}
-
-	_, err = ac.writer.Write([]byte{0x16})
-	if err != nil {
-		return "", fmt.Errorf("write error: %w", err)
-	}
-
-	err = ac.writer.Flush()
-	if err != nil {
-		if !(errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed)) {
-			ac.logger.Debug("Connection closed by remote host")
-			ac.listenCancel()
-		}
-		return "", fmt.Errorf("flush error: %w", err)
-	}
-
-	ac.logger.Debugf("--> Sent message: %s", message)
-
-	select {
-	case resp := <-ac.responseQueue:
-		if resp == nil {
-			return "", errors.New("error receiving response")
-		}
-		ac.logger.Debugf("<-- Received response: %s", *resp)
-		return string(*resp), nil
-	case <-ctx.Done():
-		return "", ctx.Err()
-	case <-time.After(10 * time.Second):
-		return "", errors.New("timeout waiting for response")
+		return false
 	}
 }
 
-func (ac *connection) listen() {
+// cause returns why the link closed (nil while open).
+func (c *conn) cause() error {
+	c.errMu.Lock()
+	defer c.errMu.Unlock()
+	return c.err
+}
+
+// do queues one command and waits for its validated reply.
+func (c *conn) do(ctx context.Context, prio priority, line string, decode func(string) (any, error)) (any, error) {
+	if c.closed() {
+		return nil, ErrOffline
+	}
+	req := &request{line: line, decode: decode, done: make(chan result, 1), ctx: ctx}
+	q := c.user
+	if prio == prioPoll {
+		q = c.poll
+	}
+	select {
+	case q <- req:
+	case <-c.done:
+		return nil, ErrOffline
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	select {
+	case r := <-req.done:
+		return r.val, r.err
+	case <-c.done:
+		select { // prefer a result that raced with the close
+		case r := <-req.done:
+			return r.val, r.err
+		default:
+			return nil, ErrOffline
+		}
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (c *conn) writeLoop() {
+	for {
+		var req *request
+		select {
+		case <-c.done:
+			return
+		case req = <-c.user:
+		default:
+			select {
+			case <-c.done:
+				return
+			case req = <-c.user:
+			case req = <-c.poll:
+			}
+		}
+		if err := req.ctx.Err(); err != nil {
+			req.reply(nil, err)
+			continue
+		}
+		c.exec(req)
+	}
+}
+
+// exec writes one command and waits for a reply that its decoder accepts.
+// Replies the decoder rejects are stale (e.g. a late answer to an earlier
+// command) and are discarded. After a timeout, replies arriving within the
+// drain window are discarded too, so a late reply never reaches the next command.
+func (c *conn) exec(req *request) {
+	c.discard()
+
+	msg := AnovaMessage(req.line)
+	frame, err := msg.MarshalBinary()
+	if err != nil {
+		req.reply(nil, fmt.Errorf("encode %q: %w", req.line, err))
+		return
+	}
+	frame = append(frame, frameEnd)
+	if err := c.nc.SetWriteDeadline(time.Now().Add(c.t.write)); err != nil {
+		c.close(fmt.Errorf("set write deadline: %w", err))
+		req.reply(nil, ErrOffline)
+		return
+	}
+	if _, err := c.nc.Write(frame); err != nil {
+		c.close(fmt.Errorf("write: %w", err))
+		req.reply(nil, ErrOffline)
+		return
+	}
+
+	timer := time.NewTimer(c.t.command)
+	defer timer.Stop()
+	sawStale := false
 	for {
 		select {
-		case <-ac.listenCtx.Done():
-			ac.logger.Debug("Listening task cancelled")
+		case <-c.done:
+			req.reply(nil, ErrOffline)
 			return
-		default:
-			msg, err := ac.receive()
-			if err != nil {
-				ac.logger.With("error", err).Error("Error in listening task")
-				if ac.responseQueue != nil {
-					ac.responseQueue <- nil
-				}
+		case line := <-c.replies:
+			if strings.Contains(strings.ToLower(line), "invalid command") {
+				c.misses = 0
+				req.reply(nil, fmt.Errorf("%w: %q", ErrRejected, req.line))
 				return
 			}
-
-			if msg == nil {
+			v, err := req.decode(line)
+			if err != nil {
+				sawStale = true
+				c.log.Debug("discarding reply that does not fit the command", zap.String("command", req.line))
 				continue
 			}
-
-			if IsEvent(msg) {
-				event, err := ParseEvent(msg)
-				if err != nil {
-					ac.logger.With("error", err).Error("Error parsing event")
-					continue
-				}
-
-				if ac.eventCallback != nil {
-					if err := ac.eventCallback(ac.listenCtx, event); err != nil {
-						ac.logger.With("error", err).Error("Error in event callback")
-					}
-				} else {
-					ac.logger.With("event", event).Debug("Received event message but no event callback set")
-				}
-			} else if ac.responseQueue != nil {
-				ac.responseQueue <- msg
+			c.misses = 0
+			req.reply(v, nil)
+			return
+		case <-timer.C:
+			if sawStale {
+				req.reply(nil, fmt.Errorf("%w to %q", ErrUnexpectedReply, req.line))
 			} else {
-				ac.logger.Debugf("Received unexpected message while locked, discarding: %s", *msg)
+				c.misses++
+				req.reply(nil, fmt.Errorf("%w: %q", ErrTimeout, req.line))
+				if c.t.maxMisses > 0 && c.misses >= c.t.maxMisses {
+					c.close(fmt.Errorf("%d consecutive commands without reply", c.misses))
+					return
+				}
 			}
+			c.drainFor(c.t.drain)
+			return
 		}
 	}
 }
 
-func (ac *connection) receive() (*AnovaMessage, error) {
-	buff := make([]byte, 1024)
-	n, err := ac.reader.Read(buff)
-	if err != nil {
-		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
-			ac.logger.Debug("Connection closed by remote host")
-			ac.listenCancel()
-		} else {
-			ac.logger.With("error", err).Error("Error reading from connection")
+// discard drops replies already buffered (nothing is in flight, so they are stale).
+func (c *conn) discard() {
+	for {
+		select {
+		case <-c.replies:
+		default:
+			return
 		}
-		return nil, err
 	}
-	buff = buff[:n]
-
-	// Remove the SYN character if it's present at the end
-	if len(buff) > 0 && buff[len(buff)-1] == 0x16 {
-		buff = buff[:len(buff)-1]
-	}
-
-	var msg AnovaMessage
-	if err := (&msg).UnmarshalBinary(buff); err != nil {
-		return nil, fmt.Errorf("failed to decode %s : %w", buff, err)
-	}
-
-	if strings.Contains(strings.ToLower(string(msg)), "invalid command") {
-		ac.logger.Debugf("Received invalid command, skipping: %s", msg)
-		return nil, nil
-	}
-
-	return &msg, nil
 }
 
-func (ac *connection) SetEventCallback(callback EventCallback) {
-	ac.eventCallback = callback
+func (c *conn) drainFor(d time.Duration) {
+	if d <= 0 {
+		return
+	}
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	for {
+		select {
+		case <-c.replies:
+		case <-timer.C:
+			return
+		case <-c.done:
+			return
+		}
+	}
 }
 
-func (ac *connection) Close() error {
-	ac.listenCancel()
-	<-ac.listenCtx.Done()
-	return nil
+// readLoop parses length-prefixed frames ('h', len, payload, checksum, optional 0x16).
+// It parses by the length byte rather than splitting on 0x16, because 0x16 can
+// appear inside a frame (as the length, an encoded byte or the checksum).
+// Bytes between frames are skipped; more than maxFrame of them closes the link.
+func (c *conn) readLoop() {
+	r := bufio.NewReaderSize(c.nc, maxFrame)
+	junk := 0
+	for {
+		if err := c.nc.SetReadDeadline(time.Now().Add(c.t.liveness)); err != nil {
+			c.close(fmt.Errorf("set read deadline: %w", err))
+			return
+		}
+		b, err := r.ReadByte()
+		if err != nil {
+			c.close(readErr(err))
+			return
+		}
+		if b != frameHead {
+			junk++
+			if junk > maxFrame {
+				c.close(ErrFrameTooLarge)
+				return
+			}
+			continue
+		}
+		n, err := r.ReadByte()
+		if err != nil {
+			c.close(readErr(err))
+			return
+		}
+		// 'h' + len + payload(n) + checksum, plus a trailing 0x16 so that
+		// UnmarshalBinary strips ours and never a checksum that equals 0x16.
+		buf := make([]byte, int(n)+4)
+		buf[0], buf[1] = frameHead, n
+		if _, err := io.ReadFull(r, buf[2:len(buf)-1]); err != nil {
+			c.close(readErr(err))
+			return
+		}
+		buf[len(buf)-1] = frameEnd
+		var msg AnovaMessage
+		if err := msg.UnmarshalBinary(buf); err != nil {
+			junk += len(buf) - 1
+			c.log.Debug("discarding undecodable frame", zap.Error(err))
+			if junk > maxFrame {
+				c.close(ErrFrameTooLarge)
+				return
+			}
+			continue
+		}
+		junk = 0
+		c.route(msg)
+	}
+}
+
+func readErr(err error) error {
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		return fmt.Errorf("no frame received in time: %w", err)
+	}
+	return fmt.Errorf("read: %w", err)
+}
+
+// route hands a frame to the event channel or the reply channel. It never blocks.
+func (c *conn) route(msg AnovaMessage) {
+	if IsEvent(&msg) {
+		ev, err := ParseEvent(&msg)
+		if err != nil {
+			c.log.Debug("ignoring unknown event", zap.Error(err))
+			return
+		}
+		select {
+		case c.events <- ev:
+		default:
+			c.log.Warn("event buffer full, dropping event", zap.String("type", string(ev.Type)))
+		}
+		return
+	}
+	select {
+	case c.replies <- string(msg):
+	default:
+		c.log.Debug("reply buffer full, dropping reply")
+	}
 }

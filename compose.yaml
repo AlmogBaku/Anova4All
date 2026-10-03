@@ -1,0 +1,22 @@
+# Runs the Anova4All server with its web UI. Supabase is external: a hosted
+# project, or `supabase start` for local development.
+# Copy .env.example to .env and fill it in, then `docker compose up -d`.
+services:
+  anova4all:
+    build:
+      context: .
+      args:
+        VITE_SUPABASE_URL: ${SUPABASE_URL:?set SUPABASE_URL in .env}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:?set SUPABASE_PUBLISHABLE_KEY in .env}
+    restart: unless-stopped
+    ports:
+      - "8000:8000" # HTTP: the UI, the API and /mcp. Put HTTPS in front of it.
+      - "8080:8080" # the cooker's TCP link
+    volumes:
+      - ./certs:/certs:ro # the Supabase CA that DATABASE_URL's sslrootcert points to
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+      SUPABASE_URL: ${SUPABASE_URL}
+      PUBLIC_HOST: ${PUBLIC_HOST:-}
+      MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}

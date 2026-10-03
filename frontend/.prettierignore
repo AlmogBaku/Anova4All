@@ -1,0 +1,6 @@
+dist
+node_modules
+bun.lockb
+*.tsbuildinfo
+.idea
+src/lib/client/ble
