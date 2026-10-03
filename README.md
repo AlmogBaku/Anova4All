@@ -4,40 +4,61 @@
 
 # Anova for All
 
-**Keep your Anova Precision Cooker Wi-Fi working after Anova shut down its cloud.**
+**Anova killed the cloud for its Wi-Fi sous vide. This brings it back, and lets Claude or ChatGPT cook with it.**
 
-[![Open the app](https://img.shields.io/badge/Open_the_app-anova.baku.co.il-c2552d?style=flat-square)](https://anova.baku.co.il)
+<a href="https://anova.baku.co.il"><img src="https://img.shields.io/badge/Use_the_hosted_app-anova.baku.co.il_%E2%86%92-c2552d?style=for-the-badge" alt="Use the hosted app at anova.baku.co.il" height="40"></a>
+
+No app to install. MCP endpoint: `https://anova.baku.co.il/mcp`
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE.md)
 ![Go](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat-square&logo=go&logoColor=white)
 ![MCP](https://img.shields.io/badge/MCP-Claude_%7C_ChatGPT-black?style=flat-square)
 
-[Get started](#get-started) · [Cook with AI](#cook-with-an-ai-assistant) · [How it works](#how-it-works) · [Self-host](#self-hosting) · [Develop](#development)
+[Cook with AI](#cook-with-an-ai-assistant) · [Get started](#get-started) · [How it works](#how-it-works) · [Self-host](#self-hosting) · [Develop](#development)
 
 <img src=".github/screenshot.jpg" width="300" alt="The Anova4All cook screen on a phone, heating to 57 °C with a 1.5-hour timer and auto-stop on">
 
 </div>
 
-Anova turned off the cloud service behind the Precision Cooker Wi-Fi (the first generation). The cooker still heats
-water perfectly well, but the official app can no longer reach it.
+> [!IMPORTANT]
+> **Why this exists:** Anova shut down the cloud service behind the Precision Cooker Wi-Fi (the first generation). The
+> cooker still heats water perfectly well, but the official app can no longer reach it, so a working cooker became
+> a brick on the counter.
 
-Anova4All replaces that cloud. A small Go server (a Raspberry Pi is enough) takes Anova's place: the cooker dials it
-over TCP, and you control the cooker from a web app on your phone or desktop, or from an AI assistant over MCP. You
-don't need to patch DNS or open the cooker.
+Anova4All replaces that cloud. The cooker connects to an Anova4All server instead of Anova's, and you control it from
+an AI assistant over MCP, or from a web app on your phone or desktop. You don't need to patch DNS or open the cooker.
 
+- **Cook by asking:** "start the cooker at 57 °C for 2 hours" in Claude or ChatGPT, with a live cooker card in hosts
+  that support MCP Apps.
 - **Cook from your phone:** live water temperature, a draggable target dial, °C and °F, and a timer that starts once
   the water reaches temperature.
 - **Auto-stop:** turns the heater off when the timer ends. It survives server restarts.
 - **Share the cooker:** invite people in your household by link. They can cook but can't manage the cooker.
-- **AI assistants:** Claude or ChatGPT can check, start, change and stop a cook, with a live cooker card in hosts that
-  support MCP Apps.
 - **Bluetooth setup in the browser:** no app to install. The setup writes a new key, the server address and your Wi-Fi
   straight to the cooker.
-- **Open:** MIT-licensed, with a REST API and Go packages for the cooker's protocol.
+- **Open:** MIT-licensed, with a REST API and Go packages for the cooker's protocol. Self-host it if you prefer.
+
+## Cook with an AI assistant
+
+Anova4All is an MCP server, so your assistant can check on the water, start a cook, change it and stop it.
+
+1. [Set up your cooker](#get-started) on the hosted app (once).
+2. Add `https://anova.baku.co.il/mcp` as a custom connector in Claude (web, desktop or mobile) or ChatGPT.
+3. Sign in with your Anova4All account when it asks, and approve the connection.
+
+You can see and remove connected apps under **Account**.
+
+| Tool | What it does |
+|---|---|
+| `anova_status` | the cooker's temperature, set point, timer and state |
+| `anova_start_cook` | starts a cook at a temperature, with an optional timer and auto-stop |
+| `anova_update_cook` | changes the temperature or timer of a running cook |
+| `anova_stop_cook` | stops the cook |
 
 ## Get started
 
-The quickest way is the hosted instance at **[anova.baku.co.il](https://anova.baku.co.il)**. You set the cooker up
-once over Bluetooth, from a phone or laptop standing next to it.
+Use the hosted instance at **[anova.baku.co.il](https://anova.baku.co.il)**. You set the cooker up once over
+Bluetooth, from a phone or laptop standing next to it.
 
 1. **Open the app in a browser with Web Bluetooth:**
    - **iPhone or iPad:** Safari has no Web Bluetooth, so install the free
@@ -47,7 +68,8 @@ once over Bluetooth, from a phone or laptop standing next to it.
 2. **Sign up** and confirm your email.
 3. **Choose _Set up a cooker_** and follow the steps. The cooker gets a new secret key and the server's address, and
    optionally your Wi-Fi network (2.4 GHz only). It then connects to the server and is paired to your account.
-4. **Cook.** From now on, any browser works, Safari included. Add the app to your home screen for one-tap access.
+4. **Cook** from your assistant, or from any browser, Safari included. Add the app to your home screen for one-tap
+   access.
 
 > [!TIP]
 > The cooker accepts only one Bluetooth connection at a time. If setup can't find it, close any other app that might
@@ -55,20 +77,6 @@ once over Bluetooth, from a phone or laptop standing next to it.
 
 > [!NOTE]
 > Anova4All is a community project. It is not affiliated with or endorsed by Anova.
-
-## Cook with an AI assistant
-
-Anova4All is also an MCP server, so you can say "start the cooker at 57 °C for 2 hours" to your assistant.
-
-Add `https://anova.baku.co.il/mcp` as a custom connector in Claude (web, desktop or mobile) or ChatGPT, then sign in
-with your Anova4All account when it asks. You can see and remove connected apps under **Account**.
-
-| Tool | What it does |
-|---|---|
-| `anova_status` | the cooker's temperature, set point, timer and state |
-| `anova_start_cook` | starts a cook at a temperature, with an optional timer and auto-stop |
-| `anova_update_cook` | changes the temperature or timer of a running cook |
-| `anova_stop_cook` | stops the cook |
 
 ## How it works
 
