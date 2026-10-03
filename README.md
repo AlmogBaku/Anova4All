@@ -1,6 +1,11 @@
 <div align="center">
 
-# <img src=".github/logo.svg" height="44" align="center" alt=""> Anova4All
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/wordmark-dark.svg">
+    <img src=".github/wordmark-light.svg" height="64" alt="Anova4All">
+  </picture>
+</h1>
 
 **Anova killed the cloud for its Wi-Fi sous vide. This brings it back, and lets Claude or ChatGPT cook with it.**
 
