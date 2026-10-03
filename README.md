@@ -8,8 +8,6 @@
 
 <a href="https://anova.baku.co.il"><img src="https://img.shields.io/badge/Use_the_hosted_app-anova.baku.co.il_%E2%86%92-c2552d?style=for-the-badge" alt="Use the hosted app at anova.baku.co.il" height="40"></a>
 
-No app to install. MCP endpoint: `https://anova.baku.co.il/mcp`
-
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE.md)
 ![Go](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat-square&logo=go&logoColor=white)
 ![MCP](https://img.shields.io/badge/MCP-Claude_%7C_ChatGPT-black?style=flat-square)
