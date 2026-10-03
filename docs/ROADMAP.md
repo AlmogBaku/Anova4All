@@ -42,8 +42,8 @@ reversed:
   - connected apps in settings;
   - the live cooker card for MCP-Apps hosts.
 - [x] **Deploy prep:**
-  - `Makefile` targets `ui`, `mcp-app`, `pi`, `deploy-pi` (with health-check rollback) and `test`;
-  - a hardened systemd unit.
+  - `Makefile` targets `ui`, `mcp-app`, `test` and `fake-cooker`; machine-specific `pi` and `deploy-pi` (with health-check rollback) live in the git-ignored `local.mk`;
+  - a hardened systemd unit (kept locally in the git-ignored `deploy/`).
 - [x] **Security review before deploy:** findings fixed or recorded in the ADR.
 
 - [x] **Live on 2026-10-01** at https://anova.baku.co.il:

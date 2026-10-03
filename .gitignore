@@ -34,3 +34,9 @@ internal/mcp/ui/app.html
 
 # impeccable question logs
 .impeccable/questions/*.log
+
+# local deploy files, targets and notes, and the Supabase CA for docker compose
+/local.mk
+/AGENTS.local.md
+/certs/
+/deploy/
